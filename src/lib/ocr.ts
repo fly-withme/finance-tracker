@@ -1,7 +1,8 @@
 import { createWorker } from 'tesseract.js';
-import type { Transaction } from './types';
+// Wir brauchen den Transaction-Typ hier nicht mehr direkt
+// import type { Transaction } from './types'; 
 
-export async function processImageWithOCR(file: File): Promise<{ needsReview: Transaction[] }> {
+export async function processImageWithOCR(file: File): Promise<{ needsReview: { name: string, amount: number }[] }> {
   console.log('Starting real OCR process...');
 
   const worker = await createWorker('deu');
@@ -15,28 +16,23 @@ export async function processImageWithOCR(file: File): Promise<{ needsReview: Tr
   return parseTransactionsFromText(text);
 }
 
-// NEUE, VERBESSERTE PARSER-LOGIK
-function parseTransactionsFromText(text: string): { needsReview: Transaction[] } {
+function parseTransactionsFromText(text: string): { needsReview: { name: string, amount: number }[] } {
   const lines = text.split('\n').filter(line => line.trim() !== '');
-  const transactions: Transaction[] = [];
+  const transactions: { name: string, amount: number }[] = [];
 
-  // Regex, die einen Geldbetrag irgendwo in der Zeile findet
   const amountRegex = /([+-]?\s?\d{1,3}(?:\.\d{3})*,\d{2})\s?€?/;
 
   lines.forEach(line => {
     const match = line.match(amountRegex);
 
     if (match && match[1]) {
-      // Wir haben einen Betrag gefunden
       const amountString = match[1].replace(/[€\s]/g, '').replace(/\./g, '').replace(',', '.');
       const amount = parseFloat(amountString);
-
-      // Alles in der Zeile vor dem Betrag ist die Beschreibung
       const name = line.substring(0, match.index).trim();
 
       if (!isNaN(amount) && name) {
+        // KORREKTUR: Wir erstellen ein einfaches Objekt nur mit den erkannten Daten.
         transactions.push({
-          id: `tx_${Math.random()}`,
           name: name,
           amount: amount,
         });
