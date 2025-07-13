@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   }
 
   // Get the headers
-  const headerPayload = headers();
+  const headerPayload = await headers(); // KORREKTUR: "await" wurde hinzugefügt
   const svix_id = headerPayload.get("svix-id");
   const svix_timestamp = headerPayload.get("svix-timestamp");
   const svix_signature = headerPayload.get("svix-signature");
@@ -54,13 +54,14 @@ export async function POST(req: Request) {
   const { id } = evt.data;
   const eventType = evt.type;
 
-  // WICHTIG: Wenn ein neuer Nutzer erstellt wurde...
   if (eventType === 'user.created') {
-    // ...erstelle einen passenden Nutzer in der Supabase auth.users Tabelle
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    const email_address = evt.data.email_addresses[0]?.email_address;
+    if (!email_address) {
+        return new Response('Error: email address not found for new user', { status: 400 });
+    }
+    const { error } = await supabaseAdmin.auth.admin.createUser({
         id: id,
-        email: evt.data.email_addresses[0].email_address,
-        // Weitere Daten, falls nötig
+        email: email_address,
     });
     if(error){
         console.error("Error creating Supabase user:", error);
