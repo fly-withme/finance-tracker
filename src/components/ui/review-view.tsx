@@ -3,20 +3,18 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, SkipForward, ChevronDown, Search } from 'lucide-react';
-import type { Transaction } from '@/lib/types';
+import type { Transaction, ParsedTransaction } from '@/lib/types';
 
-// Die ReviewCard erhält jetzt eine ausgeklügelte Kategorie-Auswahl
 function ReviewCard({ transaction, categories, onConfirm, onSkip }: { 
-  transaction: Transaction, 
+  transaction: ParsedTransaction, 
   categories: string[], 
-  onConfirm: (updatedTransaction: Transaction) => void,
+  onConfirm: (updatedTransaction: Omit<Transaction, 'id'|'user_id'|'created_at'>) => void,
   onSkip: () => void
 }) {
   const [name, setName] = useState(transaction.name);
   const [amount, setAmount] = useState(transaction.amount.toString());
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   
-  // State für das Pop-up und die Suche/Erstellung
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -38,13 +36,12 @@ function ReviewCard({ transaction, categories, onConfirm, onSkip }: {
     handleSelectCategory(newCategory.trim());
   };
 
-  const handleConfirmTransaction = () => {
+  const handleConfirm = () => {
     if (!name || isNaN(parseFloat(amount)) || !selectedCategory) {
       alert("Bitte fülle alle Felder aus und wähle eine Kategorie.");
       return;
     }
     onConfirm({
-      ...transaction,
       name,
       amount: parseFloat(amount),
       category: selectedCategory,
@@ -54,7 +51,7 @@ function ReviewCard({ transaction, categories, onConfirm, onSkip }: {
   return (
     <>
       <motion.div
-        key={transaction.id}
+        key={transaction.name}
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ scale: 0.8, opacity: 0 }}
@@ -71,7 +68,6 @@ function ReviewCard({ transaction, categories, onConfirm, onSkip }: {
           </div>
         </div>
         
-        {/* NEU: Der Kategorie-Auswahl-Button */}
         <div className="mt-6">
           <label className="text-sm font-medium text-secondary-text">Kategorie</label>
           <button onClick={() => setIsPickerOpen(true)} className="w-full flex justify-between items-center text-left p-2 mt-1 bg-base rounded-lg">
@@ -85,14 +81,13 @@ function ReviewCard({ transaction, categories, onConfirm, onSkip }: {
             <SkipForward size={20} />
             Skip
           </button>
-          <button onClick={handleConfirmTransaction} className="w-2/3 p-3 bg-accent text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+          <button onClick={handleConfirm} className="w-2/3 p-3 bg-accent text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
             <Check size={20} />
             Bestätigen
           </button>
         </div>
       </motion.div>
 
-      {/* NEU: Das Kategorie-Auswahl-Popup */}
       <AnimatePresence>
         {isPickerOpen && (
           <motion.div 
@@ -126,12 +121,15 @@ function ReviewCard({ transaction, categories, onConfirm, onSkip }: {
   );
 }
 
-// Der Rest der Datei bleibt gleich, hier zur Vollständigkeit
-export default function ReviewView({ transactions, categories, onDoneAction }: { transactions: Transaction[], categories: string[], onDoneAction: (reviewed: Transaction[]) => void }) {
+export default function ReviewView({ transactions, categories, onDoneAction }: { 
+  transactions: ParsedTransaction[], 
+  categories: string[], 
+  onDoneAction: (reviewed: Omit<Transaction, 'id'|'user_id'|'created_at'>[]) => void 
+}) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [reviewedTransactions, setReviewedTransactions] = useState<Transaction[]>([]);
+  const [reviewedTransactions, setReviewedTransactions] = useState<Omit<Transaction, 'id'|'user_id'|'created_at'>[]>([]);
 
-  const handleConfirmTransaction = (confirmedTx: Transaction) => {
+  const handleConfirmTransaction = (confirmedTx: Omit<Transaction, 'id'|'user_id'|'created_at'>) => {
     const newReviewed = [...reviewedTransactions, confirmedTx];
     setReviewedTransactions(newReviewed);
     
@@ -141,7 +139,7 @@ export default function ReviewView({ transactions, categories, onDoneAction }: {
       onDoneAction(newReviewed);
     }
   };
-
+  
   const handleSkipTransaction = () => {
     if (currentIndex + 1 < transactions.length) {
       setCurrentIndex(currentIndex + 1);
@@ -162,7 +160,7 @@ export default function ReviewView({ transactions, categories, onDoneAction }: {
         <AnimatePresence mode="wait">
           {isReviewing && (
             <ReviewCard 
-              key={transactions[currentIndex].id}
+              key={transactions[currentIndex].name}
               transaction={transactions[currentIndex]} 
               categories={categories}
               onConfirm={handleConfirmTransaction}

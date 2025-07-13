@@ -1,8 +1,7 @@
 import { createWorker } from 'tesseract.js';
-// Wir brauchen den Transaction-Typ hier nicht mehr direkt
-// import type { Transaction } from './types'; 
+import type { ParsedTransaction } from './types'; // NEU: Importiert den neuen Typ
 
-export async function processImageWithOCR(file: File): Promise<{ needsReview: { name: string, amount: number }[] }> {
+export async function processImageWithOCR(file: File): Promise<{ needsReview: ParsedTransaction[] }> {
   console.log('Starting real OCR process...');
 
   const worker = await createWorker('deu');
@@ -16,26 +15,20 @@ export async function processImageWithOCR(file: File): Promise<{ needsReview: { 
   return parseTransactionsFromText(text);
 }
 
-function parseTransactionsFromText(text: string): { needsReview: { name: string, amount: number }[] } {
+function parseTransactionsFromText(text: string): { needsReview: ParsedTransaction[] } {
   const lines = text.split('\n').filter(line => line.trim() !== '');
-  const transactions: { name: string, amount: number }[] = [];
+  const transactions: ParsedTransaction[] = []; // Verwendet den neuen Typ
 
   const amountRegex = /([+-]?\s?\d{1,3}(?:\.\d{3})*,\d{2})\s?€?/;
 
   lines.forEach(line => {
     const match = line.match(amountRegex);
-
     if (match && match[1]) {
       const amountString = match[1].replace(/[€\s]/g, '').replace(/\./g, '').replace(',', '.');
       const amount = parseFloat(amountString);
       const name = line.substring(0, match.index).trim();
-
       if (!isNaN(amount) && name) {
-        // KORREKTUR: Wir erstellen ein einfaches Objekt nur mit den erkannten Daten.
-        transactions.push({
-          name: name,
-          amount: amount,
-        });
+        transactions.push({ name: name, amount: amount });
       }
     }
   });

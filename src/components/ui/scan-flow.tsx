@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { processImageWithOCR } from '@/lib/ocr';
-import type { Transaction } from '@/lib/types';
+import type { Transaction, ParsedTransaction } from '@/lib/types';
 import ReviewView from './review-view';
 import { ScanLine } from 'lucide-react';
 
@@ -24,16 +24,14 @@ function ProcessingView() {
   )
 }
 
-// GEÄNDERT: Prop umbenannt zu onCompleteAction
-export default function ScanFlow({ onCompleteAction, categories }: { onCompleteAction: (newTransactions: Transaction[]) => void, categories: string[] }) {
+export default function ScanFlow({ onCompleteAction, categories }: { onCompleteAction: (newTransactions: Omit<Transaction, 'id' | 'user_id' | 'created_at'>[]) => void, categories: string[] }) {
+  const [transactionsForReview, setTransactionsForReview] = useState<ParsedTransaction[]>([]);
   const [status, setStatus] = useState<'idle' | 'processing' | 'reviewing'>('idle');
-  const [transactionsForReview, setTransactionsForReview] = useState<Transaction[]>([]);
 
   async function handleImageSelect(file: File | undefined) {
     if (!file) return;
     setStatus('processing');
     const { needsReview } = await processImageWithOCR(file);
-
     if (needsReview.length > 0) {
       setTransactionsForReview(needsReview);
       setStatus('reviewing');
@@ -42,15 +40,13 @@ export default function ScanFlow({ onCompleteAction, categories }: { onCompleteA
     }
   }
 
-  // GEÄNDERT: Diese Funktion ruft onCompleteAction auf
-  function handleReviewComplete(reviewedTransactions: Transaction[]) {
+  function handleReviewComplete(reviewedTransactions: Omit<Transaction, 'id' | 'user_id' | 'created_at'>[]) {
     onCompleteAction(reviewedTransactions);
   }
-
+  
   if (status === 'processing') return <ProcessingView />;
-  // GEÄNDERT: Prop umbenannt zu onDoneAction
   if (status === 'reviewing') return <ReviewView transactions={transactionsForReview} categories={categories} onDoneAction={handleReviewComplete} />;
-
+  
   return (
     <div className="w-full h-full flex items-center justify-center">
       <label className="p-8 border-2 border-dashed border-gray-300 rounded-3xl text-center cursor-pointer hover:border-accent hover:bg-blue-50 transition-colors">
