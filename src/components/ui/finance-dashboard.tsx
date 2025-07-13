@@ -41,14 +41,25 @@ export default function FinanceDashboard() {
     return client;
   }, [getToken]);
 
-  const fetchTransactions = useCallback(async () => {
+
+  const fetchTransactions = useCallback(async (retryCount = 0) => {
     setLoading(true);
     const supabase = await getSupabaseClient();
-    if (!supabase) return setLoading(false);
+    if (!supabase) {
+        setLoading(false);
+        return;
+    }
     
-    // Wir holen hier die User-ID, um sicherzugehen, dass wir authentifiziert sind.
     const { data: { user } } = await supabase.auth.getUser();
+
+    // KORREKTUR: Wenn der Nutzer nicht sofort gefunden wird, warten und erneut versuchen.
     if (!user) {
+        if (retryCount < 3) { // Versuche es maximal 3 Mal
+            console.warn(`Supabase user not found, retrying in 2 seconds... (Attempt ${retryCount + 1})`);
+            setTimeout(() => fetchTransactions(retryCount + 1), 2000);
+            return;
+        }
+        console.error("Fetch Error: User not found in Supabase after multiple retries.");
         setLoading(false);
         return;
     }
@@ -66,6 +77,7 @@ export default function FinanceDashboard() {
     setLoading(false);
   }, [getSupabaseClient]);
 
+
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
@@ -74,24 +86,23 @@ export default function FinanceDashboard() {
     transactions.reduce((sum, tx) => sum + tx.amount, 0),
   [transactions]);
 
-  // FINALE KORREKTUR: Wir verwenden die Standardmethode, um die User ID zu bekommen.
   const handleNewTransactionsAction = async (newTransactions: Omit<Transaction, 'id' | 'user_id' | 'created_at'>[]) => {
     if (newTransactions.length === 0) return;
 
     const supabase = await getSupabaseClient();
     if (!supabase) return;
     
-    // Hole den authentifizierten Nutzer direkt über die Supabase-Bibliothek.
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
         console.error("Nutzer nicht gefunden, kann nicht speichern.");
+        alert("Fehler: Ihre Sitzung ist nicht gültig. Bitte laden Sie die Seite neu.");
         return;
     }
     
     const transactionsToInsert = newTransactions.map(tx => ({ 
         ...tx, 
-        user_id: user.id // Verwende die ID aus dem user-Objekt
+        user_id: user.id
     }));
     
     const { error: insertError } = await supabase.from('transactions').insert(transactionsToInsert);
