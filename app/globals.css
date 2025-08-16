@@ -1,42 +1,265 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-family-sans: 'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+:root {
+  --primary: #7c3aed;          /* Violet-600 */
+  --primary-light: #a78bfa;    /* Violet-400 */
+  --primary-dark: #6d28d9;     /* Violet-700 */
+  --accent: #8b5cf6;
+  --accent-glow: rgba(124, 58, 237, 0.08);
+  --success: #10b981;          /* Emerald-500 */
+  --warning: #f59e0b;          /* Amber-500 */
+  --danger: #ef4444;           /* Red-500 */
+  --background: #f8fafc;       /* Slate-50 */
+  --card: #ffffff;             /* White */
+  --sidebar-bg: #0f172a;       /* Slate-900 */
+  --sidebar-text: #e2e8f0;     /* Slate-200 */
+  --sidebar-hover: #1e293b;    /* Slate-800 */
+  --text: #1e293b;             /* Slate-800 */
+  --text-secondary: #64748b;   /* Slate-500 */
+  --border: #e2e8f0;           /* Slate-200 */
+  --card-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+  --border-radius: 12px;
+  --border-radius-sm: 8px;
+  --border-radius-lg: 16px;
+  --line-thickness: 1px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-15px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.01); }
+  100% { transform: scale(1); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-3px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes glowPulse {
+  0% {
+    box-shadow: 0 0 3px rgba(124, 58, 237, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(124, 58, 237, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 3px rgba(124, 58, 237, 0.1);
+  }
+}
 
 body {
   font-family: 'Space Grotesk', sans-serif;
-  background-color: #030712;
-  color: #e5e7eb;
+  background-color: var(--background);
+  color: var(--text);
+  line-height: 1.5;
+  font-feature-settings: 'liga' 1, 'kern' 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure all text elements use Space Grotesk */
+* {
+  font-family: inherit;
+}
+
+/* Better letter spacing for headings */
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.025em;
+}
+
+/* Improved readability for body text */
+p, span, div {
+  letter-spacing: -0.01em;
+}
+
+/* Ensure form elements use Space Grotesk */
+input, button, select, textarea {
+  font-family: inherit;
+}
+
+/* Better button typography */
+button {
+  letter-spacing: -0.01em;
 }
 
 .recharts-tooltip-wrapper {
   outline: none !important;
 }
 
+/* Remove focus boxes from charts */
+.recharts-surface:focus {
+  outline: none !important;
+}
+
+.recharts-wrapper:focus {
+  outline: none !important;
+}
+
+.recharts-legend-wrapper:focus {
+  outline: none !important;
+}
+
+.recharts-active-dot:focus {
+  outline: none !important;
+}
+
 .recharts-default-tooltip {
-  background-color: #1f2937 !important;
-  border-color: #374151 !important;
-  border-radius: 0.75rem !important;
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(124, 58, 237, 0.1) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.05) !important;
+  padding: 8px 12px !important;
 }
 
 .recharts-tooltip-label {
-  color: #f9fafb !important;
   font-weight: 600 !important;
+  color: var(--text) !important;
+  margin-bottom: 3px !important;
+  font-size: 11px !important;
+}
+
+.recharts-tooltip-item {
+  margin: 3px 0 !important;
+  font-size: 11px !important;
+}
+
+.recharts-cartesian-axis-tick-value {
+  font-size: 11px !important;
+  fill: var(--text-secondary) !important;
+}
+
+.recharts-legend-item-text {
+  font-size: 11px !important;
+  color: var(--text-secondary) !important;
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #030712;
+  background: rgba(15, 23, 42, 0.03);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #374151;
-  border-radius: 4px;
+  background: rgba(124, 58, 237, 0.15);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: rgba(124, 58, 237, 0.25);
+}
+
+/* Futuristic/minimalist classes */
+.card-modern {
+  backdrop-filter: blur(8px);
+  border: var(--line-thickness) solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius);
+  transition: all 0.3s ease;
+}
+
+.card-modern:hover {
+  box-shadow: var(--card-shadow);
+  transform: translateY(-1px);
+}
+
+.card-glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  border: var(--line-thickness) solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius);
+}
+
+.btn-modern {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border-radius: var(--border-radius-sm);
+}
+
+.btn-modern::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: all 0.5s ease;
+}
+
+.btn-modern:hover::before {
+  left: 100%;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.2);
+}
+
+.chart-container {
+  position: relative;
+  z-index: 1;
+}
+
+.chart-container::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 20%;
+  background: linear-gradient(to top, var(--background), transparent);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.futuristic-border {
+  position: relative;
+}
+
+.futuristic-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: var(--line-thickness) solid rgba(124, 58, 237, 0.15);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: pulse 3s infinite;
 }
 
 .custom-color-input::-webkit-color-swatch-wrapper {
@@ -46,4 +269,115 @@ body {
 .custom-color-input::-webkit-color-swatch {
   border: none;
   border-radius: 9999px;
+}
+
+/* Card Styles */
+.card-modern {
+  transition: all 0.2s ease;
+}
+
+.card-modern:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Subtle animations */
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.hover-scale {
+  transition: transform 0.2s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.01);
+}
+
+/* Button styles */
+.btn-modern {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.btn-modern::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255,255,255,0.1);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  transition: transform 0.3s, opacity 0.2s;
+}
+
+.btn-modern:active::after {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  transition: 0s;
+}
+
+.subtle-shadow {
+  box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px;
+}
+
+/* Typography */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Cursor styles for interactive elements */
+button, [role="button"], .cursor-pointer, 
+[onClick], [onSubmit], [onSelect], [onClose],
+select, input[type="checkbox"], input[type="radio"],
+a, [href], .clickable {
+  cursor: pointer;
+}
+
+button:disabled, [disabled] {
+  cursor: not-allowed;
+}
+
+/* Modern consistent button styling */
+.btn {
+  border-radius: 30px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all 0.2s ease;
+}
+
+.btn-sm {
+  border-radius: 30px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.btn-icon {
+  border-radius: 30px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.btn-lg {
+  border-radius: 30px;
+  padding: 16px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+/* Override default button styles */
+button {
+  border-radius: 30px;
+  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
 }

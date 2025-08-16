@@ -1,7 +1,18 @@
 import React from 'react';
 
 const Card = ({ children, className = '' }) => (
-  <div className={`bg-gray-900/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl shadow-lg ${className}`}>
+  // REDESIGN: A single, clean card style. Soft shadow, subtle border, generous padding.
+  <div
+    className={`
+      bg-white 
+      border border-slate-100 
+      rounded-2xl 
+      shadow-sm 
+      p-6
+      transition-all duration-300 hover:shadow-md
+      ${className}
+    `}
+  >
     {children}
   </div>
 );

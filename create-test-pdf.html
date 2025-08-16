@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test PDF Creator for Zenith Finance</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        button { background: #6366f1; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #5856eb; }
+        .transactions { margin: 20px 0; }
+        .transaction { margin: 5px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Test PDF Creator für Zenith Finance</h1>
+    <p>Klicken Sie den Button, um eine Test-PDF mit Beispiel-Transaktionen zu erstellen:</p>
+    
+    <div class="transactions">
+        <h3>Beispiel-Transaktionen:</h3>
+        <div class="transaction">15.08.2025  Netflix Subscription           -15,99 €</div>
+        <div class="transaction">14.08.2025  Gehalt August                +2500,00 €</div>
+        <div class="transaction">12.08.2025  REWE Supermarkt               -78,45 €</div>
+        <div class="transaction">10.08.2025  Miete August                 -800,00 €</div>
+        <div class="transaction">09.08.2025  Spotify Premium               -10,99 €</div>
+        <div class="transaction">08.08.2025  Amazon.de Einkauf             -49,95 €</div>
+        <div class="transaction">07.08.2025  Freelance Zahlung            +1200,00 €</div>
+        <div class="transaction">06.08.2025  Tankstelle Shell              -65,00 €</div>
+    </div>
+    
+    <button onclick="createTestPDF()">Test-PDF erstellen</button>
+    
+    <script>
+        function createTestPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Add header
+            doc.setFontSize(16);
+            doc.text('Kontoauszug - Deutsche Bank', 20, 20);
+            doc.setFontSize(12);
+            doc.text('Konto: DE89 1234 5678 9012 3456 78', 20, 30);
+            doc.text('Zeitraum: 01.08.2025 - 31.08.2025', 20, 40);
+            
+            // Add table header
+            doc.setFontSize(10);
+            doc.text('Datum', 20, 60);
+            doc.text('Beschreibung', 60, 60);
+            doc.text('Betrag', 160, 60);
+            doc.line(20, 65, 190, 65);
+            
+            // Add transactions
+            const transactions = [
+                ['15.08.2025', 'Netflix Subscription', '-15,99 €'],
+                ['14.08.2025', 'Gehalt August', '+2500,00 €'],
+                ['12.08.2025', 'REWE Supermarkt', '-78,45 €'],
+                ['10.08.2025', 'Miete August', '-800,00 €'],
+                ['09.08.2025', 'Spotify Premium', '-10,99 €'],
+                ['08.08.2025', 'Amazon.de Einkauf', '-49,95 €'],
+                ['07.08.2025', 'Freelance Zahlung', '+1200,00 €'],
+                ['06.08.2025', 'Tankstelle Shell', '-65,00 €']
+            ];
+            
+            let yPos = 75;
+            transactions.forEach(transaction => {
+                doc.text(transaction[0], 20, yPos);
+                doc.text(transaction[1], 60, yPos);
+                doc.text(transaction[2], 160, yPos);
+                yPos += 10;
+            });
+            
+            // Add footer
+            doc.text('Saldo: +2794,62 €', 20, yPos + 20);
+            
+            // Save the PDF
+            doc.save('test-bank-statement.pdf');
+        }
+    </script>
+</body>
+</html>
