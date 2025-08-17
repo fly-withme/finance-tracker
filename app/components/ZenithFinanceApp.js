@@ -5,13 +5,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 // GEÄNDERT: Korrekter Pfad, um aus dem 'components'-Ordner herauszugehen
 import { db, populateInitialData } from '../utils/db';
 import { TransactionClassifier, getInitialModel } from '../utils/mlLearning';
+import { EnhancedTransactionClassifier, getEnhancedInitialModel } from '../utils/enhancedMLLearning';
 
 import Sidebar from './Sidebar';
 import DashboardPage from './DashboardPage';
 import InboxPage from './InboxPage';
 import TransactionsPage from './TransactionsPage';
 import SharedExpensesPage from './SharedExpensesPage';
+import BudgetPage from './BudgetPage';
 import SettingsPage from './SettingsPage';
+import { DarkModeProvider } from './hooks/useDarkMode';
 
 const initialTransactions = [
   { id: 1, date: '2025-08-09', description: 'Netflix Subscription', recipient: 'Netflix', amount: -15.99, category: 'Entertainment', account: 'Checking' },
@@ -29,17 +32,28 @@ const initialAccounts = [ { id: 1, name: 'Checking', balance: 5240.50 }, { id: 2
 export default function ZenithFinanceApp() {
   const [currentPage, setPage] = useState('dashboard');
   const [classifier, setClassifier] = useState(null);
+  const [enhancedClassifier, setEnhancedClassifier] = useState(null);
+  const [useEnhancedML, setUseEnhancedML] = useState(true); // Flag für erweiterte ML
 
   const categories = useLiveQuery(() => db.categories.toArray(), []);
 
   useEffect(() => {
     const loadModel = async () => {
+      // Lade klassisches ML-Modell
       let modelData = await db.settings.get('mlModel');
       if (!modelData) {
         modelData = { key: 'mlModel', model: getInitialModel() };
         await db.settings.put(modelData);
       }
       setClassifier(new TransactionClassifier(modelData.model));
+      
+      // Lade erweitertes ML-Modell
+      let enhancedModelData = await db.settings.get('enhancedMLModel');
+      if (!enhancedModelData) {
+        enhancedModelData = { key: 'enhancedMLModel', model: getEnhancedInitialModel() };
+        await db.settings.put(enhancedModelData);
+      }
+      setEnhancedClassifier(new EnhancedTransactionClassifier(enhancedModelData.model));
     };
     loadModel();
   }, []);
@@ -49,7 +63,7 @@ export default function ZenithFinanceApp() {
     populateInitialData(initialData);
   }, []);
 
-  if (!categories || !classifier) {
+  if (!categories || !classifier || !enhancedClassifier) {
     return <div className="flex items-center justify-center h-screen">App wird initialisiert...</div>;
   }
   
@@ -58,24 +72,40 @@ export default function ZenithFinanceApp() {
       case 'dashboard': 
         return <DashboardPage setPage={setPage} />;
       case 'inbox':
-        return <InboxPage categories={categories} classifier={classifier} />;
+        return <InboxPage 
+          categories={categories} 
+          classifier={useEnhancedML ? enhancedClassifier : classifier}
+          enhancedClassifier={enhancedClassifier}
+          useEnhancedML={useEnhancedML}
+        />;
       case 'transactions': 
         return <TransactionsPage />;
       case 'shared-expenses':
         return <SharedExpensesPage />;
+      case 'budget':
+        return <BudgetPage />;
       case 'settings': 
-        return <SettingsPage categories={categories} setCategories={() => {}} settings={{ dataPath: '', currency: 'EUR' }} setSettings={() => {}} />;
+        return <SettingsPage 
+          categories={categories} 
+          setCategories={() => {}} 
+          settings={{ dataPath: '', currency: 'EUR' }} 
+          setSettings={() => {}}
+          enhancedClassifier={enhancedClassifier}
+          useEnhancedML={useEnhancedML}
+        />;
       default: 
         return <DashboardPage setPage={setPage} />;
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50/70">
-      <Sidebar currentPage={currentPage} setPage={setPage} />
-      <div className="flex-1">
-        {renderPage()}
+    <DarkModeProvider>
+      <div className="min-h-screen flex bg-slate-50/70 dark:bg-slate-900">
+        <Sidebar currentPage={currentPage} setPage={setPage} />
+        <div className="flex-1">
+          {renderPage()}
+        </div>
       </div>
-    </div>
+    </DarkModeProvider>
   );
 }

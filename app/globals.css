@@ -29,6 +29,26 @@
   --line-thickness: 1px;
 }
 
+.dark {
+  --primary: #8b5cf6;          /* Violet-500 */
+  --primary-light: #a78bfa;    /* Violet-400 */
+  --primary-dark: #7c3aed;     /* Violet-600 */
+  --accent: #a78bfa;
+  --accent-glow: rgba(139, 92, 246, 0.15);
+  --success: #22c55e;          /* Green-500 */
+  --warning: #eab308;          /* Yellow-500 */
+  --danger: #f87171;           /* Red-400 */
+  --background: #0f172a;       /* Slate-900 */
+  --card: #1e293b;             /* Slate-800 */
+  --sidebar-bg: #020617;       /* Slate-950 */
+  --sidebar-text: #f1f5f9;     /* Slate-100 */
+  --sidebar-hover: #334155;    /* Slate-700 */
+  --text: #f1f5f9;             /* Slate-100 */
+  --text-secondary: #94a3b8;   /* Slate-400 */
+  --border: #334155;           /* Slate-700 */
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -136,6 +156,13 @@ button {
   padding: 8px 12px !important;
 }
 
+.dark .recharts-default-tooltip {
+  background-color: rgba(30, 41, 59, 0.9) !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  color: #f1f5f9 !important;
+}
+
 .recharts-tooltip-label {
   font-weight: 600 !important;
   color: var(--text) !important;
@@ -143,9 +170,17 @@ button {
   font-size: 11px !important;
 }
 
+.dark .recharts-tooltip-label {
+  color: #f1f5f9 !important;
+}
+
 .recharts-tooltip-item {
   margin: 3px 0 !important;
   font-size: 11px !important;
+}
+
+.dark .recharts-tooltip-item {
+  color: #e2e8f0 !important;
 }
 
 .recharts-cartesian-axis-tick-value {
@@ -153,9 +188,17 @@ button {
   fill: var(--text-secondary) !important;
 }
 
+.dark .recharts-cartesian-axis-tick-value {
+  fill: #94a3b8 !important;
+}
+
 .recharts-legend-item-text {
   font-size: 11px !important;
   color: var(--text-secondary) !important;
+}
+
+.dark .recharts-legend-item-text {
+  color: #94a3b8 !important;
 }
 
 ::-webkit-scrollbar {

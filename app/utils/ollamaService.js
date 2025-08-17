@@ -1,3 +1,7 @@
+import { performanceMonitor } from './performanceMonitor.js';
+import { uploadLogger } from './uploadLogger.js';
+import { db } from './db.js';
+
 export class OllamaService {
   constructor() {
     this.baseUrl = 'http://localhost:11434';
@@ -51,71 +55,163 @@ export class OllamaService {
     return this.isAvailable;
   }
 
-  async parseBankStatement(pdfText, bankType = 'vivid') {
-    const isAvailable = await this.checkAvailability();
-    if (!isAvailable) {
-      throw new Error('Ollama service not available');
-    }
-
-    const prompt = this.createBankStatementPrompt(pdfText, bankType);
-
+  async parseBankStatement(pdfText, bankType = 'vivid', progressCallback = null, userCategories = null) {
+    const operationId = performanceMonitor.startOperation('ollama_parse_statement');
+    
     try {
+      // Check system load before proceeding
+      if (performanceMonitor.isSystemOverloaded()) {
+        if (progressCallback) progressCallback('System busy, waiting for resources...');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+      }
+      
+      const isAvailable = await this.checkAvailability();
+      if (!isAvailable) {
+        throw new Error('Ollama service not available');
+      }
+
+      if (progressCallback) progressCallback('Loading user categories...');
+      
+      // Lade Benutzerkategorien falls nicht übergeben
+      if (!userCategories) {
+        try {
+          userCategories = await db.categories.toArray();
+          uploadLogger.logCategoriesUsed(userCategories);
+        } catch (error) {
+          uploadLogger.log('WARNING', 'Konnte Kategorien nicht laden, verwende Standard-Kategorien', error);
+          userCategories = [];
+        }
+      }
+      
+      if (progressCallback) progressCallback('Preparing text for AI analysis...');
+      const prompt = this.createBankStatementPrompt(pdfText, bankType, userCategories);
+      
+      uploadLogger.logLLMRequest(bankType, prompt.length, this.model);
+      if (progressCallback) progressCallback('Sending request to AI model...');
+      
+      // Add timeout and abort controller for better UX
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await fetch(`${this.baseUrl}/api/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
         body: JSON.stringify({
           model: this.model,
           prompt: prompt,
           stream: false,
           options: {
-            temperature: 0.1, // Low temperature for consistent structured output
+            temperature: 0.1,
             top_p: 0.9,
-            num_ctx: 2048, // Reduced context for faster processing
-            num_predict: 512, // Limit prediction length
-            num_thread: -1, // Use all available threads
+            num_ctx: 4096, // Erhöht für bessere Verarbeitung längerer Texte
+            num_predict: 256, // Reduced prediction length
+            num_thread: Math.max(1, Math.min(2, Math.floor((navigator.hardwareConcurrency || 4) / 2))), // Limit to max 2 threads
+            num_gpu: 0, // Disable GPU to reduce system load
+            low_vram: true, // Enable low VRAM mode
           }
         }),
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`Ollama API error: ${response.status}`);
       }
 
+      if (progressCallback) progressCallback('Processing AI response...');
       const data = await response.json();
-      return this.parseAIResponse(data.response);
+      
+      if (progressCallback) progressCallback('Parsing transactions...');
+      const startParseTime = performance.now();
+      const result = this.parseAIResponse(data.response);
+      const parseTime = performance.now() - startParseTime;
+      
+      uploadLogger.logLLMResponse(result, parseTime);
+      performanceMonitor.endOperation(operationId);
+      return result;
     } catch (error) {
+      performanceMonitor.endOperation(operationId);
+      
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out - the AI model took too long to respond');
+      }
       console.error('Error calling Ollama API:', error);
       throw error;
     }
   }
 
-  createBankStatementPrompt(pdfText, bankType) {
-    // Truncate text if too long for faster processing
-    const maxLength = 1500;
-    const truncatedText = pdfText.length > maxLength 
-      ? pdfText.substring(0, maxLength) + '...' 
-      : pdfText;
+  createBankStatementPrompt(pdfText, bankType, userCategories = []) {
+    // Intelligent text chunking for better performance
+    const maxLength = 4000; // Erhöht für mehr Transaktionen
+    let processedText = pdfText;
     
-    return `Extract transactions as JSON from this ${bankType} bank statement.
+    // Extract only transaction-relevant parts
+    const transactionPatterns = [
+      /\d{1,2}\.\d{1,2}\.\d{2,4}.*?[-+]?[\d,]+[,\.]\d{2}\s*EUR?/g,
+      /\d{1,2}[-.\s]\d{1,2}[-.\s]\d{2,4}.*?\w+.*?[-+]?[\d,]+/g
+    ];
+    
+    let relevantChunks = [];
+    for (const pattern of transactionPatterns) {
+      const matches = pdfText.match(pattern);
+      if (matches) {
+        relevantChunks = relevantChunks.concat(matches); // Alle Transaktionen verarbeiten
+      }
+    }
+    
+    if (relevantChunks.length > 0) {
+      processedText = relevantChunks.join('\n');
+    }
+    
+    const truncatedText = processedText.length > maxLength 
+      ? processedText.substring(0, maxLength) + '...' 
+      : processedText;
+    
+    // Erstelle Liste der verfügbaren Kategorien
+    const categoryList = userCategories.length > 0 
+      ? userCategories.map(cat => cat.name).join(', ')
+      : 'Food & Groceries, Transportation, Housing & Utilities, Shopping, Entertainment, Health & Fitness, Income, Bank Fees, Other';
+    
+    uploadLogger.log('DEBUG', `Verwende ${userCategories.length} Benutzerkategorien: ${categoryList}`);
+    
+    return `Du bist ein Experte für deutsche Bankauszüge. Extrahiere ALLE Transaktionen aus diesem ${bankType} Kontoauszug.
 
-Rules:
-1. Return ONLY valid JSON array
-2. No explanations
-3. Clean recipient names (no IBANs)
+WICHTIGE REGELN:
+1. Antworte NUR mit gültigem JSON-Array
+2. Keine Erklärungen oder zusätzlicher Text
+3. Erkenne deutsche Datumsformate (DD.MM.YYYY)
+4. Negative Beträge für Ausgaben, positive für Eingänge
+5. Bereinige Empfänger-Namen (entferne IBANs, BICs, Codes)
+6. Erkenne auch teilweise Transaktionen in Blöcken
+7. Ordne JEDER Transaktion eine passende Kategorie zu
 
-Format:
-[{"date":"YYYY-MM-DD","description":"Clean description","recipient":"Name","amount":-12.34}]
+VERFÜGBARE KATEGORIEN (verwende NUR diese):
+${categoryList}
 
-Text:
+FORMAT:
+[{"date":"YYYY-MM-DD","description":"Saubere Beschreibung","recipient":"Empfänger Name","amount":-12.34,"category":"Food & Groceries"}]
+
+BEISPIELE deutscher Transaktionen:
+- "15.08.2024 Überweisung An REWE SAGT DANKE 1234 -45.67 EUR" 
+  → {"date":"2024-08-15","recipient":"REWE","description":"Einkauf","amount":-45.67,"category":"Food & Groceries"}
+- "16.08.2024 SEPA-Lastschrift Netflix Europe -9.99 EUR"
+  → {"date":"2024-08-16","recipient":"Netflix","description":"Streaming-Abonnement","amount":-9.99,"category":"Entertainment"}
+- "17.08.2024 Gehalt Musterfirma GmbH +2500.00 EUR"
+  → {"date":"2024-08-17","recipient":"Musterfirma GmbH","description":"Gehalt","amount":2500.00,"category":"Income"}
+
+KONTOAUSZUG-TEXT:
 ${truncatedText}
 
-JSON:`;
+JSON-ARRAY:`;
   }
 
   parseAIResponse(aiResponse) {
     try {
+      uploadLogger.log('DEBUG', 'Rohe LLM-Antwort:', aiResponse.substring(0, 500) + '...');
+      
       // Clean the response - remove any text before/after JSON
       let jsonText = aiResponse.trim();
       
@@ -123,6 +219,9 @@ JSON:`;
       const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         jsonText = jsonMatch[0];
+        uploadLogger.log('DEBUG', 'JSON extrahiert aus Antwort');
+      } else {
+        uploadLogger.log('WARNING', 'Kein JSON-Array in LLM-Antwort gefunden');
       }
 
       const transactions = JSON.parse(jsonText);
@@ -130,15 +229,22 @@ JSON:`;
       if (!Array.isArray(transactions)) {
         throw new Error('Response is not an array');
       }
+      
+      uploadLogger.log('INFO', `${transactions.length} Transaktionen aus JSON geparst`);
 
       // Validate and normalize each transaction
-      return transactions
-        .filter(t => this.isValidTransaction(t))
-        .map((t, index) => this.normalizeTransaction(t, index));
+      const validTransactions = transactions.filter(t => this.isValidTransaction(t));
+      const normalizedTransactions = validTransactions.map((t, index) => this.normalizeTransaction(t, index));
+      
+      uploadLogger.log('INFO', `${validTransactions.length} gültige Transaktionen nach Validierung`);
+      
+      return normalizedTransactions;
 
     } catch (error) {
-      console.error('Error parsing AI response:', error);
-      console.error('Raw AI response:', aiResponse);
+      uploadLogger.log('ERROR', 'Fehler beim Parsen der LLM-Antwort', {
+        error: error.message,
+        rawResponse: aiResponse.substring(0, 200)
+      });
       throw new Error('Failed to parse AI response as JSON');
     }
   }
@@ -152,17 +258,21 @@ JSON:`;
   }
 
   normalizeTransaction(transaction, index) {
-    return {
+    const normalizedTransaction = {
       id: Date.now() + Math.random() + index,
       date: this.normalizeDate(transaction.date),
       description: this.cleanText(transaction.description),
       recipient: this.cleanText(transaction.recipient),
       amount: Number(transaction.amount),
-      account: 'Vivid Money (AI)',
-      category: null,
+      account: transaction.account || 'Vivid Money (AI)',
+      category: transaction.category || null, // BEHALTE die LLM-Kategorie!
       type: transaction.type || 'Unknown',
       rawText: transaction.rawText || ''
     };
+    
+    uploadLogger.log('DEBUG', `Normalized: ${normalizedTransaction.recipient} | ${normalizedTransaction.amount}€ | Kategorie: ${normalizedTransaction.category || 'Keine'}`);
+    
+    return normalizedTransaction;
   }
 
   normalizeDate(dateString) {

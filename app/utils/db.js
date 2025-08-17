@@ -90,6 +90,18 @@ export async function populateInitialData(initialData) {
   const budgetCount = await db.budgets.count();
   const contactCount = await db.contacts.count();
   
+  // Initialize user profile if not exists
+  const userProfile = await db.settings.get('userProfile');
+  if (!userProfile) {
+    await db.settings.put({
+      key: 'userProfile',
+      name: '',
+      appName: 'Finance App',
+      currency: 'EUR',
+      language: 'de'
+    });
+  }
+  
   try {
     await db.transaction('rw', db.transactions, db.categories, db.accounts, db.budgets, db.contacts, async () => {
       // Nur Transaktionen hinzufügen wenn leer
@@ -126,49 +138,7 @@ export async function populateInitialData(initialData) {
         console.log("Initiale Konten hinzugefügt.");
       }
       
-      // Beispiel-Budgets hinzufügen
-      if (budgetCount === 0) {
-        const currentDate = new Date();
-        const initialBudgets = [
-          { categoryName: 'Wohnen', amount: 350, month: currentDate.getMonth(), year: currentDate.getFullYear() },
-          { categoryName: 'Essen', amount: 100, month: currentDate.getMonth(), year: currentDate.getFullYear() },
-          { categoryName: 'Shopping', amount: 50, month: currentDate.getMonth(), year: currentDate.getFullYear() },
-          { categoryName: 'Hund', amount: 20, month: currentDate.getMonth(), year: currentDate.getFullYear() }
-        ];
-        
-        for (const budget of initialBudgets) {
-          try {
-            await db.budgets.add(budget);
-          } catch (error) {
-            if (error.name !== 'ConstraintError') {
-              console.error('Fehler beim Hinzufügen des Budgets:', budget.categoryName, error);
-            }
-          }
-        }
-        console.log("Initiale Budgets hinzugefügt.");
-      }
-      
-      // Beispiel-Kontakte hinzufügen
-      if (contactCount === 0) {
-        const initialContacts = [
-          { name: 'Anna', color: '#4F46E5' },
-          { name: 'Max', color: '#7C3AED' },
-          { name: 'Sarah', color: '#EC4899' },
-          { name: 'Tom', color: '#06B6D4' },
-          { name: 'Lisa', color: '#10B981' }
-        ];
-        
-        for (const contact of initialContacts) {
-          try {
-            await db.contacts.add(contact);
-          } catch (error) {
-            if (error.name !== 'ConstraintError') {
-              console.error('Fehler beim Hinzufügen des Kontakts:', contact.name, error);
-            }
-          }
-        }
-        console.log("Initiale Kontakte hinzugefügt.");
-      }
+      // Keine hardgecodeten Budgets oder Kontakte - Benutzer erstellt diese selbst
     });
   } catch (error) {
     console.error("Fehler beim Hinzufügen der initialen Daten:", error);

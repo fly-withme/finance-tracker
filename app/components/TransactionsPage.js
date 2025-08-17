@@ -132,23 +132,53 @@ const TransactionsPage = () => {
   const formatCurrency = (amount) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-800 p-4 sm:p-6 md:p-8 flex flex-col items-center">
+    <div className="min-h-screen bg-white dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-200 p-4 sm:p-6 md:p-8 flex flex-col items-center">
       <div className="w-full max-w-7xl mx-auto">
-        {/* ## Page Header ## */}
+        {/* ## Geänderter Header mit Grid-Layout ## */}
         <header className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="grid grid-cols-3 items-center">
+            {/* Linke Spalte: Titel */}
             <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-bold text-slate-900">Transaktionen</h1>
-              <div className="px-3 py-1 bg-slate-100 text-slate-700 font-semibold text-sm rounded-full">{filteredTransactions.length}</div>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Transaktionen</h1>
+              <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-sm rounded-full">{filteredTransactions.length}</div>
             </div>
-            <button
-              onClick={() => { setEditingTransaction(null); setModalOpen(true); }}
-              className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base"
-            >
-              <Plus className="w-5 h-5" />
-              <span className="hidden sm:inline">Neue Transaktion</span>
-              <span className="sm:hidden">Neu</span>
-            </button>
+
+            {/* Mittlere Spalte: Monats-Toggle, zentriert */}
+            <div className="flex items-center justify-center">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={goToPreviousMonth}
+                  className="bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 p-3 rounded-full transition-colors"
+                  title="Vorheriger Monat"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <div className="px-4 py-2 min-w-[180px] text-center">
+                  <span className="font-bold text-slate-800 dark:text-slate-200 text-2xl tracking-wide">
+                    {selectedDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+                  </span>
+                </div>
+                <button
+                  onClick={goToNextMonth}
+                  className="bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 p-3 rounded-full transition-colors"
+                  title="Nächster Monat"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Rechte Spalte: Button, ausgerichtet am Ende */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => { setEditingTransaction(null); setModalOpen(true); }}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base"
+              >
+                <Plus className="w-5 h-5" />
+                <span className="hidden sm:inline">Neue Transaktion</span>
+                <span className="sm:hidden">Neu</span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -158,46 +188,32 @@ const TransactionsPage = () => {
             {/* Search and Filter */}
             <div className="flex-grow flex items-center gap-4 w-full">
               <div className="relative flex-grow">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500" />
                 <input
                   type="text"
                   placeholder="Suchen..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-6 border border-slate-300 rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow text-base py-3"
+                  className="w-full pl-12 pr-6 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200 rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow text-base py-3"
                 />
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex-shrink-0 flex items-center gap-2 rounded-lg transition-all duration-300 ease-in-out font-medium py-3 px-6 text-base ${
                   hasActiveFilters
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-700 hover:text-indigo-600'
+                    ? 'bg-indigo-600 dark:bg-indigo-700 text-white shadow-md'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'
                 }`}
               >
                 <Filter className="w-5 h-5" />
                 <span>Filter</span>
               </button>
             </div>
-            {/* Minimalist Month Navigator */}
-            <div className="flex items-center gap-4 shrink-0">
-                <button onClick={goToPreviousMonth} title="Vorheriger Monat" className="p-2 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors">
-                    <ChevronLeft className="w-5 h-5" />
-                </button>
-                <div className="text-center min-w-[180px]">
-                    <span className="font-semibold text-slate-800 text-base">
-                        {selectedDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
-                    </span>
-                </div>
-                <button onClick={goToNextMonth} title="Nächster Monat" className="p-2 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors">
-                    <ChevronRight className="w-5 h-5" />
-                </button>
-            </div>
           </div>
           {/* Expanded Filters */}
           {showFilters && (
-             <div className="p-5 bg-white border border-slate-100 rounded-xl shadow-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[ { label: 'Kategorie', value: selectedCategory, onChange: setSelectedCategory, options: categories.map(c => c.name) }, { label: 'Konto', value: selectedAccount, onChange: setSelectedAccount, options: accounts.map(a => a.name) }, { label: 'Typ', value: amountFilter, onChange: setAmountFilter, options: { 'all': 'Alle', 'income': 'Nur Einnahmen', 'expense': 'Nur Ausgaben' } } ].map(filter => ( <div key={filter.label}> <label className="block text-xs font-medium text-slate-600 mb-1.5">{filter.label}</label> <select value={filter.value} onChange={(e) => filter.onChange(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"> <option value="">Alle</option> {Array.isArray(filter.options) ? filter.options.map(opt => <option key={opt} value={opt}>{opt}</option>) : Object.entries(filter.options).map(([val, name]) => <option key={val} value={val}>{name}</option>)} </select> </div> ))} {hasActiveFilters && ( <div className="sm:col-span-2 lg:col-span-3 flex justify-end"> <button onClick={clearAllFilters} className="flex items-center gap-2 text-slate-600 hover:text-red-600 font-medium text-sm"> <X className="w-4 h-4" /> Alle Filter zurücksetzen </button> </div> )}
+             <div className="p-5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-xl dark:shadow-slate-900/50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[ { label: 'Kategorie', value: selectedCategory, onChange: setSelectedCategory, options: categories.map(c => c.name) }, { label: 'Konto', value: selectedAccount, onChange: setSelectedAccount, options: accounts.map(a => a.name) }, { label: 'Typ', value: amountFilter, onChange: setAmountFilter, options: { 'all': 'Alle', 'income': 'Nur Einnahmen', 'expense': 'Nur Ausgaben' } } ].map(filter => ( <div key={filter.label}> <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">{filter.label}</label> <select value={filter.value} onChange={(e) => filter.onChange(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"> <option value="">Alle</option> {Array.isArray(filter.options) ? filter.options.map(opt => <option key={opt} value={opt}>{opt}</option>) : Object.entries(filter.options).map(([val, name]) => <option key={val} value={val}>{name}</option>)} </select> </div> ))} {hasActiveFilters && ( <div className="sm:col-span-2 lg:col-span-3 flex justify-end"> <button onClick={clearAllFilters} className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 font-medium text-sm"> <X className="w-4 h-4" /> Alle Filter zurücksetzen </button> </div> )}
             </div>
           )}
         </div>
@@ -205,40 +221,40 @@ const TransactionsPage = () => {
         {/* ## REDESIGNED Transactions List ## */}
         <main className="w-full">
           {filteredTransactions.length === 0 ? (
-            <div className="text-center p-12 bg-slate-50 rounded-2xl">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-5"> <List className="w-8 h-8 text-indigo-600" /> </div>
-              <h2 className="text-2xl font-bold text-slate-800">Keine Transaktionen</h2>
-              <p className="text-slate-500 mt-2 max-w-sm mx-auto">{hasActiveFilters ? 'Für deine Filterauswahl wurden keine Ergebnisse gefunden.' : 'Für diesen Monat sind keine Transaktionen vorhanden.'}</p>
+            <div className="text-center p-12 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 dark:bg-indigo-900/50 rounded-full mb-5"> <List className="w-8 h-8 text-indigo-600 dark:text-indigo-400" /> </div>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Keine Transaktionen</h2>
+              <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">{hasActiveFilters ? 'Für deine Filterauswahl wurden keine Ergebnisse gefunden.' : 'Für diesen Monat sind keine Transaktionen vorhanden.'}</p>
             </div>
           ) : (
             <div className="space-y-6">
               {Object.keys(groupedTransactions).map(date => (
                 <div key={date}>
-                  <h3 className="text-sm font-semibold text-slate-500 px-4 py-2 bg-slate-50 rounded-lg inline-block mb-4">
+                  <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 px-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg inline-block mb-4">
                     {formatDateGroup(date)}
                   </h3>
                   <div className="space-y-2">
                     {groupedTransactions[date].map(tx => {
                       const { Icon, color, iconColor } = getTransactionTheme(tx.category);
                       return (
-                        <div key={tx.id} className="group flex items-center justify-between p-4 bg-white hover:bg-slate-50 rounded-2xl border border-slate-100 transition-all duration-200 ease-in-out">
+                        <div key={tx.id} className="group flex items-center justify-between p-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-2xl border border-slate-100 dark:border-slate-700 transition-all duration-200 ease-in-out">
                           <div className="flex items-center gap-4">
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
                               <Icon className={`w-6 h-6 ${iconColor}`} />
                             </div>
                             <div>
-                              <p className="font-bold text-slate-800 text-base">{tx.recipient || 'Unbekannt'}</p>
-                              <p className="text-slate-500 text-sm">{tx.description || tx.category || 'Keine Beschreibung'}</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-200 text-base">{tx.recipient || 'Unbekannt'}</p>
+                              <p className="text-slate-500 dark:text-slate-400 text-sm">{tx.description || tx.category || 'Keine Beschreibung'}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-6">
-                            <p className={`font-bold text-base text-right ${tx.amount > 0 ? 'text-green-600' : 'text-slate-800'}`}>
+                            <p className={`font-bold text-base text-right ${tx.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-800 dark:text-slate-200'}`}>
                               {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
                             </p>
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {tx.amount < 0 && (!tx.sharedWith || tx.sharedWith.length === 0) && ( <button onClick={() => handleShareExpense(tx)} className="btn-icon text-slate-400 hover:bg-indigo-100 hover:text-indigo-600" title="Ausgabe teilen"><Users className="w-4 h-4"/></button> )}
-                              <button onClick={() => handleEdit(tx)} className="btn-icon text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Bearbeiten"><Edit className="w-4 h-4"/></button>
-                              <button onClick={() => handleDelete(tx.id)} className="btn-icon text-slate-400 hover:bg-red-100 hover:text-red-600" title="Löschen"><Trash2 className="w-4 h-4"/></button>
+                              {tx.amount < 0 && (!tx.sharedWith || tx.sharedWith.length === 0) && ( <button onClick={() => handleShareExpense(tx)} className="btn-icon text-slate-400 dark:text-slate-500 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 hover:text-indigo-600 dark:hover:text-indigo-400" title="Ausgabe teilen"><Users className="w-4 h-4"/></button> )}
+                              <button onClick={() => handleEdit(tx)} className="btn-icon text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300" title="Bearbeiten"><Edit className="w-4 h-4"/></button>
+                              <button onClick={() => handleDelete(tx.id)} className="btn-icon text-slate-400 dark:text-slate-500 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400" title="Löschen"><Trash2 className="w-4 h-4"/></button>
                             </div>
                           </div>
                         </div>

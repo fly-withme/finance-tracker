@@ -1,24 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Settings, Palette, Trash2, Plus, Edit, Save, X, Target, Euro, Folder, Users, Sliders, Bell, Shield, Database, Download, Upload, RefreshCw } from 'lucide-react';
-import Card from './ui/Card';
-import PageHeader from './ui/PageHeader';
+import { Settings, Palette, Trash2, Plus, Edit, Folder, Users, Sliders, Database, Download, Upload, X, ChevronRight, ChevronDown } from 'lucide-react';
 import ConfirmationModal from './ui/ConfirmationModal';
 import CategoryEditModal from './CategoryEditModal';
 import { db } from '../utils/db';
 
-const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
+const SettingsPage = ({ settings, setSettings, categories, setCategories, enhancedClassifier, useEnhancedML }) => {
   // Live-Daten aus der Datenbank
   const liveCategories = useLiveQuery(() => db.categories.toArray(), []) || [];
-  const budgets = useLiveQuery(() => db.budgets.toArray(), []) || [];
   
   // UI States
   const [activeTab, setActiveTab] = useState('categories');
   const [categoryToDelete, setCategoryToDelete] = useState(null);
   const [isConfirmOpen, setConfirmOpen] = useState(false);
+  const [isDeleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [editingBudgets, setEditingBudgets] = useState({});
   
   // Grouping States
   const [isGroupModalOpen, setGroupModalOpen] = useState(false);
@@ -35,20 +32,6 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
       count: liveCategories.length
     },
     { 
-      id: 'budgets', 
-      label: 'Budgets', 
-      icon: Target, 
-      description: 'Setze monatliche Ausgabenlimits',
-      count: budgets.length
-    },
-    { 
-      id: 'preferences', 
-      label: 'Präferenzen', 
-      icon: Sliders, 
-      description: 'App-Einstellungen und Personalisierung',
-      badge: 'NEU'
-    },
-    { 
       id: 'data', 
       label: 'Daten', 
       icon: Database, 
@@ -56,6 +39,9 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
     }
   ];
 
+  // --- HANDLERS ---
+  
+  // Category Management
   const handleDeleteRequest = (id) => { 
     setCategoryToDelete(id); 
     setConfirmOpen(true); 
@@ -63,10 +49,11 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
 
   const handleDeleteConfirm = async () => { 
     try {
+      const categoryName = liveCategories.find(c => c.id === categoryToDelete)?.name;
       await db.categories.delete(categoryToDelete);
-      await db.budgets.where('categoryName').equals(
-        liveCategories.find(c => c.id === categoryToDelete)?.name
-      ).delete();
+      if (categoryName) {
+        await db.budgets.where('categoryName').equals(categoryName).delete();
+      }
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
     }
@@ -79,7 +66,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
     setEditModalOpen(true);
   };
   
-  const handleSaveCategory = async (categoryData, budgetAmount) => {
+  const handleSaveCategory = async (categoryData) => {
     try {
       if (editingCategory?.id) {
         await db.categories.update(editingCategory.id, categoryData);
@@ -130,17 +117,34 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
   };
 
   const toggleGroupExpansion = (groupId) => {
-    const newExpanded = new Set(expandedGroups);
-    if (newExpanded.has(groupId)) {
-      newExpanded.delete(groupId);
-    } else {
-      newExpanded.add(groupId);
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupId)) newSet.delete(groupId);
+      else newSet.add(groupId);
+      return newSet;
+    });
+  };
+  
+  const handleDeleteAllData = async () => {
+    try {
+      await Promise.all([
+        db.inbox.clear(),
+        db.transactions.clear(),
+        db.budgets.clear(),
+        db.categories.clear(),
+        db.sharedExpenses.clear(),
+        db.settings.clear(),
+        db.contacts.clear()
+      ]);
+      console.log('Alle Daten wurden gelöscht.');
+    } catch (error) {
+      console.error('Fehler beim Löschen aller Daten:', error);
     }
-    setExpandedGroups(newExpanded);
+    setDeleteAllConfirmOpen(false);
   };
 
   // Organize categories into hierarchical structure
-  const organizedCategories = React.useMemo(() => {
+  const organizedCategories = useMemo(() => {
     const mainCategories = liveCategories.filter(cat => !cat.parentId);
     const subcategories = liveCategories.filter(cat => cat.parentId);
     
@@ -160,21 +164,17 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
 
   // Categories Tab Component
   const CategoriesTab = () => (
-    <div className="space-y-6">
-      {/* Header with Action */}
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">Kategorien verwalten</h3>
-          <p className="text-sm text-slate-500 mt-1">Organisiere deine Ausgabenkategorien in Gruppen</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Kategorien verwalten</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Organisiere deine Ausgabenkategorien in Gruppen.</p>
         </div>
         <button
-          onClick={() => {
-            setEditingCategory(null);
-            setEditModalOpen(true);
-          }}
-          className="btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 flex items-center gap-2"
+          onClick={() => { setEditingCategory(null); setEditModalOpen(true); }}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-all"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-5 h-5" />
           Neue Kategorie
         </button>
       </div>
@@ -182,81 +182,32 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
       {/* Grouped Categories */}
       {organizedCategories.grouped.length > 0 && (
         <div className="space-y-4">
-          <h4 className="text-sm font-medium text-slate-700 uppercase tracking-wide">Gruppierte Kategorien</h4>
+          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Gruppen</h3>
           {organizedCategories.grouped.map((group) => (
-            <div key={group.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-              {/* Group Header */}
-              <div className="flex items-center justify-between p-4 bg-slate-50 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => toggleGroupExpansion(group.id)}
-                    className="p-1 text-slate-500 hover:text-slate-700 rounded transition-colors"
-                  >
-                    {expandedGroups.has(group.id) ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: group.color }}></div>
+            <div key={group.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50" onClick={() => toggleGroupExpansion(group.id)}>
+                <div className="flex items-center gap-4">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }}></div>
                   <div>
-                    <h5 className="font-semibold text-slate-900">{group.name}</h5>
-                    <p className="text-xs text-slate-500">{group.subcategories.length} Unterkategorien</p>
+                    <h4 className="font-semibold text-slate-900 dark:text-slate-100">{group.name}</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{group.subcategories.length} Unterkategorien</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleEditCategory(group)}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Bearbeiten"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteRequest(group.id)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Löschen"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleEditCategory(group); }} className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors" title="Bearbeiten"><Edit className="w-4 h-4" /></button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteRequest(group.id); }} className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors" title="Löschen"><Trash2 className="w-4 h-4" /></button>
+                  <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${expandedGroups.has(group.id) ? 'rotate-180' : ''}`} />
                 </div>
               </div>
-
-              {/* Subcategories */}
               {expandedGroups.has(group.id) && (
-                <div className="p-4 space-y-2">
+                <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-2">
                   {group.subcategories.map((subcat) => (
-                    <div key={subcat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: subcat.color }}></div>
-                        <span className="font-medium text-slate-800">{subcat.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleUngroupCategory(subcat)}
-                          className="px-2 py-1 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
-                          title="Aus Gruppe entfernen"
-                        >
-                          Entgruppieren
-                        </button>
-                        <button
-                          onClick={() => handleEditCategory(subcat)}
-                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Bearbeiten"
-                        >
-                          <Edit className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRequest(subcat.id)}
-                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Löschen"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                    <div key={subcat.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 group">
+                      <div className="flex items-center gap-3"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: subcat.color }}></div><span className="font-medium text-slate-800 dark:text-slate-200">{subcat.name}</span></div>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleUngroupCategory(subcat)} className="px-2 py-1 text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/50 rounded transition-colors">Entgruppieren</button>
+                        <button onClick={() => handleEditCategory(subcat)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors"><Edit className="w-4 h-4" /></button>
+                        <button onClick={() => handleDeleteRequest(subcat.id)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
                   ))}
@@ -270,37 +221,15 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
       {/* Ungrouped Categories */}
       {organizedCategories.ungrouped.length > 0 && (
         <div className="space-y-4">
-          <h4 className="text-sm font-medium text-slate-700 uppercase tracking-wide">Einzelne Kategorien</h4>
-          <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Einzelne Kategorien</h3>
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-200 dark:divide-slate-700">
             {organizedCategories.ungrouped.map((category) => (
-              <div key={category.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }}></div>
-                  <span className="font-medium text-slate-900">{category.name}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleGroupCategory(category)}
-                    className="px-3 py-1 text-xs text-green-600 hover:text-green-700 hover:bg-green-50 rounded-full transition-colors flex items-center gap-1"
-                    title="In Gruppe verschieben"
-                  >
-                    <Users className="w-3 h-3" />
-                    Gruppieren
-                  </button>
-                  <button
-                    onClick={() => handleEditCategory(category)}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Bearbeiten"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteRequest(category.id)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Löschen"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+              <div key={category.id} className="flex items-center justify-between p-4 group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                <div className="flex items-center gap-4"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }}></div><span className="font-semibold text-slate-900 dark:text-slate-100">{category.name}</span></div>
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => handleGroupCategory(category)} className="px-3 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-full flex items-center gap-1"> <Users className="w-3 h-3" /> Gruppieren</button>
+                  <button onClick={() => handleEditCategory(category)} className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"><Edit className="w-4 h-4" /></button>
+                  <button onClick={() => handleDeleteRequest(category.id)} className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}
@@ -308,563 +237,115 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
         </div>
       )}
 
-      {/* Orphaned Categories */}
-      {organizedCategories.orphaned.length > 0 && (
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium text-amber-700 uppercase tracking-wide">Verwaiste Kategorien</h4>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <p className="text-sm text-amber-800 mb-3">Diese Kategorien gehören zu nicht existierenden Gruppen:</p>
-            <div className="space-y-2">
-              {organizedCategories.orphaned.map((category) => (
-                <div key={category.id} className="flex items-center justify-between p-2 bg-white rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }}></div>
-                    <span className="font-medium text-slate-900">{category.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleUngroupCategory(category)}
-                      className="px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
-                    >
-                      Reparieren
-                    </button>
-                    <button
-                      onClick={() => handleDeleteRequest(category.id)}
-                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Empty State */}
       {liveCategories.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-            <Palette className="w-8 h-8 text-slate-400" />
-          </div>
-          <h3 className="text-lg font-medium text-slate-900 mb-2">Keine Kategorien vorhanden</h3>
-          <p className="text-slate-500 mb-6">Erstelle deine erste Kategorie um anzufangen</p>
-          <button
-            onClick={() => {
-              setEditingCategory(null);
-              setEditModalOpen(true);
-            }}
-            className="btn bg-indigo-600 text-white hover:bg-indigo-700"
-          >
-            Erste Kategorie erstellen
-          </button>
+        <div className="text-center py-16 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+          <Palette className="w-12 h-12 mx-auto text-slate-400 dark:text-slate-500" />
+          <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Keine Kategorien vorhanden</h3>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Erstelle deine erste Kategorie, um loszulegen.</p>
         </div>
       )}
     </div>
   );
 
-  // Budgets Tab Component  
-  const BudgetsTab = () => {
-    const [editingBudget, setEditingBudget] = useState(null);
-    const [budgetAmount, setBudgetAmount] = useState('');
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [selectedCategory, setSelectedCategory] = useState('');
-
-    const formatCurrency = (amount) => amount.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-
-    const handleSaveBudget = async (categoryName, amount) => {
-      const budgetValue = parseFloat(amount) || 0;
-      if (budgetValue <= 0) return;
-
-      try {
-        const existingBudget = budgets.find(b => b.categoryName === categoryName);
-        
-        if (existingBudget) {
-          await db.budgets.update(existingBudget.id, { amount: budgetValue });
-        } else {
-          await db.budgets.add({
-            categoryName,
-            amount: budgetValue
-          });
-        }
-        
-        setEditingBudget(null);
-        setBudgetAmount('');
-        setShowAddForm(false);
-        setSelectedCategory('');
-      } catch (error) {
-        console.error('Fehler beim Speichern des Budgets:', error);
-      }
-    };
-
-    const handleDeleteBudget = async (budgetId) => {
-      try {
-        await db.budgets.delete(budgetId);
-      } catch (error) {
-        console.error('Fehler beim Löschen des Budgets:', error);
-      }
-    };
-
-    const availableCategories = liveCategories.filter(cat => !budgets.find(b => b.categoryName === cat.name));
-
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900">Budget verwalten</h3>
-            <p className="text-sm text-slate-500 mt-1">Setze monatliche Ausgabenlimits für deine Kategorien</p>
-          </div>
-          
-          {availableCategories.length > 0 && !showAddForm && (
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Budget hinzufügen
-            </button>
-          )}
-        </div>
-
-        {/* Add Budget Form */}
-        {showAddForm && (
-          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="font-semibold text-slate-800">Neues Budget erstellen</h4>
-              <button
-                onClick={() => {
-                  setShowAddForm(false);
-                  setBudgetAmount('');
-                  setSelectedCategory('');
-                }}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Kategorie auswählen</label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white"
-                >
-                  <option value="">Kategorie wählen...</option>
-                  {availableCategories.map(category => (
-                    <option key={category.id} value={category.name}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Monatliches Budget (€)</label>
-                <input
-                  type="number"
-                  value={budgetAmount}
-                  onChange={(e) => setBudgetAmount(e.target.value)}
-                  placeholder="z.B. 500"
-                  className="w-full px-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 mt-6">
-              <button
-                onClick={() => {
-                  if (selectedCategory && budgetAmount) {
-                    handleSaveBudget(selectedCategory, budgetAmount);
-                  }
-                }}
-                disabled={!selectedCategory || !budgetAmount || parseFloat(budgetAmount) <= 0}
-                className="btn bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                Budget speichern
-              </button>
-              <button
-                onClick={() => {
-                  setShowAddForm(false);
-                  setBudgetAmount('');
-                  setSelectedCategory('');
-                }}
-                className="btn bg-slate-100 text-slate-700 hover:bg-slate-200"
-              >
-                Abbrechen
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {/* Existing Budgets */}
-        {budgets.length > 0 ? (
-          <div className="space-y-3">
-            <h4 className="font-medium text-slate-700">
-              Aktuelle Budgets ({budgets.length})
-            </h4>
-            <div className="space-y-3">
-              {budgets.map(budget => {
-                const category = liveCategories.find(cat => cat.name === budget.categoryName);
-                return (
-                  <div key={budget.id} className="group p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-all duration-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div 
-                          className="w-4 h-4 rounded-full flex-shrink-0" 
-                          style={{ backgroundColor: category?.color || '#6366f1' }}
-                        />
-                        <div>
-                          <h5 className="font-semibold text-slate-900">{budget.categoryName}</h5>
-                          <p className="text-sm text-slate-500">Monatliches Limit</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        {editingBudget === budget.id ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              value={budgetAmount}
-                              onChange={(e) => setBudgetAmount(e.target.value)}
-                              className="w-28 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                              autoFocus
-                              step="0.01"
-                              min="0"
-                            />
-                            <button
-                              onClick={() => handleSaveBudget(budget.categoryName, budgetAmount)}
-                              className="btn-icon text-green-600 hover:bg-green-50"
-                            >
-                              <Save className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingBudget(null);
-                                setBudgetAmount('');
-                              }}
-                              className="btn-icon text-slate-400 hover:bg-slate-100"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <span className="text-xl font-bold text-slate-800">
-                              {formatCurrency(budget.amount)}
-                            </span>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => {
-                                  setEditingBudget(budget.id);
-                                  setBudgetAmount(budget.amount.toString());
-                                }}
-                                className="btn-icon text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                title="Bearbeiten"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteBudget(budget.id)}
-                                className="btn-icon text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                title="Löschen"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Target className="w-8 h-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-900 mb-2">Noch keine Budgets erstellt</h3>
-            <p className="text-slate-500 mb-6">Erstelle dein erstes Budget um deine Ausgaben zu verfolgen</p>
-            {availableCategories.length > 0 && (
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="btn bg-indigo-600 text-white hover:bg-indigo-700"
-              >
-                Erstes Budget erstellen
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* No categories available */}
-        {liveCategories.length === 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-            <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Folder className="w-6 h-6 text-amber-600" />
-            </div>
-            <h4 className="font-medium text-amber-900 mb-2">Keine Kategorien vorhanden</h4>
-            <p className="text-amber-700 text-sm">Erstelle zuerst Kategorien im "Kategorien"-Tab, um Budgets hinzuzufügen.</p>
-          </div>
-        )}
+  const DataTab = () => (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Daten verwalten</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Importiere, exportiere und verwalte deine Finanzdaten.</p>
       </div>
-    );
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 flex flex-col items-start">
+          <div className="flex items-center gap-3 mb-2"><div className="w-10 h-10 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center"><Upload className="w-5 h-5 text-green-600 dark:text-green-400" /></div><h4 className="font-semibold text-slate-900 dark:text-slate-100">Daten importieren</h4></div>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 flex-grow">Lade Transaktionen aus einer CSV-Datei hoch.</p>
+          <button className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Import starten</button>
+        </div>
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 flex flex-col items-start">
+          <div className="flex items-center gap-3 mb-2"><div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center"><Download className="w-5 h-5 text-blue-600 dark:text-blue-400" /></div><h4 className="font-semibold text-slate-900 dark:text-slate-100">Daten exportieren</h4></div>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 flex-grow">Sichere alle deine Transaktionen als CSV-Datei.</p>
+          <button className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Export starten</button>
+        </div>
+      </div>
+      <div className="border-2 border-red-500/50 dark:border-red-500/30 bg-red-50 dark:bg-red-900/20 rounded-xl p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-lg flex items-center justify-center flex-shrink-0"><Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" /></div>
+          <div>
+            <h4 className="font-semibold text-red-800 dark:text-red-300">Gefahrenzone: Alle Daten löschen</h4>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-1 mb-4">Dieser Vorgang ist endgültig. Alle deine Transaktionen, Budgets, Kategorien und Kontakte werden unwiderruflich gelöscht.</p>
+            <button onClick={() => setDeleteAllConfirmOpen(true)} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-red-900/20 transition-all">Ich verstehe, alle Daten löschen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'categories': return <CategoriesTab />;
+      case 'data': return <DataTab />;
+      default: return null;
+    }
   };
 
-  // Preferences Tab Component
-  const PreferencesTab = () => (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900">App-Einstellungen</h3>
-        <p className="text-sm text-slate-500 mt-1">Personalisiere deine Zenith Finance Erfahrung</p>
-      </div>
-      
-      <div className="space-y-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Bell className="w-5 h-5 text-slate-600" />
-              <div>
-                <h4 className="font-medium text-slate-900">Benachrichtigungen</h4>
-                <p className="text-sm text-slate-500">Erhalte Updates über deine Finanzen</p>
-              </div>
-            </div>
-            <div className="w-12 h-6 bg-slate-200 rounded-full relative cursor-pointer">
-              <div className="w-5 h-5 bg-white rounded-full shadow absolute top-0.5 left-0.5 transition-transform"></div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-slate-600" />
-              <div>
-                <h4 className="font-medium text-slate-900">Datenschutz</h4>
-                <p className="text-sm text-slate-500">Verwalte deine Privatsphäre-Einstellungen</p>
-              </div>
-            </div>
-            <button className="btn btn-sm bg-slate-100 text-slate-700 hover:bg-slate-200">
-              Konfigurieren
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Data Tab Component
-  const DataTab = () => (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900">Daten verwalten</h3>
-        <p className="text-sm text-slate-500 mt-1">Importiere, exportiere und verwalte deine Finanzdaten</p>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <Upload className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <h4 className="font-medium text-slate-900">Daten importieren</h4>
-              <p className="text-sm text-slate-500">Lade Transaktionen aus anderen Quellen hoch</p>
-            </div>
-          </div>
-          <button className="btn w-full bg-green-600 text-white hover:bg-green-700">
-            CSV/Excel importieren
-          </button>
-        </div>
-        
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Download className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h4 className="font-medium text-slate-900">Daten exportieren</h4>
-              <p className="text-sm text-slate-500">Sichere deine Daten als Backup</p>
-            </div>
-          </div>
-          <button className="btn w-full bg-blue-600 text-white hover:bg-blue-700">
-            Als CSV exportieren
-          </button>
-        </div>
-        
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <RefreshCw className="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <h4 className="font-medium text-slate-900">Cache leeren</h4>
-              <p className="text-sm text-slate-500">Setze die App-Daten zurück</p>
-            </div>
-          </div>
-          <button className="btn w-full bg-orange-600 text-white hover:bg-orange-700">
-            Cache zurücksetzen
-          </button>
-        </div>
-        
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-              <Database className="w-5 h-5 text-slate-600" />
-            </div>
-            <div>
-              <h4 className="font-medium text-slate-900">Datenbank-Info</h4>
-              <p className="text-sm text-slate-500">{liveCategories.length} Kategorien, {budgets.length} Budgets</p>
-            </div>
-          </div>
-          <div className="text-xs text-slate-500">
-            Version: {typeof window !== 'undefined' && window.db ? window.db.verno : 'N/A'}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="p-4 md:p-6 xl:p-8 bg-slate-50 min-h-screen w-full overflow-hidden">
-      <div className="w-full max-w-6xl mx-auto">
-        {/* Modern Header */}
-        <PageHeader title={
-          <div className="flex items-center gap-3">
-            <Settings className="w-8 h-8 text-indigo-600" />
-            <div>
-              <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">Einstellungen</h1>
-              <p className="text-slate-500 mt-1">Konfiguriere deine Zenith Finance App</p>
-            </div>
-          </div>
-        } />
+    <div className="bg-slate-50 dark:bg-slate-900 min-h-screen font-sans">
+      <div className="max-w-screen-xl mx-auto p-4 sm:p-6 lg:p-8">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Einstellungen</h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-1">Verwalte deine Kategorien, Präferenzen und Daten.</p>
+        </header>
 
-        {/* Minimalist Tab Navigation */}
-        <div className="mt-8 mb-8">
-          <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
-                    isActive
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+        <div className="grid grid-cols-1 md:grid-cols-12 md:gap-8">
+          <aside className="md:col-span-3 lg:col-span-2 mb-8 md:mb-0">
+            <nav className="space-y-1">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-slate-100 text-slate-600'
-                        : 'bg-slate-200 text-slate-600'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                        ? 'bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
 
-        {/* Content Card */}
-        <Card>
-          <div className="p-6 min-h-[600px]">
-            {activeTab === 'categories' && <CategoriesTab />}
-            {activeTab === 'budgets' && <BudgetsTab />}
-            {activeTab === 'preferences' && <PreferencesTab />}
-            {activeTab === 'data' && <DataTab />}
-          </div>
-        </Card>
+          <main className="md:col-span-9 lg:col-span-10">
+            {renderContent()}
+          </main>
+        </div>
       </div>
 
       {/* Modals */}
-      <ConfirmationModal 
-        isOpen={isConfirmOpen} 
-        onClose={() => setConfirmOpen(false)} 
-        onConfirm={handleDeleteConfirm} 
-        title="Kategorie löschen" 
-        message="Möchtest du diese Kategorie wirklich löschen? Transaktionen mit dieser Kategorie müssen neu kategorisiert werden." 
-      />
-      
-      <CategoryEditModal
-        category={editingCategory}
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setEditModalOpen(false);
-          setEditingCategory(null);
-        }}
-        onSave={handleSaveCategory}
-        onDelete={handleDeleteCategory}
-      />
+      <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setConfirmOpen(false)} onConfirm={handleDeleteConfirm} title="Kategorie löschen" message="Möchtest du diese Kategorie wirklich löschen? Zugehörige Budgets werden ebenfalls entfernt." />
+      <ConfirmationModal isOpen={isDeleteAllConfirmOpen} onClose={() => setDeleteAllConfirmOpen(false)} onConfirm={handleDeleteAllData} title="Alle Daten wirklich löschen?" message="Dieser Vorgang kann nicht rückgängig gemacht werden. Bist du absolut sicher?" />
+      <CategoryEditModal category={editingCategory} isOpen={isEditModalOpen} onClose={() => { setEditModalOpen(false); setEditingCategory(null); }} onSave={handleSaveCategory} onDelete={handleDeleteCategory} />
 
-      {/* Grouping Modal */}
       {isGroupModalOpen && categoryToGroup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700">
             <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900">
-                  "{categoryToGroup.name}" gruppieren
-                </h3>
-                <button
-                  onClick={() => {
-                    setGroupModalOpen(false);
-                    setCategoryToGroup(null);
-                  }}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">"{categoryToGroup.name}" gruppieren</h3><button onClick={() => { setGroupModalOpen(false); setCategoryToGroup(null); }} className="p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X className="w-5 h-5" /></button></div>
+              <p className="text-slate-600 dark:text-slate-400 mb-4 text-sm">Wähle eine Hauptkategorie aus, der diese Kategorie untergeordnet werden soll:</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                {liveCategories.filter(cat => !cat.parentId && cat.id !== categoryToGroup.id).map((category) => (
+                  <button key={category.id} onClick={() => handleGroupToParent(category.id)} className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/50 dark:hover:bg-slate-700 rounded-lg transition-colors text-left">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }}></div>
+                    <span className="flex-1 font-medium text-slate-900 dark:text-slate-100">{category.name}</span>
+                    <ChevronRight className="w-5 h-5 text-slate-400" />
+                  </button>
+                ))}
               </div>
-              
-              <p className="text-slate-600 mb-4">
-                Wähle eine Hauptkategorie aus, unter der "{categoryToGroup.name}" gruppiert werden soll:
-              </p>
-              
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {liveCategories
-                  .filter(cat => !cat.parentId && cat.id !== categoryToGroup.id)
-                  .map((category) => (
-                    <button
-                      key={category.id}
-                      onClick={() => handleGroupToParent(category.id)}
-                      className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors text-left"
-                    >
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }}></div>
-                      <div className="flex-1">
-                        <span className="font-medium text-slate-900">{category.name}</span>
-                        {organizedCategories.grouped.find(org => org.id === category.id)?.subcategories.length > 0 && (
-                          <p className="text-xs text-slate-500">
-                            {organizedCategories.grouped.find(org => org.id === category.id)?.subcategories.length} Unterkategorien
-                          </p>
-                        )}
-                      </div>
-                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  ))}
-              </div>
-              
               {liveCategories.filter(cat => !cat.parentId && cat.id !== categoryToGroup.id).length === 0 && (
-                <div className="text-center py-8 text-slate-500">
-                  <Folder className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                  <p>Keine anderen Hauptkategorien verfügbar</p>
-                  <p className="text-sm">Erstelle zuerst eine andere Kategorie</p>
-                </div>
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400"><Folder className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" /><p>Keine anderen Hauptkategorien verfügbar.</p></div>
               )}
             </div>
           </div>
@@ -873,6 +354,5 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories }) => {
     </div>
   );
 };
-
 
 export default SettingsPage;

@@ -201,66 +201,42 @@ export class TransactionClassifier {
   }
 }
 
-// Pre-trained patterns for common transaction types
+// Basic language patterns for common transaction types - no specific brands/companies
 export const getInitialModel = () => ({
+  // Common German and English keywords for categories
   // Income patterns
-  'salary': { category: 'Income', confidence: 0.9 },
-  'wage': { category: 'Income', confidence: 0.9 },
-  'freelance': { category: 'Income', confidence: 0.8 },
-  'bonus': { category: 'Income', confidence: 0.8 },
   'gehalt': { category: 'Income', confidence: 0.9 },
   'lohn': { category: 'Income', confidence: 0.9 },
+  'salary': { category: 'Income', confidence: 0.9 },
+  'wage': { category: 'Income', confidence: 0.9 },
+  'bonus': { category: 'Income', confidence: 0.8 },
   
   // Food & Dining
   'restaurant': { category: 'Food & Drink', confidence: 0.8 },
   'cafe': { category: 'Food & Drink', confidence: 0.8 },
-  'mcdonald': { category: 'Food & Drink', confidence: 0.9 },
-  'burger': { category: 'Food & Drink', confidence: 0.7 },
-  'pizza': { category: 'Food & Drink', confidence: 0.8 },
-  'starbucks': { category: 'Food & Drink', confidence: 0.8 },
+  'bistro': { category: 'Food & Drink', confidence: 0.8 },
+  'bar': { category: 'Food & Drink', confidence: 0.8 },
   
   // Groceries
-  'supermarket': { category: 'Groceries', confidence: 0.9 },
+  'supermarkt': { category: 'Groceries', confidence: 0.9 },
   'grocery': { category: 'Groceries', confidence: 0.9 },
-  'rewe': { category: 'Groceries', confidence: 0.9 },
-  'edeka': { category: 'Groceries', confidence: 0.9 },
-  'aldi': { category: 'Groceries', confidence: 0.9 },
-  'lidl': { category: 'Groceries', confidence: 0.9 },
+  'lebensmittel': { category: 'Groceries', confidence: 0.9 },
   
   // Transportation
-  'uber': { category: 'Transportation', confidence: 0.9 },
-  'taxi': { category: 'Transportation', confidence: 0.8 },
-  'gas station': { category: 'Transportation', confidence: 0.8 },
   'tankstelle': { category: 'Transportation', confidence: 0.8 },
+  'gas station': { category: 'Transportation', confidence: 0.8 },
   'bahn': { category: 'Transportation', confidence: 0.8 },
-  'train': { category: 'Transportation', confidence: 0.8 },
-  
-  // Entertainment
-  'netflix': { category: 'Entertainment', confidence: 0.9 },
-  'spotify': { category: 'Entertainment', confidence: 0.9 },
-  'cinema': { category: 'Entertainment', confidence: 0.8 },
-  'kino': { category: 'Entertainment', confidence: 0.8 },
-  'theater': { category: 'Entertainment', confidence: 0.8 },
+  'taxi': { category: 'Transportation', confidence: 0.8 },
   
   // Housing
-  'rent': { category: 'Housing', confidence: 0.9 },
   'miete': { category: 'Housing', confidence: 0.9 },
-  'mortgage': { category: 'Housing', confidence: 0.9 },
-  'insurance': { category: 'Housing', confidence: 0.7 },
+  'rent': { category: 'Housing', confidence: 0.9 },
   'versicherung': { category: 'Housing', confidence: 0.7 },
+  'insurance': { category: 'Housing', confidence: 0.7 },
   
   // Utilities
-  'electric': { category: 'Utilities', confidence: 0.8 },
-  'gas bill': { category: 'Utilities', confidence: 0.8 },
-  'water': { category: 'Utilities', confidence: 0.8 },
-  'internet': { category: 'Utilities', confidence: 0.8 },
-  'phone': { category: 'Utilities', confidence: 0.7 },
   'strom': { category: 'Utilities', confidence: 0.8 },
-  
-  // Shopping
-  'amazon': { category: 'Shopping', confidence: 0.8 },
-  'ebay': { category: 'Shopping', confidence: 0.8 },
-  'zalando': { category: 'Shopping', confidence: 0.8 },
-  'clothing': { category: 'Shopping', confidence: 0.7 },
-  'online shop': { category: 'Shopping', confidence: 0.7 }
+  'electric': { category: 'Utilities', confidence: 0.8 },
+  'internet': { category: 'Utilities', confidence: 0.8 },
+  'telefon': { category: 'Utilities', confidence: 0.7 }
 });
