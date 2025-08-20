@@ -8,9 +8,9 @@ const Modal = ({ isOpen, onClose, title, children, size = 'default' }) => {
   useOutsideClick(modalRef, onClose);
 
   const sizeClasses = {
-    default: 'max-w-2xl',
-    large: 'max-w-4xl',
-    small: 'max-w-md'
+    default: 'max-w-2xl max-h-[90vh]',
+    large: 'max-w-4xl max-h-[95vh]',
+    small: 'max-w-md max-h-[80vh]'
   };
 
   return (
@@ -25,25 +25,24 @@ const Modal = ({ isOpen, onClose, title, children, size = 'default' }) => {
         >
           <motion.div
             ref={modalRef}
-            initial={{ scale: 0.95, y: 30 }}
+            initial={{ scale: 0.95, y: 20 }}
             animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.95, y: 30 }}
+            exit={{ scale: 0.95, y: 20 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            // Helles Design für das Modal-Panel
-            className={`bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full ${sizeClasses[size]} border border-slate-200 dark:border-slate-700`}
+            className={`bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full ${sizeClasses[size]} border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden`}
           >
             {/* Header-Bereich */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
               <button 
                 onClick={onClose} 
-                className="p-1.5 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            {/* Inhaltsbereich */}
-            <div className="p-6">{children}</div>
+            {/* Inhaltsbereich - Scrollbar */}
+            <div className="flex-1 overflow-y-auto p-6">{children}</div>
           </motion.div>
         </motion.div>
       )}

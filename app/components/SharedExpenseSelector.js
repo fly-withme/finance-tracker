@@ -45,7 +45,7 @@ const SharedExpenseSelector = ({
     } else {
       onSharedExpenseChange(null);
     }
-  }, [selectedContacts, splitType, totalAmount, onSharedExpenseChange]);
+  }, [selectedContacts, splitType, totalAmount]); // onSharedExpenseChange entfernt um Schleife zu vermeiden
 
   const addContact = async (contactName) => {
     const existingContact = contacts.find(c => c.name.toLowerCase() === contactName.toLowerCase());

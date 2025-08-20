@@ -1,5 +1,6 @@
 // Universal PDF Parser mit lokalen LLMs und ML-Modellen
 import { ollamaService } from '../utils/ollamaService.js';
+import { germanTransactionAnalyzer } from '../utils/germanTransactionAnalyzer.js';
 
 export class UniversalBankStatementParser {
   constructor() {
@@ -135,10 +136,10 @@ EXTRAHIERTE TRANSAKTIONEN:
 ${JSON.stringify(transactions, null, 2)}
 
 Aufgaben:
-1. Korrigiere falsche Extraktion
-2. Ergänze fehlende Transaktionen
-3. Verbessere Empfänger-Namen
-4. Kategorisiere Transaktionen
+1. Korrigiere falsche Extraktion.
+2. Ergänze fehlende Transaktionen.
+3. Verbessere Empfänger-Namen. **WICHTIG: Bei PayPal-Transaktionen ist der tatsächliche Händler der Empfänger, nicht "PayPal" selbst. Suche nach dem Namen des Händlers im Text.**
+4. Kategorisiere Transaktionen.
 
 Antworte mit verbessertem JSON-Array:
 [
@@ -340,7 +341,10 @@ Behalte Datum und Betrag unverändert.
   }
 
   validateAndClean(transactions) {
-    return transactions
+    // Apply German transaction analysis for merchant identification
+    const analyzedTransactions = germanTransactionAnalyzer.analyzeTransactions(transactions);
+    
+    return analyzedTransactions
       .filter(tx => this.isValidTransaction(tx))
       .map(tx => this.cleanTransaction(tx))
       .sort((a, b) => new Date(b.date) - new Date(a.date));

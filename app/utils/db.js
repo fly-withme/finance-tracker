@@ -2,6 +2,18 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('ZenithFinanceDB');
 
+// Version 9: Fügt sharedExpenses Tabelle hinzu
+db.version(9).stores({
+  transactions: '++id, date, category, recipient, account, amount, sharedWith, splitType, splitDetails',
+  categories: '++id, &name, parentId',
+  accounts: '++id, &name',
+  settings: 'key', // Einfache Key-Value-Tabelle für Model, etc.
+  inbox: '++id, date, recipient, account, amount, uploadedAt, skipped, [skipped+uploadedAt]', // Posteingang für unkategorisierte Transaktionen
+  budgets: '++id, &categoryName, amount, month, year', // Budget pro Kategorie und Monat
+  contacts: '++id, &name, color', // Kontakte für geteilte Ausgaben
+  sharedExpenses: '++id, date, description, totalAmount, paidBy, sharedWith, splitType, settledAmount' // Geteilte Ausgaben
+});
+
 // Version 8: Erweitert categories um parentId für Hierarchie
 db.version(8).stores({
   transactions: '++id, date, category, recipient, account, amount, sharedWith, splitType, splitDetails',
@@ -103,7 +115,7 @@ export async function populateInitialData(initialData) {
   }
   
   try {
-    await db.transaction('rw', db.transactions, db.categories, db.accounts, db.budgets, db.contacts, async () => {
+    await db.transaction('rw', db.transactions, db.categories, db.accounts, db.budgets, db.contacts, db.sharedExpenses, async () => {
       // Nur Transaktionen hinzufügen wenn leer
       if (transactionCount === 0 && initialData.initialTransactions?.length > 0) {
         await db.transactions.bulkAdd(initialData.initialTransactions);

@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../utils/db';
 
 // Icons from Lucide React
-import { CheckCircle, Trash2, ArrowLeft, ArrowRight, Plus, X, Building, Calendar, Wallet } from 'lucide-react';
+import { CheckCircle, Trash2, ArrowLeft, ArrowRight, Plus, X, Building, Calendar, Wallet, SkipForward } from 'lucide-react';
 
 import AutocompleteCategorySelector from './AutocompleteCategorySelector'; // Your existing component
 
@@ -19,6 +19,8 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
   const [sharedExpenseData, setSharedExpenseData] = useState(null);
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [isReadyToSubmit, setIsReadyToSubmit] = useState(false);
   
   // State for the new people autocomplete
   const [personSearch, setPersonSearch] = useState('');
@@ -131,22 +133,30 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
       }
       
       // Lerne mit ML-System
-      if (classifier && transaction.description) {
+      if (classifier && transaction.description && typeof classifier.learn === 'function' && typeof classifier.getModel === 'function') {
         classifier.learn(transaction.description, categoryName);
         await db.settings.put({ key: 'mlModel', model: classifier.getModel() });
       }
       
-      if (enhancedClassifier && useEnhancedML) {
+      if (enhancedClassifier && useEnhancedML && typeof enhancedClassifier.learn === 'function' && typeof enhancedClassifier.getEnhancedModel === 'function') {
         enhancedClassifier.learn(finalTransaction, categoryName);
         await db.settings.put({ key: 'enhancedMLModel', model: enhancedClassifier.getEnhancedModel() });
       }
       await db.inbox.delete(transaction.id);
       
       setSharedExpenseData(null);
+      setSelectedCategory(''); // Reset der Kategorieauswahl
       
-      if (currentTransactionIndex >= inboxTransactions.length - 1) {
-          setCurrentTransactionIndex(Math.max(0, inboxTransactions.length - 2));
+      // Index korrekt anpassen nach dem Löschen einer Transaktion
+      const newLength = inboxTransactions.length - 1; // Nach dem Löschen
+      if (newLength === 0) {
+        // Keine Transaktionen mehr übrig
+        setCurrentTransactionIndex(0);
+      } else if (currentTransactionIndex >= newLength) {
+        // Wenn wir bei der letzten Transaktion waren, gehe zur vorletzten
+        setCurrentTransactionIndex(newLength - 1);
       }
+      // Sonst bleibt der Index gleich (zeigt automatisch die nächste Transaktion)
 
     } catch (error) {
       console.error('Error categorizing transaction:', error);
@@ -158,10 +168,33 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
   const handleDeleteTransaction = async (transactionId) => {
     try {
       await db.inbox.delete(transactionId);
-      if (currentTransactionIndex >= inboxTransactions.length - 1) {
-        setCurrentTransactionIndex(Math.max(0, inboxTransactions.length - 2));
+      // Index korrekt anpassen nach dem Löschen einer Transaktion
+      const newLength = inboxTransactions.length - 1; // Nach dem Löschen
+      if (newLength === 0) {
+        // Keine Transaktionen mehr übrig
+        setCurrentTransactionIndex(0);
+      } else if (currentTransactionIndex >= newLength) {
+        // Wenn wir bei der letzten Transaktion waren, gehe zur vorletzten
+        setCurrentTransactionIndex(newLength - 1);
       }
+      // Reset der Auswahlen
+      setSelectedCategory('');
+      setSharedExpenseData(null);
     } catch (error) { console.error('Error deleting transaction:', error); }
+  };
+
+  const handleSkipTransaction = () => {
+    // Reset der aktuellen Auswahlen
+    setSelectedCategory('');
+    setSharedExpenseData(null);
+    
+    // Zur nächsten Transaktion springen
+    if (currentTransactionIndex < inboxTransactions.length - 1) {
+      setCurrentTransactionIndex(prev => prev + 1);
+    } else {
+      // Wenn bei der letzten Transaktion, zur ersten springen
+      setCurrentTransactionIndex(0);
+    }
   };
 
   const handleClearInbox = async () => {
@@ -228,6 +261,8 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
   useEffect(() => {
     setSharedExpenseData(null);
     setPersonSearch('');
+    setSelectedCategory('');
+    setIsReadyToSubmit(false);
   }, [currentTransactionIndex]);
 
   useEffect(() => {
@@ -289,7 +324,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
 
       <main className="w-full max-w-7xl flex-grow flex flex-col">
         {inboxTransactions.length === 0 || !currentTx ? (
-          <div className="flex-grow flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700">
+          <div className="h-[calc(100vh-200px)] flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700">
             <div className="text-center p-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 dark:bg-purple-900/50 rounded-full mb-5">
                 <CheckCircle className="w-9 h-9 text-purple-600 dark:text-purple-400" />
@@ -299,57 +334,68 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
             </div>
           </div>
         ) : (
-          <div className="w-full bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl dark:shadow-slate-900/50 overflow-hidden flex flex-col flex-grow">
-            <div className="grid lg:grid-cols-2 flex-grow">
+          <div className="w-full bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl dark:shadow-slate-900/50 overflow-hidden h-[calc(100vh-200px)] flex flex-col">
+            <div className="grid lg:grid-cols-2 flex-grow min-h-0">
               
               <div className="p-6 bg-white dark:bg-slate-800 h-full flex justify-center">
-                {/* Geänderte Karte mit Farbverlauf und ohne Lichteffekte */}
-                <div className="relative h-full w-full max-w-[calc(100%-32px)] bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl text-white p-8 flex flex-col overflow-hidden shadow-xl ring-1 ring-inset ring-white/20">
+                {/* Dark Mode kompatible Transaktionskarte */}
+                <div className="relative h-full w-full max-w-[calc(100%-32px)] bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-3xl p-8 flex flex-col overflow-hidden shadow-xl dark:shadow-slate-900/50">
 
-                    {/* Hintergrund-Elemente entfernt */}
+                    {/* Delete Button - rechts oben */}
+                    <button 
+                      onClick={() => handleDeleteTransaction(currentTx.id)}
+                      className="absolute top-6 right-6 p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors z-20"
+                      title="Transaktion löschen"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
 
                     {/* Header Section */}
-                    <div className="flex items-center gap-4 z-10">
-                        <div className="w-12 h-12 bg-purple-500/20 dark:bg-purple-600/30 rounded-lg flex items-center justify-center border border-purple-400/40 backdrop-blur-sm">
-                            <Building className="w-6 h-6 text-purple-100"/>
+                    <div className="flex items-center gap-4 z-10 pr-12">
+                        <div className="w-12 h-12 bg-slate-100 dark:bg-slate-600 rounded-lg flex items-center justify-center border border-slate-200 dark:border-slate-500">
+                            <Building className="w-6 h-6 text-slate-600 dark:text-slate-400"/>
                         </div>
                         <div>
-                            <p className="text-xl font-bold">{currentTx.recipient || 'Unbekannter Empfänger'}</p>
-                            <p className="text-sm text-purple-200">{currentTx.description || 'Keine Beschreibung'}</p>
+                            <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{currentTx.recipient || 'Unbekannter Empfänger'}</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{currentTx.description || 'Keine Beschreibung'}</p>
                         </div>
                     </div>
 
-                    {/* Main Content Area - Simplified */}
+                    {/* Main Content Area */}
                     <div className="flex-grow flex flex-col items-center justify-center z-10">
-                        <p className={`text-7xl font-extrabold tracking-tighter text-shadow-lg ${currentTx.amount > 0 ? 'text-green-300' : 'text-white'}`}>
+                        <p className={`text-7xl font-extrabold tracking-tighter ${
+                          currentTx.amount > 0 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
                             {formatCurrency(currentTx.amount)}
                         </p>
                     </div>
 
-                    {/* Footer Section - Simplified */}
+                    {/* Footer Section */}
                     <div className="flex justify-between items-center z-10">
-                        <div className="flex items-center gap-2 text-sm">
-                            <Calendar className="w-4 h-4 text-purple-200"/>
+                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <Calendar className="w-4 h-4"/>
                             <span className="font-medium">{new Date(currentTx.date).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-sm">
-                            <Wallet className="w-4 h-4 text-purple-200"/>
+                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <Wallet className="w-4 h-4"/>
                             <span className="font-medium">{currentTx.account || 'Importiert'}</span>
                         </div>
                     </div>
                 </div>
               </div>
 
-              <div className="p-8 bg-white dark:bg-slate-800 flex flex-col space-y-6">
+              <div className="p-6 bg-white dark:bg-slate-800 flex flex-col space-y-4 overflow-y-auto min-h-0">
                  <div>
                     <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Kategorie zuweisen</h3>
                     {/* HINWEIS: Wenden Sie die gleichen Klassen wie beim unteren Input-Feld auf das Input-Element INNENHALB Ihrer AutocompleteCategorySelector Komponente an. */}
                     <AutocompleteCategorySelector
                         key={currentTx.id} categories={categories || []}
                         suggestions={getMLSuggestions(currentTx).filter(s => s !== null).map(s => s.name)}
-                        defaultValue={currentTx.category || ''}
-                        onSelect={(categoryName) => handleCategorizeTransaction(currentTx, categoryName)}
-                        onCreateCategory={(categoryName) => handleCategorizeTransaction(currentTx, categoryName)} />
+                        defaultValue={selectedCategory || currentTx.category || ''}
+                        onSelect={(categoryName) => setSelectedCategory(categoryName)}
+                        onCreateCategory={(categoryName) => setSelectedCategory(categoryName)} />
                  </div>
 
                  {getMLSuggestions(currentTx).filter(s => s !== null).length > 0 && (
@@ -362,7 +408,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                                 suggestion ? (
                                     <button 
                                       key={idx} 
-                                      onClick={() => handleCategorizeTransaction(currentTx, suggestion.name)}
+                                      onClick={() => setSelectedCategory(suggestion.name)}
                                       className="flex flex-col items-center p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 text-blue-700 dark:text-blue-300 rounded-lg transition-all duration-200 border border-blue-200 dark:border-blue-800"
                                       title={`${suggestion.source} - Confidence: ${Math.round(suggestion.confidence * 100)}%`}
                                     >
@@ -435,28 +481,88 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                     )}
                   </div>
                 )}
-                <div className="flex-grow flex items-end justify-end">
-                    <button onClick={() => handleDeleteTransaction(currentTx.id)} className="bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 rounded-lg text-base font-medium transition-colors py-3 px-6">Löschen</button>
-                </div>
+                
+                <div className="flex-grow"></div>
               </div>
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/70 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
+            <div className="flex-shrink-0 px-6 py-4 bg-slate-50 dark:bg-slate-800/70 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <button onClick={() => setCurrentTransactionIndex(prev => prev - 1)} disabled={currentTransactionIndex === 0}
                     className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 rounded-lg text-base font-medium py-3 px-6">
                     <ArrowLeft className="w-5 h-5" />
                     <span>Zurück</span>
                 </button>
                 <div className="text-sm font-medium text-slate-600 dark:text-slate-400">{currentTransactionIndex + 1} von {inboxTransactions.length}</div>
-                <button onClick={() => setCurrentTransactionIndex(prev => prev + 1)} disabled={currentTransactionIndex === inboxTransactions.length - 1}
-                    className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 rounded-lg text-base font-medium py-3 px-6">
-                    <span>Nächste</span>
-                    <ArrowRight className="w-5 h-5" />
-                </button>
+                {/* Dynamischer Button - Überspringen oder Speichern */}
+                {selectedCategory || (sharedExpenseData && sharedExpenseData.sharedWith.length > 0) ? (
+                  <button 
+                    onClick={() => handleCategorizeTransaction(currentTx, selectedCategory)}
+                    disabled={processingIds.has(currentTx.id)}
+                    className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white border border-purple-600 transition-all duration-200 rounded-lg text-base font-semibold py-3 px-6"
+                  >
+                    {processingIds.has(currentTx.id) ? 'Wird verarbeitet...' : 'Speichern'}
+                  </button>
+                ) : (
+                  <button 
+                    onClick={handleSkipTransaction}
+                    className="flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 rounded-lg text-base font-medium py-3 px-6"
+                  >
+                    <span>Überspringen</span>
+                    <SkipForward className="w-4 h-4" />
+                  </button>
+                )}
             </div>
           </div>
         )}
       </main>
+
+      {/* Clear Confirmation Modal */}
+      {showClearConfirmation && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Posteingang leeren</h3>
+                <button 
+                  onClick={() => setShowClearConfirmation(false)} 
+                  className="p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 mb-6">
+                Möchtest du wirklich alle {inboxTransactions.length} Transaktionen aus dem Posteingang löschen? 
+                Diese Aktion kann nicht rückgängig gemacht werden.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowClearConfirmation(false)}
+                  className="flex-1 py-2 px-4 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleClearInbox}
+                  disabled={isClearing}
+                  className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  {isClearing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Wird geleert...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Alles löschen
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

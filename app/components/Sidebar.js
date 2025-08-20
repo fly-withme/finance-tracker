@@ -3,14 +3,14 @@ import React from 'react';
 import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../utils/db';
-import DarkModeToggle from './DarkModeToggle';
 
 const Sidebar = ({ currentPage, setPage }) => {
   const userSettings = useLiveQuery(() => db.settings.get('userProfile'), []) || {};
+  const inboxCount = useLiveQuery(() => db.inbox.count(), []) || 0;
   
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'inbox', label: 'Posteingang', icon: Inbox },
+    { id: 'inbox', label: 'Posteingang', icon: Inbox, count: inboxCount },
     { id: 'transactions', label: 'Transactions', icon: Repeat },
     { id: 'shared-expenses', label: 'Geteilte Ausgaben', icon: Users },
     { id: 'budget', label: 'Budget', icon: Calculator },
@@ -41,14 +41,21 @@ const Sidebar = ({ currentPage, setPage }) => {
           <button
             key={item.id}
             onClick={() => setPage(item.id)}
-            className={`btn w-full flex items-center space-x-3 text-base transition-colors cursor-pointer ${
+            className={`btn w-full flex items-center justify-between text-base transition-colors cursor-pointer ${
               currentPage === item.id
                 ? 'bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-900/50 dark:text-indigo-300'
                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <item.icon className="w-5 h-5" />
-            <span>{item.label}</span>
+            <div className="flex items-center space-x-3">
+              <item.icon className="w-5 h-5" />
+              <span>{item.label}</span>
+            </div>
+            {item.count > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center">
+                {item.count}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -68,8 +75,6 @@ const Sidebar = ({ currentPage, setPage }) => {
             <span>{item.label}</span>
           </button>
         ))}
-        
-        <DarkModeToggle />
       </div>
     </aside>
   );

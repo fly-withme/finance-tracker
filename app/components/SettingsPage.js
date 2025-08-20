@@ -132,9 +132,9 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
         db.transactions.clear(),
         db.budgets.clear(),
         db.categories.clear(),
-        db.sharedExpenses.clear(),
         db.settings.clear(),
-        db.contacts.clear()
+        db.contacts.clear(),
+        db.sharedExpenses.clear()
       ]);
       console.log('Alle Daten wurden gelöscht.');
     } catch (error) {

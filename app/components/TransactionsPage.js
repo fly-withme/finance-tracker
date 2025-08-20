@@ -238,13 +238,31 @@ const TransactionsPage = () => {
                       const { Icon, color, iconColor } = getTransactionTheme(tx.category);
                       return (
                         <div key={tx.id} className="group flex items-center justify-between p-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-2xl border border-slate-100 dark:border-slate-700 transition-all duration-200 ease-in-out">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
-                              <Icon className={`w-6 h-6 ${iconColor}`} />
+                          <div className="flex items-center gap-4 min-w-0 flex-1">
+                            <div className="relative">
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${color}`}>
+                                <Icon className={`w-6 h-6 ${iconColor}`} />
+                              </div>
+                              {/* Shared transaction indicator */}
+                              {tx.sharedWith && tx.sharedWith.length > 0 && (
+                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center">
+                                  <Users className="w-3 h-3 text-white" />
+                                </div>
+                              )}
                             </div>
-                            <div>
-                              <p className="font-bold text-slate-800 dark:text-slate-200 text-base">{tx.recipient || 'Unbekannt'}</p>
-                              <p className="text-slate-500 dark:text-slate-400 text-sm">{tx.description || tx.category || 'Keine Beschreibung'}</p>
+                            <div className="min-w-0 flex-1">
+                              <p 
+                                className="font-bold text-slate-800 dark:text-slate-200 text-base truncate" 
+                                title={tx.recipient || 'Unbekannt'}
+                              >
+                                {tx.recipient || 'Unbekannt'}
+                              </p>
+                              <p 
+                                className="text-slate-500 dark:text-slate-400 text-sm truncate" 
+                                title={tx.description || tx.category || 'Keine Beschreibung'}
+                              >
+                                {tx.description || tx.category || 'Keine Beschreibung'}
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-6">

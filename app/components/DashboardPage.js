@@ -3,9 +3,8 @@
 import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, Sector, AreaChart, Area } from 'recharts';
-import { UploadCloud, Loader2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, BarChart3, PieChart as PieChartIcon, Target } from 'lucide-react';
+import { UploadCloud, Loader2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, BarChart3, PieChart as PieChartIcon, Target, AlertTriangle, Repeat } from 'lucide-react';
 import Card from './ui/Card';
-import PageHeader from './ui/PageHeader';
 import { bankStatementParser } from '../utils/pdfParser';
 import { db } from '../utils/db';
 import { uploadLogger } from '../utils/uploadLogger';
@@ -16,10 +15,10 @@ const formatCurrency = (amount) => new Intl.NumberFormat('de-DE', { style: 'curr
 const CustomBarTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="p-3 bg-slate-800/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl">
+      <div className="p-3 bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl">
         <p className="label text-sm font-bold text-slate-100">{`${label}`}</p>
-        <p className="text-green-400">{`Einnahmen: ${formatCurrency(payload[0].value)}`}</p>
-        <p className="text-red-400">{`Ausgaben: ${formatCurrency(payload[1].value)}`}</p>
+        <p className="text-green-400 flex items-center"><span className="w-2 h-2 rounded-full bg-green-400 mr-2"></span>Einnahmen: {formatCurrency(payload[0].value)}</p>
+        <p className="text-red-400 flex items-center"><span className="w-2 h-2 rounded-full bg-red-400 mr-2"></span>Ausgaben: {formatCurrency(payload[1].value)}</p>
       </div>
     );
   }
@@ -29,9 +28,9 @@ const CustomBarTooltip = ({ active, payload, label }) => {
 const CustomAreaTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="p-3 bg-slate-800/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl">
+      <div className="p-3 bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl">
         <p className="label text-sm font-bold text-slate-100">{`Tag ${label}`}</p>
-        <p className="text-red-400">{`Ausgaben: ${formatCurrency(payload[0].value)}`}</p>
+        <p className="text-red-400 flex items-center"><span className="w-2 h-2 rounded-full bg-red-400 mr-2"></span>Ausgaben: {formatCurrency(payload[0].value)}</p>
       </div>
     );
   }
@@ -39,34 +38,81 @@ const CustomAreaTooltip = ({ active, payload, label }) => {
 };
 
 
-// Doughnut Chart Active Shape
-const renderActiveShape = (props) => {
+// Enhanced Donut Chart Active Shape with Hover Effects
+const renderEnhancedActiveShape = (props) => {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
+  
   return (
     <g>
-      <text x={cx} y={cy - 10} dy={8} textAnchor="middle" fill={fill} className="text-2xl font-bold">
+      {/* Hover Info Box im Zentrum */}
+      <rect
+        x={cx - 60}
+        y={cy - 25}
+        width={120}
+        height={50}
+        fill="rgba(15, 23, 42, 0.9)"
+        rx={8}
+        ry={8}
+        className="drop-shadow-lg"
+      />
+      
+      {/* Kategorie Name */}
+      <text 
+        x={cx} 
+        y={cy - 8} 
+        textAnchor="middle" 
+        fill="white" 
+        className="text-xs font-medium"
+        style={{ fontSize: '12px' }}
+      >
+        {payload.name}
+      </text>
+      
+      {/* Betrag */}
+      <text 
+        x={cx} 
+        y={cy + 8} 
+        textAnchor="middle" 
+        fill="#10b981" 
+        className="text-sm font-bold"
+        style={{ fontSize: '14px' }}
+      >
         {formatCurrency(value)}
       </text>
-      <text x={cx} y={cy + 10} dy={8} textAnchor="middle" fill="#94a3b8" className="text-sm">
-        {payload.name} ({(percent * 100).toFixed(0)}%)
+      
+      {/* Prozent */}
+      <text 
+        x={cx} 
+        y={cy + 22} 
+        textAnchor="middle" 
+        fill="#94a3b8" 
+        className="text-xs"
+        style={{ fontSize: '10px' }}
+      >
+        {(percent * 100).toFixed(1)}%
       </text>
+
+      {/* Highlighted Sector (leicht vergrößert) */}
       <Sector
         cx={cx}
         cy={cy}
         innerRadius={innerRadius}
-        outerRadius={outerRadius}
+        outerRadius={outerRadius + 8}
         startAngle={startAngle}
         endAngle={endAngle}
         fill={fill}
       />
+      
+      {/* Outer glow effect */}
       <Sector
         cx={cx}
         cy={cy}
         startAngle={startAngle}
         endAngle={endAngle}
-        innerRadius={outerRadius + 6}
-        outerRadius={outerRadius + 10}
+        innerRadius={outerRadius + 8}
+        outerRadius={outerRadius + 12}
         fill={fill}
+        fillOpacity={0.6}
       />
     </g>
   );
@@ -78,6 +124,7 @@ const DashboardPage = ({ setPage }) => {
   const transactions = useLiveQuery(() => db.transactions.orderBy('date').reverse().toArray(), []) || [];
   const budgets = useLiveQuery(() => db.budgets.toArray(), []) || [];
   const userSettings = useLiveQuery(() => db.settings.get('userProfile'), []) || {};
+  const categories = useLiveQuery(() => db.categories.toArray(), []) || [];
 
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -86,10 +133,18 @@ const DashboardPage = ({ setPage }) => {
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [activeIndex, setActiveIndex] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState(null); // Für Drill-down
+  const [hoveredIndex, setHoveredIndex] = useState(-1); // Für Hover-Effekt
 
   const onPieEnter = useCallback((_, index) => {
     setActiveIndex(index);
+    setHoveredIndex(index);
   }, [setActiveIndex]);
+
+  const onPieLeave = useCallback(() => {
+    setHoveredIndex(-1);
+  }, []);
+
 
   // --- TOP CARDS DATA ---
   const { totalBalance, monthlyIncome, monthlyExpense } = useMemo(() => {
@@ -132,17 +187,57 @@ const DashboardPage = ({ setPage }) => {
   const categorySpendingData = useMemo(() => {
     const month = currentMonth.getMonth();
     const year = currentMonth.getFullYear();
-    const spending = transactions
-      .filter(t => new Date(t.date).getFullYear() === year && new Date(t.date).getMonth() === month && t.amount < 0)
-      .reduce((acc, t) => {
-        const category = t.category || 'Unkategorisiert';
-        acc[category] = (acc[category] || 0) + Math.abs(t.amount);
-        return acc;
-      }, {});
-    return Object.entries(spending)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [transactions, currentMonth]);
+
+    if (selectedCategory) {
+      // Drill-down: Zeige nur Unterkategorien der ausgewählten Hauptkategorie
+      const mainCategory = categories.find(cat => cat.name === selectedCategory && !cat.parentId);
+      if (!mainCategory) return [];
+
+      const spending = transactions
+        .filter(t => new Date(t.date).getFullYear() === year && new Date(t.date).getMonth() === month && t.amount < 0)
+        .reduce((acc, t) => {
+          const categoryName = t.category || 'Unkategorisiert';
+          const category = categories.find(cat => cat.name === categoryName);
+          
+          // Nur Transaktionen von Unterkategorien der ausgewählten Hauptkategorie
+          if (category && category.parentId === mainCategory.id) {
+            acc[categoryName] = (acc[categoryName] || 0) + Math.abs(t.amount);
+          }
+          return acc;
+        }, {});
+        
+      return Object.entries(spending)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+    } else {
+      // Standard-Ansicht: Zeige Hauptkategorien
+      const spending = transactions
+        .filter(t => new Date(t.date).getFullYear() === year && new Date(t.date).getMonth() === month && t.amount < 0)
+        .reduce((acc, t) => {
+          const categoryName = t.category || 'Unkategorisiert';
+          
+          // Finde die Kategorie in der Datenbank
+          const category = categories.find(cat => cat.name === categoryName);
+          
+          let displayCategory;
+          if (category && category.parentId) {
+            // Wenn es eine Unterkategorie ist, finde die Hauptkategorie
+            const parentCategory = categories.find(cat => cat.id === category.parentId);
+            displayCategory = parentCategory ? parentCategory.name : categoryName;
+          } else {
+            // Wenn es eine Hauptkategorie oder unkategorisiert ist
+            displayCategory = categoryName;
+          }
+          
+          acc[displayCategory] = (acc[displayCategory] || 0) + Math.abs(t.amount);
+          return acc;
+        }, {});
+        
+      return Object.entries(spending)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+    }
+  }, [transactions, currentMonth, categories, selectedCategory]);
   
   // --- GRAPH 3: BUDGET VS ACTUAL ---
   const budgetVsActualData = useMemo(() => {
@@ -187,6 +282,39 @@ const DashboardPage = ({ setPage }) => {
       return dailyData;
   }, [transactions, currentMonth]);
 
+  // --- SUBSCRIPTIONS DATA ---
+  const subscriptionsData = useMemo(() => {
+    const month = currentMonth.getMonth();
+    const year = currentMonth.getFullYear();
+    
+    const subscriptions = transactions
+      .filter(t => {
+        const tDate = new Date(t.date);
+        const matchesDate = tDate.getFullYear() === year && tDate.getMonth() === month;
+        const isExpense = t.amount < 0;
+        const matchesCategory = t.category?.toLowerCase().includes('abo') || 
+                               t.category?.toLowerCase().includes('abos') ||
+                               t.recipient?.toLowerCase().includes('netflix') ||
+                               t.recipient?.toLowerCase().includes('spotify') ||
+                               t.recipient?.toLowerCase().includes('amazon prime') ||
+                               t.description?.toLowerCase().includes('abo');
+        
+        return matchesDate && isExpense && matchesCategory;
+      })
+      .map(t => ({
+        name: t.recipient || t.description || 'Unbekanntes Abo',
+        amount: Math.abs(t.amount),
+        date: new Date(t.date).getDate() // Tag des Monats
+      }))
+      .sort((a, b) => a.date - b.date); // Sortiert nach Tag des Monats
+
+    return subscriptions;
+  }, [transactions, currentMonth]);
+
+  const totalSubscriptionCost = useMemo(() => {
+    return subscriptionsData.reduce((sum, sub) => sum + sub.amount, 0);
+  }, [subscriptionsData]);
+
   const changeMonth = (offset) => {
     setCurrentMonth(prev => {
       const newDate = new Date(prev);
@@ -227,37 +355,49 @@ const DashboardPage = ({ setPage }) => {
   const chartColors = ['#4f46e5', '#7c3aed', '#c026d3', '#db2777', '#be185d', '#9f1239'];
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 bg-slate-100 dark:bg-slate-900 min-h-screen font-sans">
-      <PageHeader title={
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-          Willkommen zurück, <span className="text-indigo-600 dark:text-indigo-400">{userSettings?.name || 'Finanz-Manager'}</span>!
-        </h1>
-      }>
-        <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1 p-1 bg-slate-200 dark:bg-slate-800 rounded-lg">
-                <button onClick={() => changeMonth(-1)} className="p-1.5 rounded-md hover:bg-white dark:hover:bg-slate-700"><ChevronLeft className="w-5 h-5 text-slate-500" /></button>
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 w-32 text-center">{currentMonth.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}</span>
-                <button onClick={() => changeMonth(1)} className="p-1.5 rounded-md hover:bg-white dark:hover:bg-slate-700"><ChevronRight className="w-5 h-5 text-slate-500" /></button>
-            </div>
-            <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" />
-            <button onClick={triggerFileUpload} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-              {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> Verarbeite...</> : <><UploadCloud className="w-5 h-5" /> Hochladen</>}
-            </button>
-        </div>
-      </PageHeader>
+    <div className="p-4 md:p-6 lg:p-8 bg-white dark:bg-slate-900 min-h-screen font-sans">
+      <div className="flex items-center justify-between w-full mb-8">
+          <div className="flex-1">
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+                  Willkommen Daniel 👋
+              </h1>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+               <div className="flex items-center gap-3">
+                  <button onClick={() => changeMonth(-1)} className="bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 p-3 rounded-full transition-colors">
+                      <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <div className="px-4 py-2 min-w-[180px] text-center">
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-2xl tracking-wide">
+                        {currentMonth.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}
+                    </span>
+                  </div>
+                  <button onClick={() => changeMonth(1)} className="bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 p-3 rounded-full transition-colors">
+                      <ChevronRight className="w-5 h-5" />
+                  </button>
+              </div>
+          </div>
+          <div className="flex-1 flex justify-end">
+              <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" />
+              <button onClick={triggerFileUpload} disabled={isUploading} className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base disabled:opacity-50 disabled:cursor-not-allowed">
+                {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> Verarbeite...</> : <><UploadCloud className="w-5 h-5" /> Hochladen</>}
+              </button>
+          </div>
+      </div>
       
       {(isUploading || uploadSuccess) && (
-        <div className="mt-4 p-4 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300">
+        <div className="mb-8 p-4 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300">
           {isUploading ? processingStage : uploadSuccess}
         </div>
       )}
 
       {/* --- TOP CARDS --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card><p className="text-sm text-slate-500 dark:text-slate-400">Gesamtbilanz</p><p className={`text-2xl font-bold ${totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(totalBalance)}</p></Card>
         <Card><p className="text-sm text-slate-500 dark:text-slate-400">Einnahmen ({currentMonth.toLocaleString('de-DE', { month: 'short' })})</p><p className="text-2xl font-bold text-green-600">{formatCurrency(monthlyIncome)}</p></Card>
         <Card><p className="text-sm text-slate-500 dark:text-slate-400">Ausgaben ({currentMonth.toLocaleString('de-DE', { month: 'short' })})</p><p className="text-2xl font-bold text-red-600">{formatCurrency(monthlyExpense)}</p></Card>
       </div>
+
 
       {/* --- GRAPHS --- */}
       <div className="mt-8 space-y-8">
@@ -273,13 +413,23 @@ const DashboardPage = ({ setPage }) => {
           </div>
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={annualData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+               <defs>
+                  <linearGradient id="colorIncomeBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.4}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpenseBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.4}/>
+                  </linearGradient>
+                </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700/50" />
               <XAxis dataKey="name" stroke="currentColor" fontSize={12} className="text-slate-500 dark:text-slate-400" />
               <YAxis stroke="currentColor" fontSize={12} tickFormatter={formatCurrency} className="text-slate-500 dark:text-slate-400" />
               <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(100, 116, 139, 0.1)' }} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{paddingTop: '20px'}}/>
-              <Bar dataKey="income" name="Einnahmen" fill="#10b981" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" name="Ausgaben" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="income" name="Einnahmen" fill="url(#colorIncomeBar)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expense" name="Ausgaben" fill="url(#colorExpenseBar)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -296,7 +446,7 @@ const DashboardPage = ({ setPage }) => {
             <ResponsiveContainer width="100%" height={350}>
                 <AreaChart data={dailySpendingData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                     <defs>
-                        <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id="colorExpenseArea" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
                             <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                         </linearGradient>
@@ -305,7 +455,7 @@ const DashboardPage = ({ setPage }) => {
                     <XAxis dataKey="day" stroke="currentColor" fontSize={12} className="text-slate-500 dark:text-slate-400" />
                     <YAxis stroke="currentColor" fontSize={12} tickFormatter={formatCurrency} className="text-slate-500 dark:text-slate-400" />
                     <Tooltip content={<CustomAreaTooltip />} cursor={{ stroke: '#ef4444', strokeWidth: 1, strokeDasharray: '3 3' }} />
-                    <Area type="monotone" dataKey="expense" name="Ausgaben" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorExpense)" />
+                    <Area type="monotone" dataKey="expense" name="Ausgaben" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorExpenseArea)" />
                 </AreaChart>
             </ResponsiveContainer>
         </Card>
@@ -315,18 +465,32 @@ const DashboardPage = ({ setPage }) => {
           <Card className="lg:col-span-3 !p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Ausgaben nach Kategorie</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Top-Ausgaben für den Monat.</p>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {selectedCategory ? `${selectedCategory} - Unterkategorien` : 'Ausgaben nach Kategorie'}
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {selectedCategory ? 'Aufschlüsselung der Unterkategorien' : 'Top-Ausgaben für den Monat.'}
+                </p>
               </div>
-               <PieChartIcon className="w-5 h-5 text-slate-400" />
+              <div className="flex items-center gap-2">
+                {selectedCategory && (
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className="text-xs bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-3 py-1 rounded-full transition-colors"
+                  >
+                    ← Zurück
+                  </button>
+                )}
+                <PieChartIcon className="w-5 h-5 text-slate-400" />
+              </div>
             </div>
             {categorySpendingData.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
                 <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
                     <Pie
-                      activeIndex={activeIndex}
-                      activeShape={renderActiveShape}
+                      activeIndex={hoveredIndex >= 0 ? hoveredIndex : activeIndex}
+                      activeShape={hoveredIndex >= 0 ? renderEnhancedActiveShape : undefined}
                       data={categorySpendingData}
                       cx="50%"
                       cy="50%"
@@ -334,24 +498,63 @@ const DashboardPage = ({ setPage }) => {
                       outerRadius={110}
                       dataKey="value"
                       onMouseEnter={onPieEnter}
+                      onMouseLeave={onPieLeave}
                     >
-                      {categorySpendingData.map((entry, index) => <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} className="focus:outline-none" />)}
+                      {categorySpendingData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${entry.name}-${index}`} 
+                          fill={chartColors[index % chartColors.length]}
+                          fillOpacity={hoveredIndex >= 0 ? (hoveredIndex === index ? 1 : 0.3) : 1}
+                          stroke={hoveredIndex === index ? chartColors[index % chartColors.length] : 'none'}
+                          strokeWidth={hoveredIndex === index ? 2 : 0}
+                          className="focus:outline-none transition-all duration-200" 
+                        />
+                      ))}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
-                    {categorySpendingData.map((entry, index) => (
-                        <div key={`legend-${index}`} onMouseEnter={() => onPieEnter(null, index)} onMouseLeave={() => onPieEnter(null, activeIndex)}
-                             className={`p-2 rounded-lg cursor-pointer transition-all ${activeIndex === index ? 'bg-slate-200 dark:bg-slate-700/50' : 'hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}>
+                    {categorySpendingData.map((entry, index) => {
+                      // Prüfe ob diese Kategorie Unterkategorien hat (nur für Hauptkategorien-Ansicht)
+                      const hasSubcategories = !selectedCategory && categories.some(cat => 
+                        cat.parentId && categories.find(parent => parent.id === cat.parentId)?.name === entry.name
+                      );
+                      
+                      return (
+                        <div key={`legend-${entry.name}-${index}`} 
+                             onClick={() => hasSubcategories ? setSelectedCategory(entry.name) : null}
+                             className={`p-2 rounded-lg transition-all duration-200 ${
+                               hoveredIndex === index ? 'bg-slate-200 dark:bg-slate-700/50' : 
+                               hoveredIndex >= 0 ? 'opacity-50' : 
+                               hasSubcategories ? 'hover:bg-slate-100 dark:hover:bg-slate-800/50 cursor-pointer' : 'cursor-default'
+                             }`}>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full" style={{backgroundColor: chartColors[index % chartColors.length]}}></div>
-                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{entry.name}</span>
+                                    <div 
+                                      className="w-3 h-3 rounded-full transition-all duration-200" 
+                                      style={{
+                                        backgroundColor: chartColors[index % chartColors.length],
+                                        opacity: hoveredIndex >= 0 ? (hoveredIndex === index ? 1 : 0.4) : 1
+                                      }}
+                                    ></div>
+                                    <span className={`text-sm font-medium transition-all duration-200 ${
+                                      hoveredIndex === index ? 'text-slate-900 dark:text-slate-100 font-semibold' : 
+                                      hoveredIndex >= 0 ? 'text-slate-400 dark:text-slate-500' : 
+                                      'text-slate-700 dark:text-slate-300'
+                                    }`}>
+                                      {entry.name}
+                                      {hasSubcategories && <span className="ml-1 text-xs text-slate-400">▶</span>}
+                                    </span>
                                 </div>
-                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{formatCurrency(entry.value)}</span>
+                                <span className={`text-sm font-bold transition-all duration-200 ${
+                                  hoveredIndex === index ? 'text-slate-900 dark:text-slate-100' : 
+                                  hoveredIndex >= 0 ? 'text-slate-400 dark:text-slate-500' : 
+                                  'text-slate-900 dark:text-slate-100'
+                                }`}>{formatCurrency(entry.value)}</span>
                             </div>
                         </div>
-                    ))}
+                      );
+                    })}
                 </div>
               </div>
             ) : (
@@ -372,21 +575,24 @@ const DashboardPage = ({ setPage }) => {
               <Target className="w-5 h-5 text-slate-400" />
             </div>
             <div className="space-y-4 h-[350px] overflow-y-auto pr-2">
-              {budgetVsActualData.length > 0 ? budgetVsActualData.map(item => {
+              {budgetVsActualData.length > 0 ? budgetVsActualData.map((item, index) => {
                 const isOverBudget = item.actual > item.budget;
                 const color = isOverBudget ? 'bg-red-500' : 'bg-indigo-500';
                 const progressPercentage = item.progress.toFixed(0);
                 return (
-                  <div key={item.name}>
+                  <div key={`budget-${item.name}-${index}`}>
                     <div className="flex justify-between items-end mb-1">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
+                      <div className="flex items-center gap-2">
+                         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
+                         {isOverBudget && <AlertTriangle className="w-4 h-4 text-red-500" />}
+                      </div>
                       <span className={`text-sm font-semibold ${isOverBudget ? 'text-red-500' : 'text-slate-600 dark:text-slate-400'}`}>
                         {formatCurrency(item.actual)} / {formatCurrency(item.budget)}
                       </span>
                     </div>
                     <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-4 relative">
-                      <div className={`${color} h-4 rounded-full flex items-center justify-center`} style={{ width: `${item.progress}%` }}>
-                         <span className="text-xs font-bold text-white absolute left-2">{progressPercentage}%</span>
+                      <div className={`${color} h-4 rounded-full flex items-center justify-center transition-all duration-500`} style={{ width: `${item.progress}%` }}>
+                         {item.progress > 15 && <span className="text-xs font-bold text-white px-2">{progressPercentage}%</span>}
                       </div>
                     </div>
                   </div>
@@ -398,6 +604,46 @@ const DashboardPage = ({ setPage }) => {
                 </div>
               )}
             </div>
+          </Card>
+        </div>
+
+        {/* --- SUBSCRIPTIONS SECTION --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          <Card className="lg:col-span-5 !p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Abonnements</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Deine aktiven Abos für {currentMonth.toLocaleString('de-DE', { month: 'long' })}.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Repeat className="w-5 h-5 text-slate-400" />
+                <span className="text-sm font-bold text-red-600">{formatCurrency(totalSubscriptionCost)}</span>
+              </div>
+            </div>
+            {subscriptionsData.length > 0 ? (
+              <div className="space-y-3">
+                {subscriptionsData.map((subscription, index) => (
+                  <div key={`subscription-${subscription.name}-${index}`} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Repeat className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <span className="font-medium text-slate-900 dark:text-slate-100 block">{subscription.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-red-600">{formatCurrency(subscription.amount)}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">am {subscription.date}.</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                <Repeat className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>Keine Abonnements für diesen Monat gefunden.</p>
+                <p className="text-xs mt-1">Kategorisiere Transaktionen mit "Abo" um sie hier anzuzeigen.</p>
+              </div>
+            )}
           </Card>
         </div>
       </div>

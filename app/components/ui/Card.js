@@ -5,7 +5,7 @@ const Card = ({ children, className = '' }) => (
   <div
     className={`
       bg-white dark:bg-slate-800
-      border border-slate-100 dark:border-slate-700
+      border border-slate-200 dark:border-slate-700
       rounded-2xl 
       shadow-sm dark:shadow-slate-900/50
       p-6

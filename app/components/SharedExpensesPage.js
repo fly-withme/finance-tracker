@@ -15,6 +15,9 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 const formatCurrency = (amount) =>
@@ -35,6 +38,8 @@ const SharedExpensesPage = () => {
   const [personSearch, setPersonSearch] = useState('');
   const [showPersonSuggestions, setShowPersonSuggestions] = useState(false);
   const [processingId, setProcessingId] = useState(null);
+  const [showTransactionHistory, setShowTransactionHistory] = useState({});
+  const [selectedPersonHistory, setSelectedPersonHistory] = useState(null);
 
   // MOCK DATA: In a real app, this would come from a user contacts table.
   const allContacts = useMemo(
@@ -83,45 +88,61 @@ const SharedExpensesPage = () => {
         new Date(expense.date) <= monthEnd
     );
 
-    const data = relevantExpenses.map((expense) => {
+    // Gruppiere Ausgaben nach Personen
+    const personGroups = {};
+
+    relevantExpenses.forEach((expense) => {
       const paidByMe = expense.paidBy === 'Me';
-      const myShare = paidByMe
-        ? expense.totalAmount -
-          expense.sharedWith.reduce((sum, p) => sum + p.amount, 0)
-        : expense.sharedWith.find((p) => p.name === 'Me')?.amount || 0;
 
-      const totalPaidByOthers = expense.sharedWith.reduce((sum, p) => sum + p.amount, 0);
+      expense.sharedWith.forEach((person) => {
+        if (!personGroups[person.name]) {
+          personGroups[person.name] = {
+            name: person.name,
+            color: person.color || '#6366F1',
+            totalOwed: 0,
+            totalPaid: 0,
+            transactions: [],
+          };
+        }
 
-      let status = '';
-      if (paidByMe) {
-        status = 'outstanding'; // Others owe me
-      } else if (!paidByMe && myShare > 0) {
-        status = 'Iowe'; // I owe someone
-      } else {
-        status = 'settled'; // Should not happen often
-      }
+        const group = personGroups[person.name];
+        
+        if (paidByMe) {
+          // Ich habe bezahlt - die Person schuldet mir Geld
+          group.totalOwed += person.amount;
+        } else {
+          // Die Person hat bezahlt - ich schulde ihr Geld  
+          group.totalPaid += person.amount;
+        }
 
+        // Füge Transaktion zur Historie hinzu
+        group.transactions.push({
+          ...expense,
+          personAmount: person.amount,
+          paidByMe,
+        });
+      });
+    });
+
+    // Konvertiere zu Array und berechne Netto-Beträge
+    const data = Object.values(personGroups).map((group) => {
+      const netAmount = group.totalOwed - group.totalPaid;
+      
       return {
-        ...expense,
-        myShare,
-        totalPaidByOthers,
-        status,
-        progress: paidByMe
-          ? (expense.settledAmount / totalPaidByOthers) * 100
-          : (expense.settledAmount / myShare) * 100,
+        ...group,
+        netAmount, // Positiv = sie schulden mir, Negativ = ich schulde ihnen
+        status: netAmount > 0 ? 'outstanding' : netAmount < 0 ? 'Iowe' : 'settled',
+        absoluteAmount: Math.abs(netAmount),
       };
     });
 
     const summary = {
       iOwe: data
         .filter((d) => d.status === 'Iowe')
-        .reduce((sum, d) => sum + d.myShare, 0),
+        .reduce((sum, d) => sum + d.absoluteAmount, 0),
       theyOweMe: data
         .filter((d) => d.status === 'outstanding')
-        .reduce(
-          (sum, d) => sum + d.totalPaidByOthers - d.settledAmount,
-          0
-        ),
+        .reduce((sum, d) => sum + d.absoluteAmount, 0),
     };
 
     return { data, summary };
@@ -256,6 +277,56 @@ const SharedExpensesPage = () => {
     return colors[randomIndex];
   };
 
+  // Get transaction history with a specific person
+  const getTransactionHistoryWithPerson = (personName) => {
+    // Get all shared expenses involving this person
+    const sharedExpensesWithPerson = sharedExpenses.filter(expense => 
+      expense.sharedWith.some(p => p.name === personName)
+    );
+
+    // Get all regular transactions that might involve this person (based on recipient)
+    const regularTransactionsWithPerson = transactions.filter(transaction => 
+      transaction.recipient && transaction.recipient.toLowerCase().includes(personName.toLowerCase())
+    );
+
+    // Combine and format the history
+    const combinedHistory = [
+      ...sharedExpensesWithPerson.map(expense => ({
+        id: expense.id,
+        type: 'shared_expense',
+        date: expense.date,
+        description: expense.description,
+        amount: expense.totalAmount,
+        personShare: expense.sharedWith.find(p => p.name === personName)?.amount || 0,
+        paidByMe: expense.paidBy === 'Me',
+        settled: expense.settledAmount > 0
+      })),
+      ...regularTransactionsWithPerson.map(transaction => ({
+        id: transaction.id,
+        type: 'transaction',
+        date: transaction.date,
+        description: transaction.description,
+        recipient: transaction.recipient,
+        amount: transaction.amount,
+        account: transaction.account
+      }))
+    ];
+
+    // Sort by date (newest first)
+    return combinedHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+  };
+
+  const toggleTransactionHistory = (personName) => {
+    setShowTransactionHistory(prev => ({
+      ...prev,
+      [personName]: !prev[personName]
+    }));
+    
+    if (!showTransactionHistory[personName]) {
+      setSelectedPersonHistory(personName);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-200 p-4 sm:p-6 md:p-8 flex flex-col items-center">
       <div className="w-full max-w-7xl mx-auto">
@@ -380,100 +451,134 @@ const SharedExpensesPage = () => {
               Ausgaben dieses Monats
             </h2>
             <div className="space-y-6">
-              {monthlyData.data.map((expense) => (
+              {monthlyData.data.map((person) => (
                 <div
-                  key={expense.id}
+                  key={person.name}
                   className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                        <Users className="w-6 h-6 text-white" />
+                      <div
+                        className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-lg`}
+                        style={{ backgroundColor: person.color }}
+                      >
+                        {renderInitial(person.name)}
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                          {expense.description}
+                          {person.name}
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Total: {formatCurrency(expense.totalAmount)}
+                          {person.transactions.length} Transaktion{person.transactions.length !== 1 ? 'en' : ''}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      {expense.paidBy === 'Me' ? (
+                      <div className="text-2xl font-bold mb-1">
+                        {formatCurrency(person.absoluteAmount)}
+                      </div>
+                      {person.status === 'outstanding' ? (
                         <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 font-semibold">
-                          <DollarSign className="w-4 h-4" />
-                          <span className="hidden sm:inline">Dir wird geschuldet</span>
+                          <ArrowUp className="w-4 h-4" />
+                          <span>Schuldet dir</span>
+                        </div>
+                      ) : person.status === 'Iowe' ? (
+                        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 font-semibold">
+                          <ArrowDown className="w-4 h-4" />
+                          <span>Du schuldest</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 font-semibold">
-                          <DollarSign className="w-4 h-4" />
-                          <span className="hidden sm:inline">Du schuldest</span>
+                        <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 font-semibold">
+                          <span>Ausgeglichen</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    {expense.sharedWith.map((person) => (
-                      <div
-                        key={person.name}
-                        className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl"
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                      onClick={() => toggleTransactionHistory(person.name)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors duration-200 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    >
+                      <History className="w-4 h-4" />
+                      <span>Historie anzeigen</span>
+                      {showTransactionHistory[person.name] ? 
+                        <ChevronUp className="w-4 h-4" /> : 
+                        <ChevronDown className="w-4 h-4" />
+                      }
+                    </button>
+                    
+                    {person.status !== 'settled' && (
+                      <button
+                        onClick={() =>
+                          handleSettleUp(
+                            person.transactions[0]?.id || 'manual', 
+                            person.absoluteAmount,
+                            person.name
+                          )
+                        }
+                        disabled={processingId === person.name}
+                        className="px-4 py-2 text-sm font-semibold rounded-lg transition-colors duration-200 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-800"
                       >
-                        <div className="flex items-center gap-4">
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-md`}
-                            style={{ backgroundColor: getRandomColor() }}
-                          >
-                            {renderInitial(person.name)}
-                          </div>
-                          <div>
-                            <p className="font-semibold">{person.name}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {formatCurrency(person.amount)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                            Offen: {formatCurrency(person.amount - (expense.settledAmount || 0))}
-                          </span>
-                          <button
-                            onClick={() =>
-                              handleSettleUp(
-                                expense.id,
-                                person.amount,
-                                person.name
-                              )
-                            }
-                            disabled={processingId === expense.id}
-                            className="ml-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors duration-200 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-800"
-                          >
-                            Begleichen
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                        Ausgleichen
+                      </button>
+                    )}
                   </div>
 
-                  {/* Progress Bar */}
-                  <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center justify-between text-sm font-medium mb-2">
-                      <span className="text-slate-600 dark:text-slate-300">Fortschritt</span>
-                      <span className="text-slate-800 dark:text-slate-200 font-bold">
-                        {Math.min(100, expense.progress).toFixed(0)}%
-                      </span>
+                  {/* Transaction History */}
+                  {showTransactionHistory[person.name] && (
+                    <div className="mt-4 p-4 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600">
+                      <div className="flex items-center gap-2 mb-4">
+                        <History className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                        <h4 className="font-semibold text-slate-800 dark:text-slate-200">
+                          Transaktionshistorie mit {person.name}
+                        </h4>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {person.transactions.map((transaction, index) => (
+                          <div key={`${transaction.id}-${index}`} className="flex items-center justify-between p-3 bg-white dark:bg-slate-700 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold`} style={{ backgroundColor: person.color }}>
+                                {transaction.paidByMe ? '←' : '→'}
+                              </div>
+                              <div>
+                                <p className="font-medium text-slate-800 dark:text-slate-200">
+                                  {transaction.description}
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {new Date(transaction.date).toLocaleDateString('de-DE')}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`font-semibold ${transaction.paidByMe ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {formatCurrency(transaction.personAmount)}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {transaction.paidByMe ? 'Schuldet dir' : 'Du schuldest'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-                      <div
-                        className="h-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 transition-all duration-500"
-                        style={{ width: `${Math.min(100, expense.progress)}%` }}
-                      ></div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {monthlyData.data.length === 0 && sharedExpenses.length > 0 && (
+          <div className="mt-8 text-center py-16 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+            <Users className="w-12 h-12 mx-auto text-slate-400 dark:text-slate-500" />
+            <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
+              Keine geteilten Ausgaben für diesen Monat
+            </h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Wähle einen anderen Monat oder erstelle eine neue Ausgabe.
+            </p>
           </div>
         )}
       </div>
