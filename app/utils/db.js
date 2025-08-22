@@ -2,6 +2,19 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('ZenithFinanceDB');
 
+// Version 10: Fügt savingsGoals Tabelle hinzu
+db.version(10).stores({
+  transactions: '++id, date, category, recipient, account, amount, sharedWith, splitType, splitDetails',
+  categories: '++id, &name, parentId',
+  accounts: '++id, &name',
+  settings: 'key', // Einfache Key-Value-Tabelle für Model, etc.
+  inbox: '++id, date, recipient, account, amount, uploadedAt, skipped, [skipped+uploadedAt]', // Posteingang für unkategorisierte Transaktionen
+  budgets: '++id, &categoryName, amount, month, year', // Budget pro Kategorie und Monat
+  contacts: '++id, &name, color', // Kontakte für geteilte Ausgaben
+  sharedExpenses: '++id, date, description, totalAmount, paidBy, sharedWith, splitType, settledAmount', // Geteilte Ausgaben
+  savingsGoals: '++id, title, targetAmount, currentAmount, monthlyAmount, targetDate, isEmergencyFund, createdAt, updatedAt' // Sparziele
+});
+
 // Version 9: Fügt sharedExpenses Tabelle hinzu
 db.version(9).stores({
   transactions: '++id, date, category, recipient, account, amount, sharedWith, splitType, splitDetails',

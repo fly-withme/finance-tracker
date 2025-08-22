@@ -1,8 +1,9 @@
 import React from 'react';
 
-const Card = ({ children, className = '' }) => (
+const Card = ({ children, className = '', ...props }) => (
   // REDESIGN: A single, clean card style. Soft shadow, subtle border, generous padding.
   <div
+    {...props}
     className={`
       bg-white dark:bg-slate-800
       border border-slate-200 dark:border-slate-700

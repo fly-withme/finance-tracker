@@ -1,6 +1,6 @@
 import React from 'react';
 // 1. Das PiggyBank-Icon wird direkt aus der professionellen Bibliothek importiert.
-import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator } from 'lucide-react';
+import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator, Target } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../utils/db';
 
@@ -14,6 +14,7 @@ const Sidebar = ({ currentPage, setPage }) => {
     { id: 'transactions', label: 'Transactions', icon: Repeat },
     { id: 'shared-expenses', label: 'Geteilte Ausgaben', icon: Users },
     { id: 'budget', label: 'Budget', icon: Calculator },
+    { id: 'savings-goals', label: 'Sparziele', icon: Target },
   ];
   
   const bottomItems = [

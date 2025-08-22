@@ -28,6 +28,18 @@ const BudgetPage = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
   const [newBudget, setNewBudget] = useState({ category: '', amount: '', period: 'monthly' });
+  const [showIncomeModal, setShowIncomeModal] = useState(false);
+  const [monthlyIncomeInput, setMonthlyIncomeInput] = useState('');
+
+  // Load monthly income from database
+  const monthlyIncomeData = useLiveQuery(async () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+    const key = `monthlyIncome_${year}_${month.toString().padStart(2, '0')}`;
+    return await db.settings.get(key);
+  }, [currentDate]);
+
+  const currentMonthlyIncome = monthlyIncomeData?.value || 0;
 
   // Live data
   const categories = useLiveQuery(() => db.categories.toArray(), []) || [];
@@ -132,6 +144,24 @@ const BudgetPage = () => {
     }
   };
 
+  const handleSaveIncome = async () => {
+    try {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      const key = `monthlyIncome_${year}_${month.toString().padStart(2, '0')}`;
+      
+      await db.settings.put({
+        key: key,
+        value: parseFloat(monthlyIncomeInput) || 0
+      });
+      
+      setShowIncomeModal(false);
+      setMonthlyIncomeInput('');
+    } catch (error) {
+      console.error('Error saving monthly income:', error);
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'over': return 'bg-red-500';
@@ -191,8 +221,18 @@ const BudgetPage = () => {
               </div>
             </div>
 
-            {/* Rechte Spalte: Button, ausgerichtet am Ende */}
-            <div className="flex justify-end">
+            {/* Rechte Spalte: Buttons, ausgerichtet am Ende */}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setMonthlyIncomeInput(currentMonthlyIncome.toString());
+                  setShowIncomeModal(true);
+                }}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-700 dark:to-indigo-700 hover:from-purple-700 hover:to-indigo-700 dark:hover:from-purple-600 dark:hover:to-indigo-600 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base"
+              >
+                <Euro className="w-5 h-5" />
+                <span className="hidden sm:inline">Einkommen</span>
+              </button>
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base"
@@ -204,6 +244,53 @@ const BudgetPage = () => {
           </div>
         </header>
 
+        {/* Monthly Income Overview */}
+        {currentMonthlyIncome > 0 && (
+          <Card className="mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Euro className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-1">Monatseinkommen</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                    Geplant für {currentDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                  {formatCurrency(currentMonthlyIncome)}
+                </div>
+                <div className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                  Gesamtbudget: {formatCurrency(summary.totalBudget)}
+                </div>
+              </div>
+            </div>
+            
+            {/* Income vs Budget Bar */}
+            <div className="mt-6">
+              <div className="flex justify-between text-sm text-slate-600 dark:text-slate-300 mb-2">
+                <span className="font-semibold">Budget Aufteilung</span>
+                <span className="font-bold">
+                  {summary.totalBudget > 0 ? ((summary.totalBudget / currentMonthlyIncome) * 100).toFixed(1) : 0}% zugeteilt
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 shadow-inner">
+                <div 
+                  className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 transition-all duration-700 shadow-sm"
+                  style={{ width: `${Math.min(100, (summary.totalBudget / currentMonthlyIncome) * 100)}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <span>Verbleibendes Einkommen: {formatCurrency(Math.max(0, currentMonthlyIncome - summary.totalBudget))}</span>
+                <span>Zugeteilt: {formatCurrency(summary.totalBudget)}</span>
+              </div>
+            </div>
+          </Card>
+        )}
+        
         {/* Budget Overview */}
         <Card className="relative overflow-hidden">
           <div className="relative z-10">
@@ -248,7 +335,7 @@ const BudgetPage = () => {
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
                       budget.status === 'over' ? 'bg-gradient-to-br from-red-500 to-red-600' :
                       budget.status === 'warning' ? 'bg-gradient-to-br from-yellow-500 to-orange-500' :
-                      'bg-gradient-to-br from-green-500 to-emerald-600'
+                      'bg-gradient-to-br from-purple-500 to-indigo-600'
                     }`}>
                       <Target className="w-6 h-6 text-white" />
                     </div>
@@ -311,21 +398,50 @@ const BudgetPage = () => {
                   </div>
                 </div>
 
-                {/* Progress Bar */}
-                <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200/50 dark:border-slate-700/50">
-                  <div className="flex justify-between text-sm text-slate-600 dark:text-slate-300 mb-3">
-                    <span className="font-semibold">Fortschritt</span>
-                    <span className="font-bold">{budget.progressPercentage.toFixed(1)}%</span>
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-4 shadow-inner">
-                    <div 
-                      className={`h-4 rounded-full transition-all duration-700 shadow-sm ${
-                        budget.status === 'over' ? 'bg-gradient-to-r from-red-500 to-red-600' :
-                        budget.status === 'warning' ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
-                        'bg-gradient-to-r from-green-500 to-emerald-600'
-                      }`}
-                      style={{ width: `${Math.min(100, budget.progressPercentage)}%` }}
-                    ></div>
+                {/* Dual Progress Bars */}
+                <div className="space-y-4">
+                  {/* Budget Allocation vs Income */}
+                  {currentMonthlyIncome > 0 && (
+                    <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200/50 dark:border-slate-700/50">
+                      <div className="flex justify-between text-sm text-slate-600 dark:text-slate-300 mb-3">
+                        <span className="font-semibold">Budget aus Einkommen</span>
+                        <span className="font-bold">
+                          {((budget.amount / currentMonthlyIncome) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 shadow-inner">
+                        <div 
+                          className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 transition-all duration-700 shadow-sm"
+                          style={{ width: `${Math.min(100, (budget.amount / currentMonthlyIncome) * 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        <span>Budget: {formatCurrency(budget.amount)}</span>
+                        <span>von {formatCurrency(currentMonthlyIncome)} Einkommen</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Actual Spending Progress */}
+                  <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200/50 dark:border-slate-700/50">
+                    <div className="flex justify-between text-sm text-slate-600 dark:text-slate-300 mb-3">
+                      <span className="font-semibold">Ausgaben Fortschritt</span>
+                      <span className="font-bold">{budget.progressPercentage.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 shadow-inner">
+                      <div 
+                        className={`h-3 rounded-full transition-all duration-700 shadow-sm ${
+                          budget.status === 'over' ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                          budget.status === 'warning' ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                          'bg-gradient-to-r from-purple-500 to-indigo-600'
+                        }`}
+                        style={{ width: `${Math.min(100, budget.progressPercentage)}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      <span>Ausgegeben: {formatCurrency(budget.actualSpent)}</span>
+                      <span>Budget: {formatCurrency(budget.amount)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -507,6 +623,85 @@ const BudgetPage = () => {
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
               >
                 Änderungen speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Income Modal */}
+      {showIncomeModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-white/20 dark:border-slate-700/50">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <Euro className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Monatseinkommen festlegen</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Für {currentDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
+                  Erwartetes Einkommen
+                </label>
+                <div className="relative">
+                  <Euro className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="number"
+                    value={monthlyIncomeInput}
+                    onChange={(e) => setMonthlyIncomeInput(e.target.value)}
+                    placeholder="3000.00"
+                    className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/80 dark:bg-slate-700/80 text-slate-800 dark:text-slate-200 text-base font-medium transition-all duration-200"
+                  />
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  Dein voraussichtliches Nettoeinkommen für diesen Monat
+                </p>
+              </div>
+              
+              {summary.totalBudget > 0 && (
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Budget Übersicht
+                  </div>
+                  <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                    <span>Gesamtbudget:</span>
+                    <span className="font-medium">{formatCurrency(summary.totalBudget)}</span>
+                  </div>
+                  {monthlyIncomeInput && (
+                    <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400 mt-1">
+                      <span>Verbleibendes Einkommen:</span>
+                      <span className={`font-medium ${
+                        (parseFloat(monthlyIncomeInput) - summary.totalBudget) >= 0 
+                          ? 'text-purple-600 dark:text-purple-400' 
+                          : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        {formatCurrency(parseFloat(monthlyIncomeInput) - summary.totalBudget)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-4 mt-8">
+              <button
+                onClick={() => setShowIncomeModal(false)}
+                className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl font-semibold transition-all duration-200"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleSaveIncome}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                Einkommen speichern
               </button>
             </div>
           </div>

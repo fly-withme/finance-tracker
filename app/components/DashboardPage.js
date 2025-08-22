@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, Sector, AreaChart, Area } from 'recharts';
-import { UploadCloud, Loader2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, BarChart3, PieChart as PieChartIcon, Target, AlertTriangle, Repeat } from 'lucide-react';
+import { UploadCloud, Loader2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, BarChart3, PieChart as PieChartIcon, Target, AlertTriangle, Repeat, PiggyBank } from 'lucide-react';
 import Card from './ui/Card';
 import { bankStatementParser } from '../utils/pdfParser';
 import { db } from '../utils/db';
@@ -31,6 +31,21 @@ const CustomAreaTooltip = ({ active, payload, label }) => {
       <div className="p-3 bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl">
         <p className="label text-sm font-bold text-slate-100">{`Tag ${label}`}</p>
         <p className="text-red-400 flex items-center"><span className="w-2 h-2 rounded-full bg-red-400 mr-2"></span>Ausgaben: {formatCurrency(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CustomSavingsTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="p-3 bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl">
+        <p className="label text-sm font-bold text-slate-100">{label}</p>
+        <p className="text-purple-400 flex items-center"><span className="w-2 h-2 rounded-full bg-purple-400 mr-2"></span>Sparrate: {payload[0].value.toFixed(1)}%</p>
+        <p className="text-green-400 flex items-center"><span className="w-2 h-2 rounded-full bg-green-400 mr-2"></span>Gespart: {formatCurrency(data.savings)}</p>
+        <p className="text-blue-400 flex items-center"><span className="w-2 h-2 rounded-full bg-blue-400 mr-2"></span>Einkommen: {formatCurrency(data.income)}</p>
       </div>
     );
   }
@@ -315,6 +330,75 @@ const DashboardPage = ({ setPage }) => {
     return subscriptionsData.reduce((sum, sub) => sum + sub.amount, 0);
   }, [subscriptionsData]);
 
+  // --- SAVINGS RATE DATA ---
+  const savingsRateData = useMemo(() => {
+    // Erstelle Daten für das aktuelle Jahr (Januar bis aktueller Monat)
+    const months = [];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-basiert (0 = Januar)
+    
+    // Von Januar (0) bis zum aktuellen Monat
+    for (let i = 0; i <= currentMonth; i++) {
+      const date = new Date(currentYear, i, 1);
+      const monthName = date.toLocaleString('de-DE', { month: 'short' });
+      
+      months.push({
+        month: monthName,
+        fullDate: date,
+        savings: 0,
+        income: 0,
+        savingsRate: 0
+      });
+    }
+
+    // Berechne Sparrate für jeden Monat
+    transactions.forEach(transaction => {
+      const transactionDate = new Date(transaction.date);
+      const transactionMonth = transactionDate.toISOString().substring(0, 7);
+      
+      // Finde den entsprechenden Monat
+      const monthData = months.find(m => m.fullDate.toISOString().substring(0, 7) === transactionMonth);
+      if (!monthData) return;
+
+      // Klassifiziere als Sparen wenn:
+      // 1. Kategorie enthält "Spar", "Anlage", "Investment", "Rücklage"
+      // 2. Oder Empfänger/Beschreibung deutet auf Sparen hin
+      const category = transaction.category?.toLowerCase() || '';
+      const recipient = transaction.recipient?.toLowerCase() || '';
+      const description = transaction.description?.toLowerCase() || '';
+      
+      const isSavings = category.includes('spar') || 
+                       category.includes('anlage') || 
+                       category.includes('investment') || 
+                       category.includes('rücklage') || 
+                       category.includes('tagesgeld') ||
+                       category.includes('festgeld') ||
+                       recipient.includes('depot') ||
+                       recipient.includes('tagesgeld') ||
+                       recipient.includes('festgeld') ||
+                       description.includes('spar') ||
+                       description.includes('anlage');
+      
+      if (isSavings && transaction.amount < 0) {
+        // Negative Beträge = Geld wird gespart
+        monthData.savings += Math.abs(transaction.amount);
+      } else if (transaction.amount > 0) {
+        // Positive Beträge = Einkommen
+        monthData.income += transaction.amount;
+      }
+    });
+
+    // Berechne Sparrate in Prozent
+    months.forEach(month => {
+      if (month.income > 0) {
+        month.savingsRate = (month.savings / month.income) * 100;
+      }
+    });
+
+    return months;
+  }, [transactions]);
+
   const changeMonth = (offset) => {
     setCurrentMonth(prev => {
       const newDate = new Date(prev);
@@ -328,7 +412,7 @@ const DashboardPage = ({ setPage }) => {
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const sessionId = uploadLogger.startSession(file.name);
+    uploadLogger.startSession(file.name);
     setIsUploading(true);
     setProcessingStage('Datei wird analysiert...');
     setUploadSuccess(null);
@@ -402,7 +486,7 @@ const DashboardPage = ({ setPage }) => {
       {/* --- GRAPHS --- */}
       <div className="mt-8 space-y-8">
         
-        {/* Graph 1: Jahresübersicht */}
+        {/* Graph 1: Jahresübersicht - Full Width */}
         <Card className="!p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -411,7 +495,7 @@ const DashboardPage = ({ setPage }) => {
             </div>
             <BarChart3 className="w-5 h-5 text-slate-400" />
           </div>
-          <ResponsiveContainer width="100%" height={350}>
+          <ResponsiveContainer width="100%" height={400}>
             <BarChart data={annualData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                <defs>
                   <linearGradient id="colorIncomeBar" x1="0" y1="0" x2="0" y2="1">
@@ -434,31 +518,70 @@ const DashboardPage = ({ setPage }) => {
           </ResponsiveContainer>
         </Card>
 
-        {/* Graph 4: Tägliche Ausgaben */}
-        <Card className="!p-6">
+        {/* Row with Savings Rate and Daily Spending */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Savings Rate Chart */}
+          <Card className="!p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Tägliche Ausgaben</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Ausgabenverlauf für {currentMonth.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}.</p>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Sparrate Entwicklung</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Monatliche Sparrate in % (Jan - {new Date().toLocaleString('de-DE', { month: 'short' })}).</p>
               </div>
-              <TrendingDown className="w-5 h-5 text-slate-400" />
+              <PiggyBank className="w-5 h-5 text-slate-400" />
             </div>
-            <ResponsiveContainer width="100%" height={350}>
-                <AreaChart data={dailySpendingData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                    <defs>
-                        <linearGradient id="colorExpenseArea" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                        </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700/50" />
-                    <XAxis dataKey="day" stroke="currentColor" fontSize={12} className="text-slate-500 dark:text-slate-400" />
-                    <YAxis stroke="currentColor" fontSize={12} tickFormatter={formatCurrency} className="text-slate-500 dark:text-slate-400" />
-                    <Tooltip content={<CustomAreaTooltip />} cursor={{ stroke: '#ef4444', strokeWidth: 1, strokeDasharray: '3 3' }} />
-                    <Area type="monotone" dataKey="expense" name="Ausgaben" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorExpenseArea)" />
-                </AreaChart>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={savingsRateData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="colorSavingsRate" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700/50" />
+                <XAxis dataKey="month" stroke="currentColor" fontSize={12} className="text-slate-500 dark:text-slate-400" />
+                <YAxis stroke="currentColor" fontSize={12} tickFormatter={(value) => `${value.toFixed(0)}%`} className="text-slate-500 dark:text-slate-400" />
+                <Tooltip content={<CustomSavingsTooltip />} cursor={{ stroke: '#8b5cf6', strokeWidth: 2, strokeDasharray: '3 3' }} />
+                <Area 
+                  type="monotone" 
+                  dataKey="savingsRate" 
+                  name="Sparrate" 
+                  stroke="#8b5cf6" 
+                  strokeWidth={3} 
+                  fillOpacity={1} 
+                  fill="url(#colorSavingsRate)" 
+                  dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, stroke: '#8b5cf6', strokeWidth: 2, fill: 'white' }}
+                />
+              </AreaChart>
             </ResponsiveContainer>
-        </Card>
+          </Card>
+
+          {/* Daily Spending */}
+          <Card className="!p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Tägliche Ausgaben</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Ausgaben für {currentMonth.toLocaleString('de-DE', { month: 'long' })}.</p>
+                </div>
+                <TrendingDown className="w-5 h-5 text-slate-400" />
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={dailySpendingData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                      <defs>
+                          <linearGradient id="colorExpenseArea" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                          </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700/50" />
+                      <XAxis dataKey="day" stroke="currentColor" fontSize={12} className="text-slate-500 dark:text-slate-400" />
+                      <YAxis stroke="currentColor" fontSize={12} tickFormatter={formatCurrency} className="text-slate-500 dark:text-slate-400" />
+                      <Tooltip content={<CustomAreaTooltip />} cursor={{ stroke: '#ef4444', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                      <Area type="monotone" dataKey="expense" name="Ausgaben" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorExpenseArea)" />
+                  </AreaChart>
+              </ResponsiveContainer>
+          </Card>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Graph 2: Ausgaben nach Kategorie */}
