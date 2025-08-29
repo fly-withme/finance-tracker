@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Tag, Euro, Calendar, Building, FileText, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import SharedExpenseSelector from '../SharedExpenseSelector';
+import AutocompleteCategorySelector from '../AutocompleteCategorySelector';
+import { db } from '../../utils/db';
 
 const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }) => {
   const [formData, setFormData] = useState({
@@ -29,6 +31,29 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
   const handleChange = (e) => { 
     const { name, value } = e.target; 
     setFormData(prev => ({ ...prev, [name]: value })); 
+  };
+
+  const handleCategorySelect = (categoryName) => {
+    setFormData(prev => ({ ...prev, category: categoryName }));
+  };
+
+  const handleCreateCategory = async (categoryName) => {
+    try {
+      const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#EF4444'];
+      const newCategory = {
+        name: categoryName,
+        color: colors[Math.floor(Math.random() * colors.length)]
+      };
+      
+      await db.categories.add(newCategory);
+      setFormData(prev => ({ ...prev, category: categoryName }));
+      
+      // Note: The parent component should refresh categories after this
+      return newCategory;
+    } catch (error) {
+      console.error('Error creating category:', error);
+      throw error;
+    }
   };
 
   const handleSharedExpenseChange = useCallback((newSharedExpenseData) => {
@@ -95,16 +120,13 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
         {formData.type !== 'income' && (
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Kategorie</label>
-            <select 
-              name="category" 
-              value={formData.category} 
-              onChange={handleChange} 
-              className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              {categories.filter(c => c.name !== 'Income').map(c => (
-                <option key={c.id} value={c.name}>{c.name}</option>
-              ))}
-            </select>
+            <AutocompleteCategorySelector
+              categories={categories.filter(c => c.name !== 'Income')}
+              selected={formData.category}
+              onSelect={handleCategorySelect}
+              onCreateCategory={handleCreateCategory}
+              defaultValue={formData.category}
+            />
           </div>
         )}
         
@@ -168,24 +190,58 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
             <button
               type="button"
               onClick={toggleSharedExpenses}
-              className="flex items-center justify-between w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+              className={`group flex items-center justify-between w-full p-4 rounded-lg border-2 transition-all duration-200 ease-in-out ${
+                showSharedExpenses
+                  ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700 shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
+              }`}
             >
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Ausgabe teilen
-                </span>
-                {sharedExpenseData?.sharedWith?.length > 0 && (
-                  <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full text-xs font-medium">
-                    {sharedExpenseData.sharedWith.length}
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg transition-colors duration-200 ${
+                  showSharedExpenses
+                    ? 'bg-indigo-100 dark:bg-indigo-800'
+                    : 'bg-slate-200 dark:bg-slate-600 group-hover:bg-slate-300 dark:group-hover:bg-slate-500'
+                }`}>
+                  <Users className={`w-4 h-4 transition-colors duration-200 ${
+                    showSharedExpenses
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`} />
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className={`text-sm font-semibold transition-colors duration-200 ${
+                    showSharedExpenses
+                      ? 'text-indigo-700 dark:text-indigo-300'
+                      : 'text-slate-700 dark:text-slate-300'
+                  }`}>
+                    Ausgabe teilen
                   </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {showSharedExpenses
+                      ? sharedExpenseData?.sharedWith?.length > 0
+                        ? `Mit ${sharedExpenseData.sharedWith.length} Person${sharedExpenseData.sharedWith.length !== 1 ? 'en' : ''} geteilt`
+                        : 'Wähle Personen zum Teilen aus'
+                      : 'Klicke um Ausgaben mit anderen zu teilen'
+                    }
+                  </span>
+                </div>
+                {sharedExpenseData?.sharedWith?.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <span className="bg-indigo-500 text-white px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm">
+                      {sharedExpenseData.sharedWith.length}
+                    </span>
+                  </div>
                 )}
               </div>
-              {showSharedExpenses ? (
-                <ChevronUp className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-              )}
+              <div className={`transition-transform duration-200 ease-in-out ${
+                showSharedExpenses ? 'rotate-180' : 'rotate-0'
+              }`}>
+                <ChevronDown className={`w-5 h-5 transition-colors duration-200 ${
+                  showSharedExpenses
+                    ? 'text-indigo-600 dark:text-indigo-400'
+                    : 'text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300'
+                }`} />
+              </div>
             </button>
           </div>
         )}
@@ -209,19 +265,32 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
       </form>
 
       {/* Shared Expenses Panel */}
-      {formData.type === 'expense' && showSharedExpenses && (
-        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-          <div className="mb-3">
-            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Ausgaben teilen
-            </h3>
+      {formData.type === 'expense' && (
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
+          showSharedExpenses ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        }`}>
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 rounded-lg p-5 border border-indigo-200 dark:border-indigo-700 shadow-sm">
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-indigo-100 dark:bg-indigo-800 rounded-lg">
+                  <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <h3 className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">
+                  Ausgaben teilen
+                </h3>
+              </div>
+              <p className="text-xs text-indigo-600 dark:text-indigo-300 ml-8">
+                Teile diese Ausgabe fair mit anderen Personen auf
+              </p>
+            </div>
+            {showSharedExpenses && (
+              <SharedExpenseSelector
+                transactionAmount={-Math.abs(parseFloat(formData.amount) || 0)}
+                onSharedExpenseChange={handleSharedExpenseChange}
+                initialSharedWith={sharedExpenseData?.sharedWith || []}
+              />
+            )}
           </div>
-          <SharedExpenseSelector
-            transactionAmount={-Math.abs(parseFloat(formData.amount) || 0)}
-            onSharedExpenseChange={handleSharedExpenseChange}
-            initialSharedWith={sharedExpenseData?.sharedWith || []}
-          />
         </div>
       )}
     </div>

@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-// GEÄNDERT: Korrekter Pfad, um aus dem 'components'-Ordner herauszugehen
 import { db, populateInitialData } from '../utils/db';
 import { TransactionClassifier, getInitialModel } from '../utils/mlLearning';
 import { EnhancedTransactionClassifier, getEnhancedInitialModel } from '../utils/enhancedMLLearning';
@@ -34,13 +33,12 @@ export default function ZenithFinanceApp() {
   const [currentPage, setPage] = useState('dashboard');
   const [classifier, setClassifier] = useState(null);
   const [enhancedClassifier, setEnhancedClassifier] = useState(null);
-  const [useEnhancedML, setUseEnhancedML] = useState(true); // Flag für erweiterte ML
+  const [useEnhancedML, setUseEnhancedML] = useState(true);
 
   const categories = useLiveQuery(() => db.categories.toArray(), []);
 
   useEffect(() => {
     const loadModel = async () => {
-      // Lade klassisches ML-Modell
       let modelData = await db.settings.get('mlModel');
       if (!modelData) {
         modelData = { key: 'mlModel', model: getInitialModel() };
@@ -48,7 +46,6 @@ export default function ZenithFinanceApp() {
       }
       setClassifier(new TransactionClassifier(modelData.model));
       
-      // Lade erweitertes ML-Modell
       let enhancedModelData = await db.settings.get('enhancedMLModel');
       if (!enhancedModelData) {
         enhancedModelData = { key: 'enhancedMLModel', model: getEnhancedInitialModel() };
@@ -103,9 +100,9 @@ export default function ZenithFinanceApp() {
 
   return (
     <DarkModeProvider>
-      <div className="min-h-screen flex bg-slate-50/70 dark:bg-slate-900">
+      <div className="h-screen flex bg-slate-50/70 dark:bg-slate-900 overflow-hidden">
         <Sidebar currentPage={currentPage} setPage={setPage} />
-        <div className="flex-1">
+        <div className="flex-1 overflow-y-auto">
           {renderPage()}
         </div>
       </div>

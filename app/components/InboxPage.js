@@ -47,6 +47,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
 
   // Enhanced ML suggestions with unified styling
   const getMLSuggestions = (transaction) => {
+    if (!transaction) return [];
     const suggestions = [];
     const classifierSuggestions = useEnhancedML && enhancedClassifier 
       ? enhancedClassifier.getCategorySuggestions(transaction, categories || [])
@@ -106,9 +107,11 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
     }
   };
   
-  const handleCategorizeTransaction = async (transaction, categoryName) => {
-    if (!categoryName?.trim()) return;
-    setProcessingIds(prev => new Set(prev).add(transaction.id));
+  const handleProcessTransaction = async () => {
+    if (!currentTx || !selectedCategory.trim()) return;
+    const categoryName = selectedCategory.trim();
+    
+    setProcessingIds(prev => new Set(prev).add(currentTx.id));
     
     try {
       if (!categories?.find(cat => cat.name.toLowerCase() === categoryName.toLowerCase())) {
@@ -116,11 +119,11 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
       }
 
       const finalTransaction = {
-        date: transaction.date, 
-        description: transaction.description, 
-        recipient: transaction.recipient,
-        amount: transaction.amount, 
-        account: transaction.account, 
+        date: currentTx.date, 
+        description: currentTx.description, 
+        recipient: currentTx.recipient,
+        amount: currentTx.amount, 
+        account: currentTx.account, 
         category: categoryName,
         processedAt: new Date().toISOString(),
         ...(sharedExpenseData && {
@@ -133,16 +136,16 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
       
       if (sharedExpenseData && sharedExpenseData.sharedWith.length > 0) {
         const expense = {
-          description: transaction.description,
-          totalAmount: Math.abs(transaction.amount),
-          date: transaction.date,
+          description: currentTx.description,
+          totalAmount: Math.abs(currentTx.amount),
+          date: currentTx.date,
           paidBy: 'Me',
           settledAmount: 0,
           createdAt: new Date().toISOString(),
           sharedWith: sharedExpenseData.sharedWith.map(p => ({
             ...p,
             amount: sharedExpenseData.splitType === 'equal' 
-              ? Math.abs(transaction.amount) / (sharedExpenseData.sharedWith.length + 1)
+              ? Math.abs(currentTx.amount) / (sharedExpenseData.sharedWith.length + 1)
               : p.amount
           })),
           splitType: sharedExpenseData.splitType
@@ -150,23 +153,21 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
         await db.sharedExpenses.add(expense);
       }
       
-      // ML Learning
-      if (classifier && transaction.description) {
-        classifier.learn(transaction.description, categoryName);
+      if (classifier && typeof classifier.getModel === 'function' && currentTx.description) {
+        classifier.learn(currentTx.description, categoryName);
         await db.settings.put({ key: 'mlModel', model: classifier.getModel() });
       }
       
-      if (enhancedClassifier && useEnhancedML) {
+      if (enhancedClassifier && typeof enhancedClassifier.getEnhancedModel === 'function' && useEnhancedML) {
         enhancedClassifier.learn(finalTransaction, categoryName);
         await db.settings.put({ key: 'enhancedMLModel', model: enhancedClassifier.getEnhancedModel() });
       }
       
-      await db.inbox.delete(transaction.id);
+      await db.inbox.delete(currentTx.id);
       
       setSharedExpenseData(null);
       setSelectedCategory('');
       
-      // Smart navigation
       const newLength = inboxTransactions.length - 1;
       if (newLength === 0) {
         setCurrentTransactionIndex(0);
@@ -175,11 +176,11 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
       }
 
     } catch (error) {
-      console.error('Error categorizing transaction:', error);
+      console.error('Error processing transaction:', error);
     } finally {
       setProcessingIds(prev => { 
         const newSet = new Set(prev); 
-        newSet.delete(transaction.id); 
+        newSet.delete(currentTx.id); 
         return newSet; 
       });
     }
@@ -231,6 +232,11 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
       ? existingContacts.filter(c => c.name !== contact.name)
       : [...existingContacts, contact];
 
+    // Limitiere auf maximal 3 Personen
+    if (!isSelected && newSharedWith.length > 3) {
+      return;
+    }
+
     if (newSharedWith.length === 0) {
       setSharedExpenseData(null);
       return;
@@ -246,6 +252,12 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
   const handleAddPerson = async (name) => {
     const trimmedName = name.trim();
     if (!trimmedName || sharedExpenseData?.sharedWith?.some(c => c.name === trimmedName)) {
+      setPersonSearch('');
+      return;
+    }
+    
+    // Limitiere auf maximal 3 Personen
+    if (sharedExpenseData?.sharedWith?.length >= 3) {
       setPersonSearch('');
       return;
     }
@@ -271,17 +283,18 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
     setPersonSearch('');
     setShowPersonSuggestions(false);
   };
+  
+  const isActionable = selectedCategory.trim() !== '';
 
-  // Reset states on transaction change
   useEffect(() => {
     setSharedExpenseData(null);
     setPersonSearch('');
     setSelectedCategory('');
-  }, [currentTransactionIndex]);
+  }, [currentTransactionIndex, currentTx?.id]);
 
   if (!isClient || !allInboxTransactions) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 flex items-center justify-center">
+      <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
             <Sparkles className="w-6 h-6 text-white animate-pulse" />
@@ -293,376 +306,335 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+    <div className="h-full bg-white dark:bg-slate-900 flex flex-col">
       
-      {/* Unified Header */}
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-8 py-6">
-          <div className="flex items-center justify-between">
+      <div className="flex-shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl">
+        <div className="p-4 sm:p-6 md:p-8">
+          <div className="relative flex items-center">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+              Posteingang
+            </h1>
             
-            {/* Brand */}
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                Posteingang
-              </h1>
-            </div>
-            
-            {/* Centered Progress Bar */}
-            <div className="absolute left-1/2 transform -translate-x-1/2">
-              {inboxTransactions.length > 0 && currentTx && (
-                <div className="flex items-center space-x-6">
-                  <div className="w-[424px] h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500 ease-out rounded-full"
-                      style={{width: `${((currentTransactionIndex + 1) / inboxTransactions.length) * 100}%`}}
+            {inboxTransactions.length > 0 && currentTx && (
+              <>
+                <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center space-x-3">
+                  <div className="w-[360px] h-2 bg-slate-200/50 dark:bg-slate-700/50 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-700 ease-out rounded-full"
+                      style={{ width: `${((currentTransactionIndex + 1) / inboxTransactions.length) * 100}%` }}
                     />
                   </div>
-                  <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-                    {currentTransactionIndex + 1} von {inboxTransactions.length}
+                  <span className="text-sm text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+                    {currentTransactionIndex + 1} / {inboxTransactions.length}
                   </span>
                 </div>
-              )}
-            </div>
-            
-            {/* Action */}
-            {inboxTransactions.length > 0 && (
-              <button
-                onClick={() => setShowClearConfirmation(true)}
-                className="px-6 py-3 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 rounded-2xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md"
-                disabled={isClearing}
-              >
-                Alle löschen
-              </button>
+                
+                <div className="ml-auto">
+                  <button
+                    onClick={() => setShowClearConfirmation(true)}
+                    className="px-4 py-2.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-sm"
+                  >
+                    <Trash2 className="w-4 h-4 inline mr-2" />
+                    Alle löschen
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
       </div>
 
-      {/* Main Content Flow */}
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="flex-1 flex flex-col px-8 py-6 min-h-0">
         
         {inboxTransactions.length === 0 || !currentTx ? (
-          /* Unified Empty State */
-          <div className="min-h-[60vh] flex items-center justify-center">
-            <div className="text-center p-12 bg-transparent rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl">
-              <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-600 rounded-3xl mx-auto mb-6 flex items-center justify-center shadow-lg">
-                <CheckCircle className="w-10 h-10 text-white" />
+          <div className="flex items-center justify-center flex-1">
+            <div className="text-center p-12 bg-white dark:bg-slate-800 rounded-3xl border-2 border-slate-200/60 dark:border-slate-700/60 max-w-md">
+              <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-green-600 rounded-3xl mx-auto mb-8 flex items-center justify-center shadow-xl">
+                <CheckCircle className="w-12 h-12 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-3">
+              <h2 className="text-3xl font-black text-slate-800 dark:text-slate-200 mb-4">
                 Perfekt organisiert!
               </h2>
-              <p className="text-slate-600 dark:text-slate-400 text-lg">
-                Alle Transaktionen wurden erfolgreich kategorisiert.
+              <p className="text-slate-600 dark:text-slate-400 text-lg leading-relaxed">
+                Alle Transaktionen wurden erfolgreich kategorisiert. Dein Posteingang ist leer!
               </p>
             </div>
           </div>
         ) : (
           
-          /* Single Display View Layout */
-          <div className="h-[calc(100vh-180px)] grid lg:grid-cols-12 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
             
-            {/* Transaction Card - Large Left Side */}
-            <div className="lg:col-span-8 flex flex-col">
-              <div className="bg-transparent rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl p-8 relative overflow-hidden flex-1 flex flex-col">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-50/30 to-transparent dark:from-slate-700/20" />
+            <div className="lg:col-span-2">
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 flex flex-col" style={{ height: '580px' }}>
                 
-                <button 
-                  onClick={() => handleDeleteTransaction(currentTx.id)}
-                  className="absolute top-6 right-6 p-3 text-slate-400 hover:text-red-500 bg-white dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl z-10 group"
-                  title="Transaktion löschen"
-                >
-                  <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                </button>
-
-                <div className="relative z-10 flex-1 flex flex-col">
-                  {/* Header with Date and Account */}
-                  <div className="flex items-center space-x-6 mb-8">
-                    <div className="flex items-center space-x-4 px-4 py-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl">
-                      <Calendar className="w-5 h-5 text-blue-500" />
-                      <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Datum</p>
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                          {new Date(currentTx.date).toLocaleDateString('de-DE', { 
-                            day: '2-digit', 
-                            month: 'long', 
-                            year: 'numeric' 
-                          })}
-                        </p>
-                      </div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <Calendar className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      <span className="text-sm text-slate-700 dark:text-slate-300">
+                        {new Date(currentTx.date).toLocaleDateString('de-DE', { 
+                          day: '2-digit', month: 'short', year: 'numeric' 
+                        })}
+                      </span>
                     </div>
-                    <div className="flex items-center space-x-4 px-4 py-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl">
-                      <Wallet className="w-5 h-5 text-purple-500" />
-                      <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Konto</p>
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                          {currentTx.account || 'Import'}
-                        </p>
-                      </div>
+                    <div className="flex items-center space-x-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <CreditCard className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      <span className="text-sm text-slate-700 dark:text-slate-300">
+                        {currentTx.account || 'Import'}
+                      </span>
                     </div>
                   </div>
+                  <button 
+                    onClick={() => handleDeleteTransaction(currentTx.id)}
+                    className="p-3 text-slate-400 hover:text-red-500 bg-slate-100 dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg group"
+                    title="Transaktion löschen"
+                  >
+                    <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  </button>
+                </div>
 
-                  {/* Amount Display - Centered */}
-                  <div className="text-center py-16 flex-1 flex flex-col justify-center">
-                    {currentTx.amount > 0 && (
-                      <div className="inline-flex items-center space-x-3 px-4 py-2 rounded-2xl mb-6 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                        <TrendingUp className="w-5 h-5" />
-                        <span className="font-semibold">Einnahme</span>
-                      </div>
-                    )}
-                    
-                    <div className={`text-8xl font-black tracking-tight mb-6 ${
-                      currentTx.amount > 0 
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-rose-600 dark:text-rose-400'
-                    }`}>
-                      {formatCurrency(Math.abs(currentTx.amount))}
-                    </div>
-                    
-                    <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                      {currentTx.recipient || 'Unbekannter Empfänger'}
-                    </h3>
-                    <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-lg">
-                      {currentTx.description || 'Keine Beschreibung verfügbar'}
-                    </p>
+                <div className="text-center flex-1 flex flex-col justify-center py-8">
+                  <div className={`text-7xl font-black tracking-tight mb-4 ${
+                    currentTx.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                  }`}>
+                    {formatCurrency(Math.abs(currentTx.amount))}
                   </div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-2">
+                    {currentTx.recipient || 'Unbekannter Empfänger'}
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm max-w-md mx-auto">
+                    {currentTx.description || 'Keine Beschreibung verfügbar'}
+                  </p>
+                </div>
 
-                  {/* Footer with Navigation */}
-                  <div className="flex items-center justify-between pt-8 border-t border-slate-200/50 dark:border-slate-700/50 mt-auto">
-                    <button 
-                      onClick={() => setCurrentTransactionIndex(prev => prev - 1)} 
-                      disabled={currentTransactionIndex === 0}
-                      className="group flex items-center space-x-3 px-6 py-4 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl border border-slate-200 dark:border-slate-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                <div className="flex items-center justify-between pt-4 border-t border-slate-200/50 dark:border-slate-700/50 mt-auto">
+                  <button 
+                    onClick={() => setCurrentTransactionIndex(prev => prev - 1)} 
+                    disabled={currentTransactionIndex === 0}
+                    className="flex items-center space-x-2 px-5 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl border border-slate-200 dark:border-slate-600 transition-all duration-200 shadow-sm hover:shadow-md font-bold text-sm"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Zurück</span>
+                  </button>
+                  
+                  {isActionable ? (
+                    <button
+                      onClick={handleProcessTransaction}
+                      className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-2xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl text-sm"
                     >
-                      <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                      <span className="font-semibold">Zurück</span>
+                      <span>Verarbeiten</span>
+                      <ChevronRight className="w-4 h-4" />
                     </button>
-                    
+                  ) : (
                     <button 
                       onClick={handleSkipTransaction}
-                      className="group flex items-center space-x-3 px-6 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-2xl transition-all duration-200 shadow-sm hover:shadow-md font-semibold"
+                      className="flex items-center space-x-2 px-5 py-3 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500 rounded-2xl transition-all duration-200 shadow-sm hover:shadow-md font-bold text-sm"
                     >
                       <span>Überspringen</span>
-                      <SkipForward className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      <SkipForward className="w-4 h-4" />
                     </button>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Right Sidebar - Category and Sharing */}
-            <div className="lg:col-span-4 flex flex-col space-y-6 h-full">
+            <div className="flex flex-col gap-6">
               
-              {/* Category Div */}
-              <div className="bg-transparent rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 flex-1">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center">
-                    <Tag className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-slate-800 dark:text-slate-200">Kategorie</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Ausgaben organisieren</p>
-                  </div>
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col" style={{ height: '280px' }}>
+                <div className="flex items-center space-x-2 mb-4 flex-shrink-0">
+                  <Tag className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                  <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Kategorie</h4>
                 </div>
                 
-                <AutocompleteCategorySelector
-                  key={currentTx.id} 
-                  categories={categories || []}
-                  suggestions={getMLSuggestions(currentTx).map(s => s.name)}
-                  defaultValue={selectedCategory || currentTx.category || ''}
-                  onSelect={(categoryName) => {
-                    setSelectedCategory(categoryName);
-                    handleCategorizeTransaction(currentTx, categoryName);
-                  }}
-                  onCreateCategory={(categoryName) => {
-                    setSelectedCategory(categoryName);
-                    handleCategorizeTransaction(currentTx, categoryName);
-                  }} 
-                />
-                
-                {getMLSuggestions(currentTx).length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mb-2 font-medium">KI-Vorschläge</p>
-                    <div className="flex flex-wrap gap-2">
-                      {getMLSuggestions(currentTx).map((suggestion, idx) => {
-                        const IconComponent = suggestion.icon;
-                        return (
+                <div className="flex-1 flex flex-col min-h-0">
+                  <div className="flex-shrink-0">
+                    <AutocompleteCategorySelector
+                      key={currentTx.id} 
+                      categories={categories || []}
+                      suggestions={getMLSuggestions(currentTx).map(s => s.name)}
+                      defaultValue={selectedCategory || currentTx.category || ''}
+                      onSelect={(categoryName) => setSelectedCategory(categoryName)}
+                      onCreateCategory={(categoryName) => setSelectedCategory(categoryName)} 
+                    />
+                  </div>
+                  
+                  {getMLSuggestions(currentTx).length > 0 && (
+                    <div className="mt-4 flex-1 min-h-0 overflow-y-auto">
+                      <div className="space-y-1">
+                        {getMLSuggestions(currentTx).map((suggestion, idx) => (
                           <button 
                             key={idx}
                             onClick={() => setSelectedCategory(suggestion.name)}
-                            className="group flex items-center space-x-2 px-3 py-2 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 rounded-xl transition-all duration-200 border border-slate-200/50 dark:border-slate-600/50 hover:border-slate-300 dark:hover:border-slate-500"
+                            className={`w-full group flex items-center justify-between p-2 rounded-lg transition-all duration-200 ${
+                              selectedCategory === suggestion.name 
+                                ? 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200' 
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
                           >
-                            <IconComponent className="w-3.5 h-3.5" />
-                            <span className="text-sm font-medium">{suggestion.name}</span>
-                            <span className="text-xs px-2 py-0.5 bg-slate-200 dark:bg-slate-600 rounded-full font-bold">
+                            <span className="text-sm text-left">{suggestion.name}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
                               {Math.round(suggestion.confidence * 100)}%
                             </span>
                           </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                
-              </div>
-
-              {/* Teilen Div - Only for negative amounts */}
-              {currentTx.amount < 0 && (
-                <div className="bg-transparent rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 flex-1 overflow-y-auto">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center">
-                      <Users className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h4 className="text-lg font-bold text-slate-800 dark:text-slate-200">Teilen</h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Mit anderen aufteilen</p>
-                    </div>
-                  </div>
-                  
-                  <div className="relative mb-6">
-                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input 
-                      type="text" 
-                      value={personSearch} 
-                      onChange={(e) => setPersonSearch(e.target.value)}
-                      onFocus={() => setShowPersonSuggestions(true)} 
-                      onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 150)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddPerson(personSearch)}
-                      placeholder="Person hinzufügen..."
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 placeholder-slate-500 dark:placeholder-slate-400 shadow-sm" 
-                    />
-                    
-                    {showPersonSuggestions && (personSuggestions.length > 0 || personSearch) && (
-                      <div className="absolute z-30 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
-                        {personSuggestions.map(person => (
-                          <div key={person.name} onClick={() => handleAddPerson(person.name)} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer flex items-center space-x-3 transition-colors">
-                            <div className="w-3 h-3 rounded-full shadow-sm" style={{backgroundColor: person.color}} />
-                            <span className="font-medium text-slate-800 dark:text-slate-200">{person.name}</span>
-                          </div>
                         ))}
-                        {personSearch && !allContacts.some(c => c.name.toLowerCase() === personSearch.toLowerCase()) && (
-                          <div onClick={() => handleAddPerson(personSearch)} className="px-4 py-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 cursor-pointer flex items-center space-x-3 text-emerald-600 dark:text-emerald-400 border-t border-slate-200 dark:border-slate-700 font-medium transition-colors">
-                            <Plus className="w-4 h-4" />
-                            <span>"{personSearch}" hinzufügen</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {frequentContacts.length > 0 && (
-                    <div className="mb-6">
-                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3">Häufige Kontakte</p>
-                      <div className="flex flex-wrap gap-2">
-                        {frequentContacts.map((person) => {
-                          const isSelected = sharedExpenseData?.sharedWith?.some(s => s.name === person.name);
-                          if (isSelected) return null;
-                          return (
-                            <button 
-                              key={person.name} 
-                              onClick={() => toggleContactInShare(person)} 
-                              className="flex items-center space-x-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl transition-all duration-200 border border-slate-200 dark:border-slate-600 hover:border-emerald-300 dark:hover:border-emerald-700 shadow-sm font-medium"
-                            >
-                              <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{backgroundColor: person.color}} />
-                              <span>{person.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {sharedExpenseData && sharedExpenseData.sharedWith.length > 0 && (
-                    <div className="space-y-3">
-                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Teilende Personen</p>
-                      
-                      {sharedExpenseData.sharedWith.map(person => (
-                        <div key={person.name} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-200 dark:border-slate-600">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-3 h-3 rounded-full shadow-sm" style={{backgroundColor: person.color}} />
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">{person.name}</span>
-                          </div>
-                          <div className="flex items-center space-x-3">
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                              {formatCurrency(person.amount)}
-                            </span>
-                            <button 
-                              onClick={() => toggleContactInShare(person)} 
-                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl border-2 border-purple-200 dark:border-purple-700">
-                        <div className="flex items-center space-x-3">
-                          <User className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                          <span className="font-bold text-purple-800 dark:text-purple-300">Dein Anteil</span>
-                        </div>
-                        <span className="font-bold text-purple-800 dark:text-purple-300 text-lg">
-                          {formatCurrency(Math.abs(currentTx.amount) - (sharedExpenseData.sharedWith.reduce((acc, p) => acc + p.amount, 0)))}
-                        </span>
                       </div>
                     </div>
                   )}
                 </div>
-              )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 flex flex-col" style={{ height: '280px' }}>
+                {currentTx.amount < 0 ? (
+                  <>
+                  <div className="flex items-center space-x-3 mb-4 flex-shrink-0">
+                    <Users className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Teilen</h3>
+                  </div>
+                  
+                  <div className="flex-1 flex flex-col">
+                    {/* Input zum Hinzufügen neuer Personen */}
+                    <div className="mb-4">
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          value={personSearch} 
+                          onChange={(e) => setPersonSearch(e.target.value)} 
+                          onFocus={() => setShowPersonSuggestions(true)} 
+                          onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 150)} 
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (personSearch.trim()) {
+                                handleAddPerson(personSearch.trim());
+                              }
+                            }
+                          }}
+                          placeholder="Person hinzufügen..." 
+                          className="w-full px-4 py-3 text-base border rounded-lg text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors duration-200 bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600" 
+                        />
+                        {showPersonSuggestions && personSearch && (
+                          <div className="absolute z-30 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                            {frequentContacts.filter(p => 
+                              p.name.toLowerCase().includes(personSearch.toLowerCase()) && 
+                              !sharedExpenseData?.sharedWith?.some(s => s.name === p.name)
+                            ).slice(0, 5).map(person => (
+                              <button 
+                                key={person.name} 
+                                onClick={() => {
+                                  toggleContactInShare(person);
+                                  setPersonSearch('');
+                                }} 
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center space-x-3"
+                              >
+                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: person.color}}>
+                                  {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                </div>
+                                <span>{person.name}</span>
+                              </button>
+                            ))}
+                            {personSearch && !allContacts.some(c => c.name.toLowerCase() === personSearch.toLowerCase()) && (
+                              <div className="border-t border-slate-200 dark:border-slate-700">
+                                <button 
+                                  onClick={() => {
+                                    handleAddPerson(personSearch.trim());
+                                    setPersonSearch('');
+                                  }} 
+                                  className="w-full text-left px-3 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50 flex items-center space-x-2"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  <span>Person "{personSearch}" erstellen</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Geteilte Personen anzeigen */}
+                    {sharedExpenseData && sharedExpenseData.sharedWith.length > 0 ? (
+                      <div className="flex-1">
+                        <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wide">
+                          Geteilt mit {sharedExpenseData.sharedWith.length} Person{sharedExpenseData.sharedWith.length > 1 ? 'en' : ''}
+                        </div>
+                        <div className="space-y-2 mb-4">
+                          {sharedExpenseData.sharedWith.map(person => (
+                            <div 
+                              key={person.name} 
+                              className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700 rounded-lg"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div 
+                                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white"
+                                  style={{backgroundColor: person.color}}
+                                >
+                                  {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                </div>
+                                <div>
+                                  <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{person.name}</span>
+                                  <div className="text-xs text-slate-500 dark:text-slate-400">{formatCurrency(person.amount)}</div>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => toggleContactInShare(person)} 
+                                className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors"
+                                title="Person entfernen"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-auto pt-3 border-t border-slate-200 dark:border-slate-700">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-600 dark:text-slate-400">Dein Anteil:</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              {formatCurrency(Math.abs(currentTx.amount) / (sharedExpenseData.sharedWith.length + 1))}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col justify-center">
+                        <div className="text-center mb-4">
+                          <p className="text-slate-500 dark:text-slate-400">Häufige Kontakte:</p>
+                        </div>
+                        <div className="space-y-2">
+                          {frequentContacts.slice(0, 4).map((person) => (
+                            <button 
+                              key={person.name} 
+                              onClick={() => toggleContactInShare(person)} 
+                              className="w-full flex items-center space-x-3 p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg transition-all duration-200"
+                            >
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: person.color}}>
+                                {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </div>
+                              <span className="text-sm">{person.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">
+                    <div className="text-center p-6">
+                      <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-2xl mx-auto mb-3 flex items-center justify-center">
+                        <Users className="w-5 h-5 opacity-50" />
+                      </div>
+                      <p className="text-sm font-bold">Nur bei Ausgaben verfügbar</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Diese Transaktion ist eine Einnahme</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal - Unified Design */}
-      {showClearConfirmation && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md border border-slate-200/50 dark:border-slate-700/50">
-            <div className="p-8">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
-                  <AlertCircle className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">Alle löschen?</h3>
-                  <p className="text-slate-500 dark:text-slate-400">Unwiderrufliche Aktion</p>
-                </div>
-              </div>
-              
-              <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl mb-6 border border-red-200 dark:border-red-800">
-                <p className="text-slate-700 dark:text-slate-300 font-medium">
-                  Alle <span className="font-bold text-red-600 dark:text-red-400">{inboxTransactions.length} Transaktionen</span> werden permanent gelöscht.
-                </p>
-              </div>
-              
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => setShowClearConfirmation(false)}
-                  className="flex-1 py-4 px-6 text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-2xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  onClick={handleClearInbox}
-                  disabled={isClearing}
-                  className="flex-1 py-4 px-6 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 disabled:from-red-400 disabled:to-pink-400 text-white rounded-2xl transition-all duration-200 flex items-center justify-center space-x-3 font-bold shadow-lg hover:shadow-2xl"
-                >
-                  {isClearing ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Lösche...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-5 h-5" />
-                      <span>Löschen</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {showClearConfirmation && ( <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50 p-4"> <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md border border-slate-200/50 dark:border-slate-700/50"> <div className="p-8"> <div className="flex items-center space-x-4 mb-6"> <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg"> <AlertCircle className="w-8 h-8 text-white" /> </div> <div> <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">Alle löschen?</h3> <p className="text-slate-500 dark:text-slate-400">Unwiderrufliche Aktion</p> </div> </div> <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl mb-6 border border-red-200 dark:border-red-800"> <p className="text-slate-700 dark:text-slate-300 font-medium"> Alle <span className="font-bold text-red-600 dark:text-red-400">{inboxTransactions.length} Transaktionen</span> werden permanent gelöscht. </p> </div> <div className="flex space-x-4"> <button onClick={() => setShowClearConfirmation(false)} className="flex-1 py-4 px-6 text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-2xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md"> Abbrechen </button> <button onClick={handleClearInbox} disabled={isClearing} className="flex-1 py-4 px-6 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 disabled:from-red-400 disabled:to-pink-400 text-white rounded-2xl transition-all duration-200 flex items-center justify-center space-x-3 font-bold shadow-lg hover:shadow-2xl"> {isClearing ? ( <> <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> <span>Lösche...</span> </> ) : ( <> <Trash2 className="w-5 h-5" /> <span>Löschen</span> </> )} </button> </div> </div> </div> </div> )}
     </div>
   );
 };

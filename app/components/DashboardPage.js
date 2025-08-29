@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, Sector, AreaChart, Area } from 'recharts';
-import { UploadCloud, Loader2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, BarChart3, PieChart as PieChartIcon, Target, AlertTriangle, Repeat, PiggyBank } from 'lucide-react';
+import { UploadCloud, Loader2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, BarChart3, PieChart as PieChartIcon, Target, AlertTriangle, Repeat, PiggyBank, ToggleLeft, ToggleRight, Plus, X } from 'lucide-react';
 import Card from './ui/Card';
 import { bankStatementParser } from '../utils/pdfParser';
 import { db } from '../utils/db';
@@ -298,37 +298,127 @@ const DashboardPage = ({ setPage }) => {
   }, [transactions, currentMonth]);
 
   // --- SUBSCRIPTIONS DATA ---
-  const subscriptionsData = useMemo(() => {
-    const month = currentMonth.getMonth();
-    const year = currentMonth.getFullYear();
+  const allSubscriptions = useLiveQuery(() => db.subscriptions.orderBy('name').toArray(), []);
+  
+  // Auto-detect and save new subscriptions
+  const detectNewSubscriptions = useCallback(async () => {
+    if (!transactions || !allSubscriptions) return;
     
-    const subscriptions = transactions
+    const detectionKeywords = ['netflix', 'spotify', 'amazon prime', 'disney', 'apple music', 'youtube premium', 'office 365', 'adobe'];
+    
+    const potentialSubscriptions = transactions
       .filter(t => {
-        const tDate = new Date(t.date);
-        const matchesDate = tDate.getFullYear() === year && tDate.getMonth() === month;
         const isExpense = t.amount < 0;
         const matchesCategory = t.category?.toLowerCase().includes('abo') || 
                                t.category?.toLowerCase().includes('abos') ||
-                               t.recipient?.toLowerCase().includes('netflix') ||
-                               t.recipient?.toLowerCase().includes('spotify') ||
-                               t.recipient?.toLowerCase().includes('amazon prime') ||
-                               t.description?.toLowerCase().includes('abo');
+                               t.category?.toLowerCase().includes('subscription');
+        const matchesKeywords = detectionKeywords.some(keyword => 
+          t.recipient?.toLowerCase().includes(keyword) ||
+          t.description?.toLowerCase().includes(keyword)
+        );
         
-        return matchesDate && isExpense && matchesCategory;
+        return isExpense && (matchesCategory || matchesKeywords);
       })
-      .map(t => ({
-        name: t.recipient || t.description || 'Unbekanntes Abo',
-        amount: Math.abs(t.amount),
-        date: new Date(t.date).getDate() // Tag des Monats
-      }))
-      .sort((a, b) => a.date - b.date); // Sortiert nach Tag des Monats
-
-    return subscriptions;
-  }, [transactions, currentMonth]);
-
+      .reduce((acc, t) => {
+        const name = t.recipient || t.description || 'Unbekanntes Abo';
+        const cleanName = name.replace(/\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2}/g, '').trim();
+        
+        if (!acc[cleanName]) {
+          acc[cleanName] = {
+            name: cleanName,
+            amount: Math.abs(t.amount),
+            detectedFrom: t.id,
+            lastSeen: t.date
+          };
+        } else if (new Date(t.date) > new Date(acc[cleanName].lastSeen)) {
+          acc[cleanName].lastSeen = t.date;
+          acc[cleanName].amount = Math.abs(t.amount);
+        }
+        
+        return acc;
+      }, {});
+    
+    // Save new subscriptions to database
+    for (const sub of Object.values(potentialSubscriptions)) {
+      const existing = allSubscriptions?.find(s => s.name.toLowerCase() === sub.name.toLowerCase());
+      if (!existing && sub.name !== 'Unbekanntes Abo') {
+        try {
+          await db.subscriptions.add({
+            name: sub.name,
+            amount: sub.amount,
+            isActive: true,
+            detectedFrom: sub.detectedFrom,
+            lastSeen: sub.lastSeen,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('Error adding subscription:', error);
+        }
+      } else if (existing) {
+        // Update existing subscription with latest data
+        if (new Date(sub.lastSeen) > new Date(existing.lastSeen)) {
+          await db.subscriptions.update(existing.id, {
+            amount: sub.amount,
+            lastSeen: sub.lastSeen,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+    }
+  }, [transactions, allSubscriptions]);
+  
+  React.useEffect(() => {
+    detectNewSubscriptions();
+  }, [detectNewSubscriptions]);
+  
+  const activeSubscriptions = useMemo(() => {
+    return allSubscriptions?.filter(sub => sub.isActive) || [];
+  }, [allSubscriptions]);
+  
   const totalSubscriptionCost = useMemo(() => {
-    return subscriptionsData.reduce((sum, sub) => sum + sub.amount, 0);
-  }, [subscriptionsData]);
+    return activeSubscriptions.reduce((sum, sub) => sum + sub.amount, 0);
+  }, [activeSubscriptions]);
+  
+  const toggleSubscription = async (id, isActive) => {
+    try {
+      await db.subscriptions.update(id, {
+        isActive: !isActive,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error updating subscription:', error);
+    }
+  };
+  
+  const deleteSubscription = async (id) => {
+    try {
+      await db.subscriptions.delete(id);
+    } catch (error) {
+      console.error('Error deleting subscription:', error);
+    }
+  };
+  
+  const addCustomSubscription = async () => {
+    const name = prompt('Name des Abonnements:');
+    const amount = parseFloat(prompt('Monatliche Kosten (€):'));
+    
+    if (name && !isNaN(amount) && amount > 0) {
+      try {
+        await db.subscriptions.add({
+          name: name.trim(),
+          amount,
+          isActive: true,
+          detectedFrom: null,
+          lastSeen: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('Error adding custom subscription:', error);
+      }
+    }
+  };
 
   // --- SAVINGS RATE DATA ---
   const savingsRateData = useMemo(() => {
@@ -561,9 +651,25 @@ const DashboardPage = ({ setPage }) => {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Tägliche Ausgaben</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Ausgaben für {currentMonth.toLocaleString('de-DE', { month: 'long' })}.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Ausgaben für {currentMonth.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}.</p>
                 </div>
-                <TrendingDown className="w-5 h-5 text-slate-400" />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    title="Vorheriger Monat"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-slate-500" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    title="Nächster Monat"
+                  >
+                    <ChevronRight className="w-4 h-4 text-slate-500" />
+                  </button>
+                  <TrendingDown className="w-5 h-5 text-slate-400" />
+                </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                   <AreaChart data={dailySpendingData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
@@ -604,6 +710,20 @@ const DashboardPage = ({ setPage }) => {
                     ← Zurück
                   </button>
                 )}
+                <button
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Vorheriger Monat"
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-500" />
+                </button>
+                <button
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Nächster Monat"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
                 <PieChartIcon className="w-5 h-5 text-slate-400" />
               </div>
             </div>
@@ -693,9 +813,25 @@ const DashboardPage = ({ setPage }) => {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Budget-Fortschritt</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Ausgaben vs. gesetzte Budgets.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{currentMonth.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}</p>
               </div>
-              <Target className="w-5 h-5 text-slate-400" />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Vorheriger Monat"
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-500" />
+                </button>
+                <button
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Nächster Monat"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+                <Target className="w-5 h-5 text-slate-400" />
+              </div>
             </div>
             <div className="space-y-4 h-[350px] overflow-y-auto pr-2">
               {budgetVsActualData.length > 0 ? budgetVsActualData.map((item, index) => {
@@ -736,26 +872,71 @@ const DashboardPage = ({ setPage }) => {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Abonnements</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Deine aktiven Abos für {currentMonth.toLocaleString('de-DE', { month: 'long' })}.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Verwalte deine erkannten und manuell hinzugefügten Abonnements.</p>
               </div>
               <div className="flex items-center gap-2">
-                <Repeat className="w-5 h-5 text-slate-400" />
-                <span className="text-sm font-bold text-red-600">{formatCurrency(totalSubscriptionCost)}</span>
+                <button
+                  onClick={addCustomSubscription}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Hinzufügen
+                </button>
+                <div className="flex items-center gap-2">
+                  <Repeat className="w-5 h-5 text-slate-400" />
+                  <span className="text-sm font-bold text-red-600">{formatCurrency(totalSubscriptionCost)}</span>
+                </div>
               </div>
             </div>
-            {subscriptionsData.length > 0 ? (
+            {allSubscriptions && allSubscriptions.length > 0 ? (
               <div className="space-y-3">
-                {subscriptionsData.map((subscription, index) => (
-                  <div key={`subscription-${subscription.name}-${index}`} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
+                {allSubscriptions.map((subscription) => (
+                  <div key={subscription.id} className={`flex items-center gap-4 p-4 rounded-lg transition-all ${
+                    subscription.isActive 
+                      ? 'bg-slate-50 dark:bg-slate-800' 
+                      : 'bg-slate-100 dark:bg-slate-700 opacity-60'
+                  }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      subscription.isActive ? 'bg-indigo-500' : 'bg-slate-400'
+                    }`}>
                       <Repeat className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex-1">
-                      <span className="font-medium text-slate-900 dark:text-slate-100 block">{subscription.name}</span>
+                      <span className={`font-medium block ${
+                        subscription.isActive 
+                          ? 'text-slate-900 dark:text-slate-100' 
+                          : 'text-slate-500 dark:text-slate-400 line-through'
+                      }`}>{subscription.name}</span>
+                      {subscription.lastSeen && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          Zuletzt: {new Date(subscription.lastSeen).toLocaleDateString('de-DE')}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-red-600">{formatCurrency(subscription.amount)}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">am {subscription.date}.</div>
+                      <div className={`font-bold ${
+                        subscription.isActive ? 'text-red-600' : 'text-slate-400'
+                      }`}>{formatCurrency(subscription.amount)}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleSubscription(subscription.id, subscription.isActive)}
+                        className="p-1 rounded transition-colors hover:bg-slate-200 dark:hover:bg-slate-600"
+                        title={subscription.isActive ? 'Deaktivieren' : 'Aktivieren'}
+                      >
+                        {subscription.isActive ? (
+                          <ToggleRight className="w-5 h-5 text-purple-500" />
+                        ) : (
+                          <ToggleLeft className="w-5 h-5 text-slate-400" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => deleteSubscription(subscription.id)}
+                        className="p-1 rounded transition-colors hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500"
+                        title="Löschen"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -763,8 +944,8 @@ const DashboardPage = ({ setPage }) => {
             ) : (
               <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                 <Repeat className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Keine Abonnements für diesen Monat gefunden.</p>
-                <p className="text-xs mt-1">Kategorisiere Transaktionen mit "Abo" um sie hier anzuzeigen.</p>
+                <p>Noch keine Abonnements erkannt oder hinzugefügt.</p>
+                <p className="text-xs mt-1">Kategorisiere Transaktionen mit "Abo" oder füge manuell hinzu.</p>
               </div>
             )}
           </Card>
