@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Settings, Palette, Trash2, Plus, Edit, Folder, Users, Sliders, Database, Download, Upload, X, ChevronRight, ChevronDown, Moon } from 'lucide-react';
+import { Settings, Palette, Trash2, Plus, Edit, Folder, Users, Sliders, Database, Download, Upload, X, ChevronRight, ChevronDown, Moon, Eye, EyeOff, LayoutDashboard, Repeat, Calculator, CreditCard, Target, Inbox } from 'lucide-react';
 import ConfirmationModal from './ui/ConfirmationModal';
 import CategoryEditModal from './CategoryEditModal';
 import { db } from '../utils/db';
@@ -8,6 +8,7 @@ import { db } from '../utils/db';
 const SettingsPage = ({ settings, setSettings, categories, setCategories, enhancedClassifier, useEnhancedML }) => {
   // Live-Daten aus der Datenbank
   const liveCategories = useLiveQuery(() => db.categories.toArray(), []) || [];
+  const pageVisibilitySettings = useLiveQuery(() => db.settings.get('pageVisibility'), []);
   
   // UI States
   const [activeTab, setActiveTab] = useState('categories');
@@ -33,6 +34,12 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
       count: liveCategories.length
     },
     { 
+      id: 'pages', 
+      label: 'Seiten', 
+      icon: Eye, 
+      description: 'Konfiguriere sichtbare Seiten in der Navigation'
+    },
+    { 
       id: 'data', 
       label: 'Daten', 
       icon: Database, 
@@ -41,6 +48,26 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   ];
 
   // --- HANDLERS ---
+  
+  // Page Visibility Management
+  const handlePageVisibilityToggle = async (pageId) => {
+    if (!pageVisibilitySettings) return;
+    
+    const currentSettings = pageVisibilitySettings.value || {};
+    const newSettings = {
+      ...currentSettings,
+      [pageId]: !currentSettings[pageId]
+    };
+    
+    try {
+      await db.settings.put({
+        key: 'pageVisibility',
+        value: newSettings
+      });
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren der Seitensichtbarkeit:', error);
+    }
+  };
   
   // Category Management
   const handleDeleteRequest = (id) => { 
@@ -246,6 +273,97 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     };
   }, [liveCategories]);
 
+  // Available pages definition
+  const availablePages = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Übersicht deiner Finanzen' },
+    { id: 'inbox', label: 'Posteingang', icon: Inbox, description: 'Unverarbeitete Transaktionen' },
+    { id: 'transactions', label: 'Transaktionen', icon: Repeat, description: 'Alle deine Transaktionen' },
+    { id: 'shared-expenses', label: 'Geteilte Ausgaben', icon: Users, description: 'Mit anderen geteilte Kosten' },
+    { id: 'budget', label: 'Budget', icon: Calculator, description: 'Budgetplanung und -verfolgung' },
+    { id: 'debts', label: 'Schulden', icon: CreditCard, description: 'Kredite und Schulden verwalten' },
+    { id: 'savings-goals', label: 'Sparziele', icon: Target, description: 'Langfristige Sparziele' }
+  ];
+
+  // Pages Tab Component
+  const PagesTab = () => {
+    const visibilitySettings = pageVisibilitySettings?.value || {};
+    
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Seiten verwalten</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Wähle aus, welche Seiten in der Sidebar angezeigt werden sollen.</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-200 dark:divide-slate-700">
+          {availablePages.map((page) => {
+            const Icon = page.icon;
+            const isVisible = visibilitySettings[page.id] !== false;
+            
+            return (
+              <div key={page.id} className="flex items-center justify-between p-4 group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Icon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100">{page.label}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{page.description}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    isVisible 
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                  }`}>
+                    {isVisible ? 'Sichtbar' : 'Versteckt'}
+                  </div>
+                  
+                  <button
+                    onClick={() => handlePageVisibilityToggle(page.id)}
+                    disabled={page.id === 'dashboard'}
+                    className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                      page.id === 'dashboard'
+                        ? 'bg-slate-300 dark:bg-slate-600 opacity-50 cursor-not-allowed'
+                        : isVisible 
+                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600' 
+                          : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 transform rounded-full bg-white shadow-lg transition-transform ${
+                        isVisible ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          <div className="flex items-start gap-3">
+            <div className="w-5 h-5 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Hinweis</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Versteckte Seiten sind weiterhin über die URL erreichbar, werden aber nicht in der Sidebar angezeigt. 
+                Das Dashboard kann nicht versteckt werden, da es die Startseite ist.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Categories Tab Component
   const CategoriesTab = () => (
     <div className="space-y-8">
@@ -372,6 +490,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   const renderContent = () => {
     switch (activeTab) {
       case 'categories': return <CategoriesTab />;
+      case 'pages': return <PagesTab />;
       case 'data': return <DataTab />;
       default: return null;
     }

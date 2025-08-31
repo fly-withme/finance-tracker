@@ -1,21 +1,32 @@
 import React from 'react';
 // 1. Das PiggyBank-Icon wird direkt aus der professionellen Bibliothek importiert.
-import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator, Target } from 'lucide-react';
+import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator, Target, CreditCard } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../utils/db';
 
 const Sidebar = ({ currentPage, setPage }) => {
   const userSettings = useLiveQuery(() => db.settings.get('userProfile'), []) || {};
   const inboxCount = useLiveQuery(() => db.inbox.count(), []) || 0;
+  const pageVisibilitySettings = useLiveQuery(() => db.settings.get('pageVisibility'), []);
   
-  const navItems = [
+  const allNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inbox', label: 'Posteingang', icon: Inbox, count: inboxCount },
     { id: 'transactions', label: 'Transactions', icon: Repeat },
     { id: 'shared-expenses', label: 'Geteilte Ausgaben', icon: Users },
     { id: 'budget', label: 'Budget', icon: Calculator },
+    { id: 'debts', label: 'Schulden', icon: CreditCard },
     { id: 'savings-goals', label: 'Sparziele', icon: Target },
   ];
+  
+  // Filter visible nav items based on settings
+  const visibilitySettings = pageVisibilitySettings?.value || {};
+  const navItems = allNavItems.filter(item => {
+    // Dashboard is always visible
+    if (item.id === 'dashboard') return true;
+    // For other items, check visibility settings (default to true if not set)
+    return visibilitySettings[item.id] !== false;
+  });
   
   const bottomItems = [
     { id: 'settings', label: 'Settings', icon: Settings },

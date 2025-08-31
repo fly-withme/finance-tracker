@@ -12,6 +12,7 @@ import InboxPage from './InboxPage';
 import TransactionsPage from './TransactionsPage';
 import SharedExpensesPage from './SharedExpensesPage';
 import BudgetPage from './BudgetPage';
+import DebtPage from './DebtPage';
 import SavingsGoalsPage from './SavingsGoalsPage';
 import SettingsPage from './SettingsPage';
 import { DarkModeProvider } from './hooks/useDarkMode';
@@ -82,6 +83,8 @@ export default function ZenithFinanceApp() {
         return <SharedExpensesPage />;
       case 'budget':
         return <BudgetPage />;
+      case 'debts':
+        return <DebtPage />;
       case 'savings-goals':
         return <SavingsGoalsPage />;
       case 'settings': 

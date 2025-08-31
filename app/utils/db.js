@@ -2,6 +2,50 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('ZenithFinanceDB');
 
+// Version 13: Erweitert settings für page visibility
+db.version(13).stores({
+  transactions: '++id, date, category, recipient, account, amount, sharedWith, splitType, splitDetails',
+  categories: '++id, &name, parentId',
+  accounts: '++id, &name',
+  settings: 'key', // Erweitert für Page-Sichtbarkeits-Einstellungen
+  inbox: '++id, date, recipient, account, amount, uploadedAt, skipped, [skipped+uploadedAt]', // Posteingang für unkategorisierte Transaktionen
+  budgets: '++id, &categoryName, amount, month, year', // Budget pro Kategorie und Monat
+  contacts: '++id, &name, color', // Kontakte für geteilte Ausgaben
+  sharedExpenses: '++id, date, description, totalAmount, paidBy, sharedWith, splitType, settledAmount', // Geteilte Ausgaben
+  savingsGoals: '++id, title, targetAmount, currentAmount, monthlyAmount, targetDate, isEmergencyFund, createdAt, updatedAt', // Sparziele
+  subscriptions: '++id, &name, amount, isActive, detectedFrom, lastSeen, createdAt, updatedAt', // Abonnements
+  debts: '++id, name, totalAmount, currentAmount, monthlyPayment, interestRate, startDate, creditor, type, createdAt, updatedAt' // Schulden und Kredite
+}).upgrade(tx => {
+  // Initialisiere Standard-Seitensichtbarkeit
+  tx.settings.put({
+    key: 'pageVisibility',
+    value: {
+      dashboard: true,
+      inbox: true,
+      transactions: true,
+      'shared-expenses': true,
+      budget: true,
+      debts: true,
+      'savings-goals': true
+    }
+  });
+});
+
+// Version 12: Fügt debts Tabelle hinzu
+db.version(12).stores({
+  transactions: '++id, date, category, recipient, account, amount, sharedWith, splitType, splitDetails',
+  categories: '++id, &name, parentId',
+  accounts: '++id, &name',
+  settings: 'key', // Einfache Key-Value-Tabelle für Model, etc.
+  inbox: '++id, date, recipient, account, amount, uploadedAt, skipped, [skipped+uploadedAt]', // Posteingang für unkategorisierte Transaktionen
+  budgets: '++id, &categoryName, amount, month, year', // Budget pro Kategorie und Monat
+  contacts: '++id, &name, color', // Kontakte für geteilte Ausgaben
+  sharedExpenses: '++id, date, description, totalAmount, paidBy, sharedWith, splitType, settledAmount', // Geteilte Ausgaben
+  savingsGoals: '++id, title, targetAmount, currentAmount, monthlyAmount, targetDate, isEmergencyFund, createdAt, updatedAt', // Sparziele
+  subscriptions: '++id, &name, amount, isActive, detectedFrom, lastSeen, createdAt, updatedAt', // Abonnements
+  debts: '++id, name, totalAmount, currentAmount, monthlyPayment, interestRate, startDate, creditor, type, createdAt, updatedAt' // Schulden und Kredite
+});
+
 // Version 11: Fügt subscriptions Tabelle hinzu
 db.version(11).stores({
   transactions: '++id, date, category, recipient, account, amount, sharedWith, splitType, splitDetails',
@@ -142,7 +186,7 @@ export async function populateInitialData(initialData) {
   }
   
   try {
-    await db.transaction('rw', db.transactions, db.categories, db.accounts, db.budgets, db.contacts, db.sharedExpenses, async () => {
+    await db.transaction('rw', db.transactions, db.categories, db.accounts, db.budgets, db.contacts, db.sharedExpenses, db.debts, async () => {
       // Nur Transaktionen hinzufügen wenn leer
       if (transactionCount === 0 && initialData.initialTransactions?.length > 0) {
         await db.transactions.bulkAdd(initialData.initialTransactions);
