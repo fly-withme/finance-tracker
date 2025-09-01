@@ -20,8 +20,7 @@ import { DarkModeProvider } from './hooks/useDarkMode';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 
 const initialTransactions = [
-  { id: 1, date: '2025-01-09', description: 'Streaming Subscription', recipient: 'Streaming Service', amount: -15.99, category: 'Entertainment', account: 'Checking' },
-  { id: 3, date: '2025-01-08', description: 'Monthly Salary', recipient: 'Employer', amount: 4500.00, category: 'Income', account: 'Checking' },
+  // Start with empty transactions - users can add their own data
 ];
 const initialCategories = [
   { id: 1, name: 'Food & Groceries', color: '#EC4899' }, { id: 2, name: 'Transportation', color: '#3B82F6' },

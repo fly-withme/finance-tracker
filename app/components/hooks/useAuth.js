@@ -26,9 +26,10 @@ export const AuthProvider = ({ children }) => {
     
     // Check if password is set up
     const passwordHash = localStorage.getItem('finance_password_hash');
-    setHasPassword(!!passwordHash);
+    const hasSetPassword = !!passwordHash;
+    setHasPassword(hasSetPassword);
     
-    if (!passwordHash) {
+    if (!hasSetPassword) {
       // No password set up yet, user needs to set one up
       setIsAuthenticated(false);
       setIsLoading(false);
@@ -37,7 +38,7 @@ export const AuthProvider = ({ children }) => {
 
     // Check if user is authenticated in this session
     const isSessionValid = sessionStorage.getItem('finance_authenticated');
-    setIsAuthenticated(!!isSessionValid);
+    setIsAuthenticated(isSessionValid === 'true');
     setIsLoading(false);
   };
 

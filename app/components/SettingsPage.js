@@ -27,8 +27,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
 
   // Profile States
   const [profileData, setProfileData] = useState({
-    userName: '',
-    appName: ''
+    userName: ''
   });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
@@ -65,13 +64,11 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   React.useEffect(() => {
     if (userSettings?.value) {
       setProfileData({
-        userName: userSettings.value.userName || '',
-        appName: userSettings.value.appName || 'Finance App'
+        userName: userSettings.value.userName || ''
       });
     } else {
       setProfileData({
-        userName: '',
-        appName: 'Finance App'
+        userName: ''
       });
     }
   }, [userSettings]);
@@ -87,8 +84,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     // Reset to original values
     if (userSettings?.value) {
       setProfileData({
-        userName: userSettings.value.userName || '',
-        appName: userSettings.value.appName || 'Finance App'
+        userName: userSettings.value.userName || ''
       });
     }
     setIsEditingProfile(false);
@@ -101,7 +97,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
         value: {
           ...userSettings?.value,
           userName: profileData.userName || 'Benutzer',
-          appName: profileData.appName || 'Finance App',
+          appName: userSettings?.value?.appName || 'Finance App',
           updatedAt: new Date().toISOString()
         }
       });
@@ -607,6 +603,8 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
                     onChange={(e) => handleProfileInputChange('userName', e.target.value)}
                     className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
                     placeholder="Dein Name"
+                    autoComplete="off"
+                    spellCheck="false"
                   />
                 ) : (
                   <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
@@ -616,31 +614,6 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Dieser Name wird im Dashboard und anderen Stellen der App angezeigt.
-              </p>
-            </div>
-
-            {/* App Name Field */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                App Name
-              </label>
-              <div className="relative">
-                {isEditingProfile ? (
-                  <input
-                    type="text"
-                    value={profileData.appName}
-                    onChange={(e) => handleProfileInputChange('appName', e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                    placeholder="Name deiner Finanz-App"
-                  />
-                ) : (
-                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
-                    {profileData.appName || 'Finance App'}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Der Name deiner App wird in der Sidebar und im Browser-Tab angezeigt.
               </p>
             </div>
 

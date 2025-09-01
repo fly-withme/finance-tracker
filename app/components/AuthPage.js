@@ -17,7 +17,11 @@ const AuthPage = ({ onAuthSuccess }) => {
   // Check if password is already set up
   useEffect(() => {
     const hasPassword = localStorage.getItem('finance_password_hash');
-    setMode(hasPassword ? 'login' : 'setup');
+    if (hasPassword) {
+      setMode('login');
+    } else {
+      setMode('setup');
+    }
   }, []);
 
   // Simple hash function for password storage
