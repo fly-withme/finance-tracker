@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Settings, Palette, Trash2, Plus, Edit, Folder, Users, Sliders, Database, Download, Upload, X, ChevronRight, ChevronDown, Moon, Eye, EyeOff, LayoutDashboard, Repeat, Calculator, CreditCard, Target, Inbox } from 'lucide-react';
+import { Settings, Palette, Trash2, Plus, Edit, Folder, Users, Sliders, Database, Download, Upload, X, ChevronRight, ChevronDown, Moon, Eye, EyeOff, LayoutDashboard, Repeat, Calculator, CreditCard, Target, Inbox, User, Save } from 'lucide-react';
 import ConfirmationModal from './ui/ConfirmationModal';
 import CategoryEditModal from './CategoryEditModal';
 import { db } from '../utils/db';
@@ -9,9 +9,10 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   // Live-Daten aus der Datenbank
   const liveCategories = useLiveQuery(() => db.categories.toArray(), []) || [];
   const pageVisibilitySettings = useLiveQuery(() => db.settings.get('pageVisibility'), []);
+  const userSettings = useLiveQuery(() => db.settings.get('userProfile'), []) || {};
   
   // UI States
-  const [activeTab, setActiveTab] = useState('categories');
+  const [activeTab, setActiveTab] = useState('profile');
   const [categoryToDelete, setCategoryToDelete] = useState(null);
   const [isConfirmOpen, setConfirmOpen] = useState(false);
   const [isDeleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
@@ -24,8 +25,21 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   const [categoryToGroup, setCategoryToGroup] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
 
+  // Profile States
+  const [profileData, setProfileData] = useState({
+    userName: '',
+    appName: ''
+  });
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
   // Tab content definitions
   const tabs = [
+    { 
+      id: 'profile', 
+      label: 'Profil', 
+      icon: User, 
+      description: 'Persönliche Einstellungen und Benutzerdaten'
+    },
     { 
       id: 'categories', 
       label: 'Kategorien', 
@@ -47,7 +61,62 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     }
   ];
 
+  // Load profile data when userSettings changes
+  React.useEffect(() => {
+    if (userSettings?.value) {
+      setProfileData({
+        userName: userSettings.value.userName || '',
+        appName: userSettings.value.appName || 'Finance App'
+      });
+    } else {
+      setProfileData({
+        userName: '',
+        appName: 'Finance App'
+      });
+    }
+  }, [userSettings]);
+
   // --- HANDLERS ---
+  
+  // Profile Management
+  const handleProfileEdit = () => {
+    setIsEditingProfile(true);
+  };
+
+  const handleProfileCancel = () => {
+    // Reset to original values
+    if (userSettings?.value) {
+      setProfileData({
+        userName: userSettings.value.userName || '',
+        appName: userSettings.value.appName || 'Finance App'
+      });
+    }
+    setIsEditingProfile(false);
+  };
+
+  const handleProfileSave = async () => {
+    try {
+      await db.settings.put({
+        key: 'userProfile',
+        value: {
+          ...userSettings?.value,
+          userName: profileData.userName || 'Benutzer',
+          appName: profileData.appName || 'Finance App',
+          updatedAt: new Date().toISOString()
+        }
+      });
+      setIsEditingProfile(false);
+    } catch (error) {
+      console.error('Fehler beim Speichern der Profildaten:', error);
+    }
+  };
+
+  const handleProfileInputChange = (field, value) => {
+    setProfileData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
   
   // Page Visibility Management
   const handlePageVisibilityToggle = async (pageId) => {
@@ -487,8 +556,137 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     </div>
   );
 
+  // Profile Tab Component
+  const ProfileTab = () => (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Profil verwalten</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Personalisiere deine App-Einstellungen und Anzeigename.</p>
+        </div>
+        {!isEditingProfile && (
+          <button
+            onClick={handleProfileEdit}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-lg shadow-md hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-all"
+          >
+            <Edit className="w-4 h-4" />
+            Bearbeiten
+          </button>
+        )}
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+        <div className="p-6">
+          {/* Profile Header */}
+          <div className="flex items-center gap-6 mb-8">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <User className="w-10 h-10 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                {isEditingProfile ? 'Profil bearbeiten' : profileData.userName || 'Benutzerprofil'}
+              </h3>
+              <p className="text-slate-500 dark:text-slate-400">
+                {isEditingProfile ? 'Ändere deine persönlichen Daten' : 'Willkommen in deiner Finanz-App'}
+              </p>
+            </div>
+          </div>
+
+          {/* Profile Fields */}
+          <div className="space-y-6">
+            {/* User Name Field */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Benutzername
+              </label>
+              <div className="relative">
+                {isEditingProfile ? (
+                  <input
+                    type="text"
+                    value={profileData.userName}
+                    onChange={(e) => handleProfileInputChange('userName', e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                    placeholder="Dein Name"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
+                    {profileData.userName || 'Noch kein Name gesetzt'}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Dieser Name wird im Dashboard und anderen Stellen der App angezeigt.
+              </p>
+            </div>
+
+            {/* App Name Field */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                App Name
+              </label>
+              <div className="relative">
+                {isEditingProfile ? (
+                  <input
+                    type="text"
+                    value={profileData.appName}
+                    onChange={(e) => handleProfileInputChange('appName', e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                    placeholder="Name deiner Finanz-App"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
+                    {profileData.appName || 'Finance App'}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Der Name deiner App wird in der Sidebar und im Browser-Tab angezeigt.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            {isEditingProfile && (
+              <div className="flex gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={handleProfileCancel}
+                  className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleProfileSave}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  Speichern
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Additional Profile Info */}
+      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+        <div className="flex items-start gap-3">
+          <div className="w-5 h-5 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+            <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Personalisierung</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Deine Einstellungen werden lokal gespeichert und synchronisieren sich nicht zwischen Geräten. 
+              Die Änderungen werden sofort in der gesamten App übernommen.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderContent = () => {
     switch (activeTab) {
+      case 'profile': return <ProfileTab />;
       case 'categories': return <CategoriesTab />;
       case 'pages': return <PagesTab />;
       case 'data': return <DataTab />;

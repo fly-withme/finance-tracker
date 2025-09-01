@@ -8,7 +8,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata = {
-  title: "Zenith Finance",
+  title: "Personal Finance App",
   description: "Modern personal finance management application",
 };
 

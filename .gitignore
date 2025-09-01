@@ -39,4 +39,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-node_modules
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# Custom development files
+/debug-pdf.js
+/create-test-pdf.html
+/sample-statement.md
+/setup-ollama.md
+/init-default-categories.js

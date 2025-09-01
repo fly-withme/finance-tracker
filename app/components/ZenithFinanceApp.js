@@ -15,11 +15,13 @@ import BudgetPage from './BudgetPage';
 import DebtPage from './DebtPage';
 import SavingsGoalsPage from './SavingsGoalsPage';
 import SettingsPage from './SettingsPage';
+import AuthPage from './AuthPage';
 import { DarkModeProvider } from './hooks/useDarkMode';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 
 const initialTransactions = [
-  { id: 1, date: '2025-08-09', description: 'Netflix Subscription', recipient: 'Netflix', amount: -15.99, category: 'Entertainment', account: 'Checking' },
-  { id: 3, date: '2025-08-08', description: 'Salary Deposit', recipient: 'My Employer', amount: 4500.00, category: 'Income', account: 'Checking' },
+  { id: 1, date: '2025-01-09', description: 'Streaming Subscription', recipient: 'Streaming Service', amount: -15.99, category: 'Entertainment', account: 'Checking' },
+  { id: 3, date: '2025-01-08', description: 'Monthly Salary', recipient: 'Employer', amount: 4500.00, category: 'Income', account: 'Checking' },
 ];
 const initialCategories = [
   { id: 1, name: 'Food & Groceries', color: '#EC4899' }, { id: 2, name: 'Transportation', color: '#3B82F6' },
@@ -30,12 +32,13 @@ const initialCategories = [
 ];
 const initialAccounts = [ { id: 1, name: 'Checking', balance: 5240.50 }, { id: 2, name: 'Savings', balance: 15000.00 }];
 
-export default function ZenithFinanceApp() {
+const AppContent = () => {
   const [currentPage, setPage] = useState('dashboard');
   const [classifier, setClassifier] = useState(null);
   const [enhancedClassifier, setEnhancedClassifier] = useState(null);
   const [useEnhancedML, setUseEnhancedML] = useState(true);
-
+  
+  const { isAuthenticated, isLoading, hasPassword, login } = useAuth();
   const categories = useLiveQuery(() => db.categories.toArray(), []);
 
   useEffect(() => {
@@ -62,8 +65,33 @@ export default function ZenithFinanceApp() {
     populateInitialData(initialData);
   }, []);
 
+  // Show loading screen
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400">App wird initialisiert...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth page if not authenticated
+  if (!isAuthenticated) {
+    return <AuthPage onAuthSuccess={login} />;
+  }
+
+  // Show loading if data is still loading
   if (!categories || !classifier || !enhancedClassifier) {
-    return <div className="flex items-center justify-center h-screen">App wird initialisiert...</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400">Daten werden geladen...</p>
+        </div>
+      </div>
+    );
   }
   
   const renderPage = () => {
@@ -102,13 +130,21 @@ export default function ZenithFinanceApp() {
   };
 
   return (
-    <DarkModeProvider>
-      <div className="h-screen flex bg-slate-50/70 dark:bg-slate-900 overflow-hidden">
-        <Sidebar currentPage={currentPage} setPage={setPage} />
-        <div className="flex-1 overflow-y-auto">
-          {renderPage()}
-        </div>
+    <div className="h-screen flex bg-slate-50/70 dark:bg-slate-900 overflow-hidden">
+      <Sidebar currentPage={currentPage} setPage={setPage} />
+      <div className="flex-1 overflow-y-auto">
+        {renderPage()}
       </div>
+    </div>
+  );
+};
+
+export default function ZenithFinanceApp() {
+  return (
+    <DarkModeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </DarkModeProvider>
   );
 }

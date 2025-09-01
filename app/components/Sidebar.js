@@ -1,10 +1,12 @@
 import React from 'react';
 // 1. Das PiggyBank-Icon wird direkt aus der professionellen Bibliothek importiert.
-import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator, Target, CreditCard } from 'lucide-react';
+import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator, Target, CreditCard, LogOut } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../utils/db';
+import { useAuth } from './hooks/useAuth';
 
 const Sidebar = ({ currentPage, setPage }) => {
+  const { logout } = useAuth();
   const userSettings = useLiveQuery(() => db.settings.get('userProfile'), []) || {};
   const inboxCount = useLiveQuery(() => db.inbox.count(), []) || 0;
   const pageVisibilitySettings = useLiveQuery(() => db.settings.get('pageVisibility'), []);
@@ -31,6 +33,13 @@ const Sidebar = ({ currentPage, setPage }) => {
   const bottomItems = [
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  const handleLogout = () => {
+    const confirmLogout = window.confirm('Möchtest du dich wirklich abmelden?');
+    if (confirmLogout) {
+      logout();
+    }
+  };
 
   return (
     <aside className="w-72 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 p-6 flex-shrink-0 hidden md:flex flex-col h-screen sticky top-0">
@@ -87,6 +96,15 @@ const Sidebar = ({ currentPage, setPage }) => {
             <span>{item.label}</span>
           </button>
         ))}
+        
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="btn w-full flex items-center space-x-3 text-base transition-colors cursor-pointer text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Abmelden</span>
+        </button>
       </div>
     </aside>
   );

@@ -659,7 +659,7 @@ const DashboardPage = ({ setPage }) => {
       <div className="flex items-center justify-between w-full mb-8">
           <div className="flex-1">
               <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                  Willkommen Daniel 👋
+                  Willkommen {userSettings?.value?.userName || 'Benutzer'} 👋
               </h1>
           </div>
           <div className="flex-1 flex items-center justify-center">
