@@ -288,8 +288,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent2Alpha }}>
-                  <BarChart3 className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
+                <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent1Alpha }}>
+                  <BarChart3 className="w-5 h-5" style={{ color: jonyColors.accent1, strokeWidth: 1.5 }} />
                 </div>
                 <h3 className="text-lg font-light tracking-tight" style={{ color: jonyColors.textPrimary }}>
                   Cashflow Entwicklung
@@ -531,8 +531,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             <div 
               className="p-8 rounded-3xl  transition-all duration-300 hover:bg-opacity-90"
               style={{
-                backgroundColor: jonyColors.cardBackground,
-                border: `1px solid ${jonyColors.cardBorder}`,
+                backgroundColor: jonyColors.surface,
+                border: `1px solid ${jonyColors.border}`,
                 boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
               }}
             >
@@ -588,8 +588,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             <div 
               className="p-8 rounded-3xl  transition-all duration-300 hover:bg-opacity-90"
               style={{
-                backgroundColor: jonyColors.cardBackground,
-                border: `1px solid ${jonyColors.cardBorder}`,
+                backgroundColor: jonyColors.surface,
+                border: `1px solid ${jonyColors.border}`,
                 boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
               }}
             >
@@ -645,8 +645,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
           <div 
             className="p-8 rounded-3xl  transition-all duration-300 hover:bg-opacity-90"
             style={{
-              backgroundColor: jonyColors.cardBackground,
-              border: `1px solid ${jonyColors.cardBorder}`,
+              backgroundColor: jonyColors.surface,
+              border: `1px solid ${jonyColors.border}`,
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
             }}
           >
@@ -666,7 +666,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                   className={`p-6 rounded-2xl border flex flex-col items-center justify-center text-center h-40 transition-all duration-300 ${subscription.isActive ? '' : 'opacity-60'}`}
                   style={{
                     backgroundColor: jonyColors.surface,
-                    border: `1px solid ${jonyColors.border}`
+                    border: `2px solid ${jonyColors.border}`
                   }}
                 >
                   <div className="flex items-center justify-between w-full mb-2">
@@ -833,8 +833,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
           <div 
             className="p-8 rounded-3xl  mb-8 transition-all duration-300 hover:bg-opacity-90"
             style={{
-              backgroundColor: jonyColors.cardBackground,
-              border: `1px solid ${jonyColors.cardBorder}`,
+              backgroundColor: jonyColors.surface,
+              border: `1px solid ${jonyColors.border}`,
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
             }}
           >
@@ -910,8 +910,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
           <div 
             className="p-8 rounded-3xl  mb-8 transition-all duration-300 hover:bg-opacity-90"
             style={{
-              backgroundColor: jonyColors.cardBackground,
-              border: `1px solid ${jonyColors.cardBorder}`,
+              backgroundColor: jonyColors.surface,
+              border: `1px solid ${jonyColors.border}`,
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
             }}
           >

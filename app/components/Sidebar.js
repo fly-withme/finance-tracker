@@ -12,7 +12,6 @@ const Sidebar = ({ currentPage, setPage }) => {
   const pageVisibilitySettings = useLiveQuery(() => db.settings.get('pageVisibility'), []);
   
   const allNavItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inbox', label: 'Posteingang', icon: Inbox, count: inboxCount },
     { id: 'transactions', label: 'Transactions', icon: Repeat },
     { id: 'shared-expenses', label: 'Geteilte Ausgaben', icon: Users },
@@ -24,9 +23,7 @@ const Sidebar = ({ currentPage, setPage }) => {
   // Filter visible nav items based on settings
   const visibilitySettings = pageVisibilitySettings?.value || {};
   const navItems = allNavItems.filter(item => {
-    // Dashboard is always visible
-    if (item.id === 'dashboard') return true;
-    // For other items, check visibility settings (default to true if not set)
+    // Check visibility settings (default to true if not set)
     return visibilitySettings[item.id] !== false;
   });
   
@@ -47,16 +44,11 @@ const Sidebar = ({ currentPage, setPage }) => {
       <div className="flex justify-center mb-8">
         <button 
           onClick={() => setPage('dashboard')}
-          className="w-12 h-12 flex items-center justify-center rounded-xl transition-colors duration-200 group relative" 
+          className="w-12 h-12 flex items-center justify-center rounded-xl" 
           style={{ backgroundColor: jonyColors.surface, border: `1px solid ${jonyColors.cardBorder}` }}
           title="Dashboard"
         >
           <PiggyBank className="w-6 h-6" style={{ color: jonyColors.accent1 }} strokeWidth={1.5} />
-          {/* Tooltip */}
-          <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
-               style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>
-            {userSettings?.value?.appName || 'Finance App'}
-          </div>
         </button>
       </div>
       
