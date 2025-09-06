@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Shield, Eye, EyeOff, Lock, Key, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Shield, Eye, EyeOff, Lock, Key, AlertCircle, CheckCircle2, RotateCcw, Trash2 } from 'lucide-react';
 import Card from './ui/Card';
+import { db } from '../utils/db';
 
 const AuthPage = ({ onAuthSuccess }) => {
   const [mode, setMode] = useState('login'); // 'login', 'setup', 'reset'
@@ -13,6 +14,9 @@ const AuthPage = ({ onAuthSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [resetCode, setResetCode] = useState('');
   const [resetStep, setResetStep] = useState(1); // 1: enter code, 2: new password
+  const [showCompleteReset, setShowCompleteReset] = useState(false);
+  const [showCodeForgotten, setShowCodeForgotten] = useState(false);
+  const [completeResetConfirmation, setCompleteResetConfirmation] = useState('');
 
   // Check if password is already set up
   useEffect(() => {
@@ -142,6 +146,71 @@ const AuthPage = ({ onAuthSuccess }) => {
       } finally {
         setLoading(false);
       }
+    }
+  };
+
+  const handleCompleteReset = async () => {
+    if (completeResetConfirmation !== 'KOMPLETT ZURÜCKSETZEN') {
+      setError('Bitte gib "KOMPLETT ZURÜCKSETZEN" ein, um fortzufahren');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // Clear all localStorage items
+      localStorage.removeItem('finance_password_hash');
+      localStorage.removeItem('finance_reset_code');
+      localStorage.removeItem('finance_password_setup_date');
+      localStorage.removeItem('finance_password_reset_date');
+      
+      // Clear sessionStorage
+      sessionStorage.removeItem('finance_authenticated');
+      
+      // Clear all database tables
+      await db.transaction('rw', [
+        db.transactions, 
+        db.categories, 
+        db.accounts, 
+        db.settings, 
+        db.inbox, 
+        db.budgets, 
+        db.contacts, 
+        db.sharedExpenses, 
+        db.savingsGoals, 
+        db.subscriptions, 
+        db.debts
+      ], async () => {
+        await db.transactions.clear();
+        await db.categories.clear();
+        await db.accounts.clear();
+        await db.settings.clear();
+        await db.inbox.clear();
+        await db.budgets.clear();
+        await db.contacts.clear();
+        await db.sharedExpenses.clear();
+        await db.savingsGoals.clear();
+        await db.subscriptions.clear();
+        await db.debts.clear();
+      });
+
+      // Reset all state
+      setMode('setup');
+      setPassword('');
+      setConfirmPassword('');
+      setResetCode('');
+      setResetStep(1);
+      setShowCompleteReset(false);
+      setCompleteResetConfirmation('');
+      setError('');
+      
+      alert('Die App wurde komplett zurückgesetzt. Du kannst nun ein neues Passwort einrichten.');
+    } catch (error) {
+      console.error('Error during complete reset:', error);
+      setError('Fehler beim Zurücksetzen der App. Versuche es erneut.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -376,11 +445,99 @@ const AuthPage = ({ onAuthSuccess }) => {
             setPassword('');
             setConfirmPassword('');
             setError('');
+            setShowCodeForgotten(false);
+            setShowCompleteReset(false);
+            setCompleteResetConfirmation('');
           }}
           className="w-full text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-sm transition-colors"
         >
           ← Zurück zur Anmeldung
         </button>
+
+        {/* Code forgotten button - only show in step 1 */}
+        {resetStep === 1 && !showCodeForgotten && (
+          <button
+            onClick={() => setShowCodeForgotten(true)}
+            className="w-full text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-sm transition-colors"
+          >
+            Code vergessen?
+          </button>
+        )}
+
+        {/* Complete Reset Section - only show when code forgotten is clicked */}
+        {showCodeForgotten && (
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-red-800 dark:text-red-300">
+                <strong>Achtung:</strong> Du hast sowohl dein Passwort als auch den Reset-Code vergessen?
+                <br />Du kannst die App komplett zurücksetzen und neu anfangen.
+              </div>
+            </div>
+          </div>
+
+          {!showCompleteReset ? (
+            <button
+              onClick={() => setShowCompleteReset(true)}
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              App komplett zurücksetzen
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">
+                ⚠️ Dies löscht ALLE deine Daten unwiderruflich!
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Gib "KOMPLETT ZURÜCKSETZEN" ein, um zu bestätigen:
+                </label>
+                <input
+                  type="text"
+                  value={completeResetConfirmation}
+                  onChange={(e) => setCompleteResetConfirmation(e.target.value)}
+                  placeholder="KOMPLETT ZURÜCKSETZEN"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCompleteReset}
+                  disabled={loading || completeResetConfirmation !== 'KOMPLETT ZURÜCKSETZEN'}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {loading ? 'Zurücksetzen...' : 'Jetzt zurücksetzen'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCompleteReset(false);
+                    setCompleteResetConfirmation('');
+                    setError('');
+                  }}
+                  className="flex-1 bg-slate-300 hover:bg-slate-400 dark:bg-slate-600 dark:hover:bg-slate-500 text-slate-700 dark:text-slate-200 font-medium py-2 px-3 rounded-lg transition-colors text-sm"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          )}
+          
+          <button
+            onClick={() => {
+              setShowCodeForgotten(false);
+              setShowCompleteReset(false);
+              setCompleteResetConfirmation('');
+              setError('');
+            }}
+            className="w-full text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-sm transition-colors mt-4"
+          >
+            ← Zurück zum Reset-Code
+          </button>
+        </div>
+        )}
       </div>
     </div>
   );

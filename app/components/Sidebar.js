@@ -1,9 +1,9 @@
 import React from 'react';
-// 1. Das PiggyBank-Icon wird direkt aus der professionellen Bibliothek importiert.
 import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator, Target, CreditCard, LogOut } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../utils/db';
 import { useAuth } from './hooks/useAuth';
+import { jonyColors } from '../theme';
 
 const Sidebar = ({ currentPage, setPage }) => {
   const { logout } = useAuth();
@@ -42,68 +42,138 @@ const Sidebar = ({ currentPage, setPage }) => {
   };
 
   return (
-    <aside className="w-72 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 p-6 flex-shrink-0 hidden md:flex flex-col h-screen sticky top-0">
-      <button 
-        onClick={() => setPage('dashboard')}
-        className="flex items-center space-x-4 mb-12 cursor-pointer"
-      >
-        {/* 2. Das inline-SVG wurde durch einen Container und die Icon-Komponente ersetzt. */}
-        {/* Das sorgt für Konsistenz und ist einfacher zu warten. */}
-        {/* Hier wurde der Gradient aus dem Dashboard-Button hinzugefügt */}
-        <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out">
-          <PiggyBank className="w-6 h-6 text-white" strokeWidth={2} />
-        </div>
-        
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{userSettings?.appName || 'Finance App'}</h1>
-      </button>
+    <aside className="w-20 p-4 flex-shrink-0 hidden md:flex flex-col h-screen sticky top-0" style={{ backgroundColor: jonyColors.background, borderRight: `1px solid ${jonyColors.border}` }}>
+      {/* Logo */}
+      <div className="flex justify-center mb-8">
+        <button 
+          onClick={() => setPage('dashboard')}
+          className="w-12 h-12 flex items-center justify-center rounded-xl transition-colors duration-200 group relative" 
+          style={{ backgroundColor: jonyColors.surface, border: `1px solid ${jonyColors.cardBorder}` }}
+          title="Dashboard"
+        >
+          <PiggyBank className="w-6 h-6" style={{ color: jonyColors.accent1 }} strokeWidth={1.5} />
+          {/* Tooltip */}
+          <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
+               style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>
+            {userSettings?.value?.appName || 'Finance App'}
+          </div>
+        </button>
+      </div>
       
-      <nav className="space-y-3 flex-1">
-        {navItems.map(item => (
-          <button
-            key={item.id}
-            onClick={() => setPage(item.id)}
-            className={`btn w-full flex items-center justify-between text-base transition-colors cursor-pointer ${
-              currentPage === item.id
-                ? 'bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-900/50 dark:text-indigo-300'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            <div className="flex items-center space-x-3">
-              <item.icon className="w-5 h-5" />
-              <span>{item.label}</span>
-            </div>
-            {item.count > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center">
-                {item.count}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Navigation */}
+      <nav className="flex-1 flex flex-col items-center space-y-3">
+        {navItems.map(item => {
+          const isActive = currentPage === item.id;
+          
+          return (
+            <button
+              key={item.id}
+              onClick={() => setPage(item.id)}
+              className="w-12 h-12 flex items-center justify-center rounded-xl transition-colors duration-200 group relative"
+              style={{
+                backgroundColor: isActive ? jonyColors.accent1Alpha : jonyColors.cardBackground,
+                color: isActive ? jonyColors.accent1 : jonyColors.textSecondary,
+                border: `1px solid ${isActive ? jonyColors.accent1 : jonyColors.cardBorder}`
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.target.style.backgroundColor = jonyColors.surface;
+                  e.target.style.color = jonyColors.textPrimary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                  e.target.style.color = jonyColors.textSecondary;
+                }
+              }}
+              title={item.label}
+            >
+              <div className="relative">
+                <item.icon className="w-5 h-5" strokeWidth={1.5} />
+                {/* Badge for inbox count */}
+                {item.count > 0 && (
+                  <span className="absolute -top-2 -right-2 w-4 h-4 text-xs font-medium rounded-full flex items-center justify-center" 
+                        style={{ backgroundColor: jonyColors.red, color: jonyColors.background }}>
+                    {item.count > 9 ? '9+' : item.count}
+                  </span>
+                )}
+              </div>
+              {/* Tooltip */}
+              <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
+                   style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>
+                {item.label}
+                {item.count > 0 && ` (${item.count})`}
+              </div>
+            </button>
+          );
+        })}
       </nav>
       
-      <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 space-y-3">
-        {bottomItems.map(item => (
-          <button
-            key={item.id}
-            onClick={() => setPage(item.id)}
-            className={`btn w-full flex items-center space-x-3 text-base transition-colors cursor-pointer ${
-              currentPage === item.id
-                ? 'bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-900/50 dark:text-indigo-300'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            <item.icon className="w-5 h-5" />
-            <span>{item.label}</span>
-          </button>
-        ))}
+      {/* Bottom Items */}
+      <div className="pt-4 flex flex-col items-center space-y-3" style={{ borderTop: `1px solid ${jonyColors.border}` }}>
+        {bottomItems.map(item => {
+          const isActive = currentPage === item.id;
+          
+          return (
+            <button
+              key={item.id}
+              onClick={() => setPage(item.id)}
+              className="w-12 h-12 flex items-center justify-center rounded-xl transition-colors duration-200 group relative"
+              style={{
+                backgroundColor: isActive ? jonyColors.accent2Alpha : jonyColors.cardBackground,
+                color: isActive ? jonyColors.accent2 : jonyColors.textSecondary,
+                border: `1px solid ${isActive ? jonyColors.accent2 : jonyColors.cardBorder}`
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.target.style.backgroundColor = jonyColors.surface;
+                  e.target.style.color = jonyColors.textPrimary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                  e.target.style.color = jonyColors.textSecondary;
+                }
+              }}
+              title={item.label}
+            >
+              <item.icon className="w-5 h-5" strokeWidth={1.5} />
+              {/* Tooltip */}
+              <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
+                   style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>
+                {item.label}
+              </div>
+            </button>
+          );
+        })}
         
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className="btn w-full flex items-center space-x-3 text-base transition-colors cursor-pointer text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+          className="w-12 h-12 flex items-center justify-center rounded-xl transition-colors duration-200 group relative"
+          style={{ 
+            color: jonyColors.red, 
+            backgroundColor: jonyColors.cardBackground, 
+            border: `1px solid ${jonyColors.cardBorder}` 
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = jonyColors.redAlpha;
+            e.target.style.color = jonyColors.red;
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = jonyColors.cardBackground;
+            e.target.style.color = jonyColors.red;
+          }}
+          title="Abmelden"
         >
-          <LogOut className="w-5 h-5" />
-          <span>Abmelden</span>
+          <LogOut className="w-5 h-5" strokeWidth={1.5} />
+          {/* Tooltip */}
+          <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
+               style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>
+            Abmelden
+          </div>
         </button>
       </div>
     </aside>

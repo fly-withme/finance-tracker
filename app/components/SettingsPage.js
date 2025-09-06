@@ -6,9 +6,19 @@ import CategoryEditModal from './CategoryEditModal';
 import { db } from '../utils/db';
 
 const SettingsPage = ({ settings, setSettings, categories, setCategories, enhancedClassifier, useEnhancedML }) => {
+  // Profile States (need to be declared first since they're used in useLiveQuery)
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    userName: '',
+    age: '',
+    annualIncome: '',
+    monthlyExpenses: ''
+  });
+
   // Live-Daten aus der Datenbank
   const liveCategories = useLiveQuery(() => db.categories.toArray(), []) || [];
   const pageVisibilitySettings = useLiveQuery(() => db.settings.get('pageVisibility'), []);
+  // Nur userSettings laden wenn nicht editiert wird, um Input-Interferenz zu vermeiden
   const userSettings = useLiveQuery(() => db.settings.get('userProfile'), []) || {};
   
   // UI States
@@ -24,12 +34,6 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   const [isGroupModalOpen, setGroupModalOpen] = useState(false);
   const [categoryToGroup, setCategoryToGroup] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
-
-  // Profile States
-  const [profileData, setProfileData] = useState({
-    userName: ''
-  });
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // Tab content definitions
   const tabs = [
@@ -60,31 +64,58 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     }
   ];
 
-  // Load profile data when userSettings changes
+  // Load profile data when userSettings changes (only when not editing)
   React.useEffect(() => {
-    if (userSettings?.value) {
+    if (!isEditingProfile && userSettings?.value) {
       setProfileData({
-        userName: userSettings.value.userName || ''
+        userName: userSettings.value.userName || '',
+        age: userSettings.value.age || '',
+        annualIncome: userSettings.value.annualIncome || '',
+        monthlyExpenses: userSettings.value.monthlyExpenses || ''
       });
-    } else {
+    } else if (!isEditingProfile && !userSettings?.value) {
       setProfileData({
-        userName: ''
+        userName: '',
+        age: '',
+        annualIncome: '',
+        monthlyExpenses: ''
       });
     }
-  }, [userSettings]);
+  }, [userSettings?.value?.userName, userSettings?.value?.age, userSettings?.value?.annualIncome, userSettings?.value?.monthlyExpenses, isEditingProfile]);
 
   // --- HANDLERS ---
   
   // Profile Management
-  const handleProfileEdit = () => {
+  const handleProfileEdit = async () => {
+    // Aktuelle Daten aus der Datenbank laden bevor Edit-Modus startet
+    const currentUserSettings = await db.settings.get('userProfile');
+    if (currentUserSettings?.value) {
+      setProfileData({
+        userName: currentUserSettings.value.userName || '',
+        age: currentUserSettings.value.age || '',
+        annualIncome: currentUserSettings.value.annualIncome || '',
+        monthlyExpenses: currentUserSettings.value.monthlyExpenses || ''
+      });
+    }
     setIsEditingProfile(true);
   };
 
-  const handleProfileCancel = () => {
-    // Reset to original values
-    if (userSettings?.value) {
+  const handleProfileCancel = async () => {
+    // Reset to original values from database
+    const currentUserSettings = await db.settings.get('userProfile');
+    if (currentUserSettings?.value) {
       setProfileData({
-        userName: userSettings.value.userName || ''
+        userName: currentUserSettings.value.userName || '',
+        age: currentUserSettings.value.age || '',
+        annualIncome: currentUserSettings.value.annualIncome || '',
+        monthlyExpenses: currentUserSettings.value.monthlyExpenses || ''
+      });
+    } else {
+      setProfileData({
+        userName: '',
+        age: '',
+        annualIncome: '',
+        monthlyExpenses: ''
       });
     }
     setIsEditingProfile(false);
@@ -97,6 +128,9 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
         value: {
           ...userSettings?.value,
           userName: profileData.userName || 'Benutzer',
+          age: profileData.age ? parseInt(profileData.age) : null,
+          annualIncome: profileData.annualIncome ? parseFloat(profileData.annualIncome) : null,
+          monthlyExpenses: profileData.monthlyExpenses ? parseFloat(profileData.monthlyExpenses) : null,
           appName: userSettings?.value?.appName || 'Finance App',
           updatedAt: new Date().toISOString()
         }
@@ -599,7 +633,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
                 {isEditingProfile ? (
                   <input
                     type="text"
-                    value={profileData.userName}
+                    value={profileData.userName || ''}
                     onChange={(e) => handleProfileInputChange('userName', e.target.value)}
                     className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
                     placeholder="Dein Name"
@@ -614,6 +648,87 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Dieser Name wird im Dashboard und anderen Stellen der App angezeigt.
+              </p>
+            </div>
+
+            {/* Age Field */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Alter
+              </label>
+              <div className="relative">
+                {isEditingProfile ? (
+                  <input
+                    type="number"
+                    min="18"
+                    max="120"
+                    value={profileData.age || ''}
+                    onChange={(e) => handleProfileInputChange('age', e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                    placeholder="z.B. 30"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
+                    {profileData.age ? `${profileData.age} Jahre` : 'Noch kein Alter angegeben'}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Wird für die Berechnung des Finanz-Alters benötigt.
+              </p>
+            </div>
+
+            {/* Annual Income Field */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Brutto-Jahreseinkommen
+              </label>
+              <div className="relative">
+                {isEditingProfile ? (
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={profileData.annualIncome || ''}
+                    onChange={(e) => handleProfileInputChange('annualIncome', e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                    placeholder="z.B. 50000"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
+                    {profileData.annualIncome ? `${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(profileData.annualIncome)}` : 'Noch kein Einkommen angegeben'}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Wird für die Berechnung des Finanz-Alters und der FI-Zahl verwendet.
+              </p>
+            </div>
+
+            {/* Monthly Expenses Field */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Geplante monatliche Ausgaben im Ruhestand
+              </label>
+              <div className="relative">
+                {isEditingProfile ? (
+                  <input
+                    type="number"
+                    min="0"
+                    step="10"
+                    value={profileData.monthlyExpenses || ''}
+                    onChange={(e) => handleProfileInputChange('monthlyExpenses', e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                    placeholder="z.B. 2500"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
+                    {profileData.monthlyExpenses ? `${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(profileData.monthlyExpenses)}` : 'Noch keine Ausgaben angegeben'}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Wird für die Berechnung der FI-Zahl (25x Regel) und der Zeit bis zur finanziellen Unabhängigkeit verwendet.
               </p>
             </div>
 
