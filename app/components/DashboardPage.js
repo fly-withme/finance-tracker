@@ -9,9 +9,11 @@ import {
   AlertTriangle,
   BarChart3,
   TrendingDown,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  Plus,
+  Upload
 } from 'lucide-react';
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, LineChart, Line, ComposedChart } from 'recharts';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, LineChart, Line, ComposedChart, AreaChart } from 'recharts';
 import { db } from '../utils/db';
 import { jonyColors } from '../theme';
 
@@ -24,6 +26,9 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     { id: 4, name: 'Gym Membership', amount: 29.90, isActive: true, color: '#ffa726' }
   ]);
 
+  // File upload ref
+  const fileInputRef = React.useRef(null);
+
   // Toggle subscription function
   const toggleSubscription = (id) => {
     setSubscriptions(prev => 
@@ -31,6 +36,64 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
         sub.id === id ? { ...sub, isActive: !sub.isActive } : sub
       )
     );
+  };
+
+  // File upload handler
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      // Skip header row if exists
+      const dataLines = lines.slice(1);
+      
+      const transactions = [];
+      
+      for (const line of dataLines) {
+        const columns = line.split(';');
+        if (columns.length >= 4) {
+          // Parse CSV format (adjust based on your CSV structure)
+          const [dateStr, description, amount, ] = columns;
+          
+          if (dateStr && description && amount) {
+            const parsedAmount = parseFloat(amount.replace(',', '.'));
+            if (!isNaN(parsedAmount)) {
+              transactions.push({
+                date: dateStr,
+                description: description.trim(),
+                amount: parsedAmount,
+                uploadedAt: new Date().toISOString(),
+                processed: false
+              });
+            }
+          }
+        }
+      }
+
+      // Add transactions to inbox
+      if (transactions.length > 0) {
+        await db.inbox.bulkAdd(transactions);
+        console.log(`${transactions.length} Transaktionen wurden erfolgreich hochgeladen`);
+        
+        // Optionally redirect to inbox
+        if (setPage) {
+          setPage('inbox');
+        }
+      }
+    } catch (error) {
+      console.error('Fehler beim Verarbeiten der Datei:', error);
+    }
+
+    // Reset file input
+    event.target.value = '';
+  };
+
+  // Trigger file upload
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
   };
 
   // All existing state and data calculations remain the same...
@@ -53,50 +116,199 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     }).format(amount);
   };
 
-  // Mock data - replace with actual calculations
+  // Live data queries from database
+  const transactions = useLiveQuery(() => db.transactions.toArray()) || [];
+  const savingsGoals = useLiveQuery(() => db.savingsGoals.toArray()) || [];
+  const debts = useLiveQuery(() => db.debts.toArray()) || [];
+  const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
+  const accounts = useLiveQuery(() => db.accounts.toArray()) || [];
+  
+  // German wealth averages by age group (2024 data in EUR)
+  const germanWealthAverages = {
+    '18-24': 8500,
+    '25-34': 31000,
+    '35-44': 81000, 
+    '45-54': 142000,
+    '55-64': 214000,
+    '65+': 232000
+  };
+  
+  // Calculate net worth from real data
+  const calculateNetWorth = () => {
+    const totalSavings = savingsGoals.reduce((sum, goal) => sum + (goal.currentAmount || 0), 0);
+    const totalDebt = debts.reduce((sum, debt) => sum + (debt.currentAmount || 0), 0);
+    // You can extend this to include account balances if stored
+    return totalSavings - totalDebt;
+  };
+  
+  // Calculate B Score based on German averages (assuming user is 25-34 for now)
+  const calculateFinancialScore = (netWorth) => {
+    const userAge = 30; // You can add this to user profile later
+    let ageGroup = '25-34';
+    
+    if (userAge < 25) ageGroup = '18-24';
+    else if (userAge < 35) ageGroup = '25-34';
+    else if (userAge < 45) ageGroup = '35-44';
+    else if (userAge < 55) ageGroup = '45-54';
+    else if (userAge < 65) ageGroup = '55-64';
+    else ageGroup = '65+';
+    
+    const avgWealth = germanWealthAverages[ageGroup];
+    const ratio = netWorth / avgWealth;
+    
+    if (ratio >= 1.5) return 'A';
+    else if (ratio >= 0.8) return 'B';
+    else if (ratio >= 0.4) return 'C';
+    else if (ratio >= 0.1) return 'D';
+    else return 'F';
+  };
+  
+  // Calculate monthly income/expenses from recent transactions
+  const calculateMonthlyMetrics = () => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const currentMonthTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getMonth() === currentMonth && 
+             transactionDate.getFullYear() === currentYear;
+    });
+    
+    const income = currentMonthTransactions
+      .filter(t => t.amount > 0)
+      .reduce((sum, t) => sum + t.amount, 0);
+      
+    const expenses = Math.abs(currentMonthTransactions
+      .filter(t => t.amount < 0)
+      .reduce((sum, t) => sum + t.amount, 0));
+    
+    return { income, expenses };
+  };
+  
+  // Calculate years to FI (Financial Independence)
+  const calculateYearsToFI = (monthlyIncome, monthlyExpenses, currentNetWorth) => {
+    const monthlySavings = monthlyIncome - monthlyExpenses;
+    if (monthlySavings <= 0) return null; // Can't reach FI with negative savings
+    
+    const fiTarget = monthlyExpenses * 12 * 25; // 25x annual expenses rule
+    const yearsToFI = Math.max(0, (fiTarget - currentNetWorth) / (monthlySavings * 12));
+    
+    return Math.ceil(yearsToFI);
+  };
+  
+  // Real calculations
+  const netWorth = calculateNetWorth();
+  const { income: monthlyIncome, expenses: monthlyExpense } = calculateMonthlyMetrics();
+  const fiScore = calculateFinancialScore(netWorth);
+  const yearsToFI = calculateYearsToFI(monthlyIncome, monthlyExpense, netWorth);
+  
   const dashboardMetrics = {
-    netWorth: 25000,
-    netWorthChange: 1250,
-    cashflowPositive: true
+    netWorth,
+    netWorthChange: 0, // Could be calculated by comparing with last month
+    cashflowPositive: monthlyIncome > monthlyExpense
   };
   
   const fiMetrics = {
-    finanzScore: 'B',
-    yearsToFI: 15
+    finanzScore: fiScore,
+    yearsToFI: yearsToFI
   };
   
-  const monthlyIncome = 3500;
-  const monthlyExpense = 2800;
+  // Calculate savings rate from real data for the last 6 months
+  const calculateSavingsRateData = () => {
+    const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    const data = [];
+    const now = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = targetDate.getMonth();
+      const year = targetDate.getFullYear();
+      
+      const monthlyTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getMonth() === month && 
+               transactionDate.getFullYear() === year;
+      });
+      
+      const income = monthlyTransactions
+        .filter(t => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+      const expenses = Math.abs(monthlyTransactions
+        .filter(t => t.amount < 0)
+        .reduce((sum, t) => sum + t.amount, 0));
+      
+      const savingsRate = income > 0 ? ((income - expenses) / income * 100) : 0;
+      
+      data.push({
+        month: monthNames[month],
+        savingsRate: Math.max(0, Math.round(savingsRate * 10) / 10)
+      });
+    }
+    
+    return data;
+  };
   
-  const savingsRateData = [
-    { month: 'Jan', savingsRate: 15 },
-    { month: 'Feb', savingsRate: 18 },
-    { month: 'Mar', savingsRate: 12 },
-    { month: 'Apr', savingsRate: 22 },
-    { month: 'Mai', savingsRate: 20 },
-    { month: 'Jun', savingsRate: 25 }
-  ];
+  const savingsRateData = calculateSavingsRateData();
   
-  const budgetVsActualData = [
-    { name: 'Lebensmittel', budget: 400, actual: 380, progress: 95, color: jonyColors.magenta, bgColor: jonyColors.magentaAlpha },
-    { name: 'Transport', budget: 200, actual: 180, progress: 90, color: jonyColors.magenta, bgColor: jonyColors.magentaAlpha },
-    { name: 'Unterhaltung', budget: 150, actual: 170, progress: 113, color: jonyColors.magenta, bgColor: jonyColors.magentaAlpha },
-    { name: 'Gesundheit', budget: 100, actual: 80, progress: 80, color: jonyColors.magenta, bgColor: jonyColors.magentaAlpha }
-  ];
+  // Calculate budget vs actual from real data
+  const calculateBudgetVsActual = () => {
+    if (!budgets.length) return [];
+    
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // getMonth() returns 0-11, budgets use 1-12
+    const currentYear = now.getFullYear();
+    
+    const currentBudgets = budgets.filter(b => 
+      b.month === currentMonth && b.year === currentYear
+    );
+    
+    return currentBudgets.map(budget => {
+      const categoryTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return t.category === budget.categoryName &&
+               transactionDate.getMonth() === (currentMonth - 1) && // Convert back to 0-11
+               transactionDate.getFullYear() === currentYear &&
+               t.amount < 0; // Only expenses
+      });
+      
+      const actual = Math.abs(categoryTransactions.reduce((sum, t) => sum + t.amount, 0));
+      const progress = budget.amount > 0 ? (actual / budget.amount) * 100 : 0;
+      
+      return {
+        name: budget.categoryName,
+        budget: budget.amount,
+        actual,
+        progress: Math.round(progress),
+        color: jonyColors.magenta,
+        bgColor: jonyColors.magentaAlpha
+      };
+    });
+  };
   
+  const budgetVsActualData = calculateBudgetVsActual();
+  
+  // Use real savings goals data
   const savingsGoalsData = {
-    chartData: [
-      { name: 'Notgroschen', current: 5000, target: 10000, progressPercentage: 50 },
-      { name: 'Urlaub', current: 800, target: 2000, progressPercentage: 40 },
-      { name: 'Auto', current: 3000, target: 15000, progressPercentage: 20 }
-    ]
+    chartData: savingsGoals.map(goal => ({
+      name: goal.title,
+      current: goal.currentAmount || 0,
+      target: goal.targetAmount || 1,
+      progressPercentage: goal.targetAmount > 0 ? 
+        Math.round(((goal.currentAmount || 0) / goal.targetAmount) * 100) : 0
+    }))
   };
   
+  // Use real debt data
   const debtData = {
-    chartData: [
-      { name: 'Kreditkarte', remaining: 1200, total: 5000, progressPercentage: 76 },
-      { name: 'Studienkredit', remaining: 8000, total: 20000, progressPercentage: 60 }
-    ]
+    chartData: debts.map(debt => ({
+      name: debt.name,
+      remaining: debt.currentAmount || 0,
+      total: debt.totalAmount || 1,
+      progressPercentage: debt.totalAmount > 0 ? 
+        Math.round(((debt.totalAmount - (debt.currentAmount || 0)) / debt.totalAmount) * 100) : 0
+    }))
   };
   
   
@@ -131,69 +343,156 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   const dailySpendingData = generateDailySpendingData(currentMonth || new Date());
 
 
-  const annualSavingsRateData = {
-    '1year': savingsRateData,
-    '5years': [
-      { month: '2020', savingsRate: 12 },
-      { month: '2021', savingsRate: 15 },
-      { month: '2022', savingsRate: 18 },
-      { month: '2023', savingsRate: 16 },
-      { month: '2024', savingsRate: 17.5 }
-    ],
-    'max': [
-      { month: '2018', savingsRate: 8 },
-      { month: '2019', savingsRate: 10 },
-      { month: '2020', savingsRate: 12 },
-      { month: '2021', savingsRate: 15 },
-      { month: '2022', savingsRate: 18 },
-      { month: '2023', savingsRate: 16 },
-      { month: '2024', savingsRate: 17.5 }
-    ]
+  // Calculate annual savings rate data from real transactions
+  const calculateAnnualSavingsRateData = () => {
+    const now = new Date();
+    
+    const oneYearData = [];
+    for (let i = 11; i >= 0; i--) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = targetDate.getMonth();
+      const year = targetDate.getFullYear();
+      
+      const monthlyTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getMonth() === month && 
+               transactionDate.getFullYear() === year;
+      });
+      
+      const income = monthlyTransactions
+        .filter(t => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+      const expense = Math.abs(monthlyTransactions
+        .filter(t => t.amount < 0)
+        .reduce((sum, t) => sum + t.amount, 0));
+      
+      const savingsRate = income > 0 ? ((income - expense) / income * 100) : 0;
+      
+      oneYearData.push({
+        month: `${year}`,
+        savingsRate: Math.max(0, Math.round(savingsRate * 10) / 10)
+      });
+    }
+    
+    return {
+      '1year': savingsRateData, // Use the 6-month data for 1-year view
+      '5years': oneYearData.slice(-5),
+      'max': oneYearData
+    };
   };
+  
+  const annualSavingsRateData = calculateAnnualSavingsRateData();
 
-  const cashflowData = {
-    '1year': [
-      { month: 'Jan', income: 3500, expense: 2800, net: 700 },
-      { month: 'Feb', income: 3500, expense: 2900, net: 600 },
-      { month: 'Mar', income: 3500, expense: 2700, net: 800 },
-      { month: 'Apr', income: 3600, expense: 2750, net: 850 },
-      { month: 'Mai', income: 3600, expense: 2850, net: 750 },
-      { month: 'Jun', income: 3500, expense: 2600, net: 900 },
-      { month: 'Jul', income: 3500, expense: 2750, net: 750 },
-      { month: 'Aug', income: 3600, expense: 2800, net: 800 },
-      { month: 'Sep', income: 3700, expense: 2900, net: 800 },
-      { month: 'Okt', income: 3500, expense: 2650, net: 850 },
-      { month: 'Nov', income: 3600, expense: 2800, net: 800 },
-      { month: 'Dez', income: 3500, expense: 2700, net: 800 }
-    ],
-    '5years': [
-      { month: '2020', income: 2800, expense: 2400, net: 400 },
-      { month: '2021', income: 3000, expense: 2500, net: 500 },
-      { month: '2022', income: 3200, expense: 2600, net: 600 },
-      { month: '2023', income: 3400, expense: 2750, net: 650 },
-      { month: '2024', income: 3600, expense: 2800, net: 800 }
-    ],
-    'max': [
-      { month: '2018', income: 2200, expense: 2000, net: 200 },
-      { month: '2019', income: 2500, expense: 2200, net: 300 },
-      { month: '2020', income: 2800, expense: 2400, net: 400 },
-      { month: '2021', income: 3000, expense: 2500, net: 500 },
-      { month: '2022', income: 3200, expense: 2600, net: 600 },
-      { month: '2023', income: 3400, expense: 2750, net: 650 },
-      { month: '2024', income: 3600, expense: 2800, net: 800 }
-    ]
+  // Calculate cashflow data from real transactions
+  const calculateCashflowData = () => {
+    const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    const now = new Date();
+    
+    const oneYearData = [];
+    for (let i = 11; i >= 0; i--) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = targetDate.getMonth();
+      const year = targetDate.getFullYear();
+      
+      const monthlyTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getMonth() === month && 
+               transactionDate.getFullYear() === year;
+      });
+      
+      const income = monthlyTransactions
+        .filter(t => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+      const expense = Math.abs(monthlyTransactions
+        .filter(t => t.amount < 0)
+        .reduce((sum, t) => sum + t.amount, 0));
+      
+      oneYearData.push({
+        month: monthNames[month],
+        income: Math.round(income),
+        expense: Math.round(expense),
+        net: Math.round(income - expense)
+      });
+    }
+    
+    return {
+      '1year': oneYearData,
+      '5years': oneYearData.slice(-5), // Fallback to recent data if no 5-year history
+      'max': oneYearData // Fallback to recent data if no full history
+    };
   };
+  
+  const cashflowData = calculateCashflowData();
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
-      {/* Simple Personal Header */}
+      {/* Header with Upload Button */}
       <div className="px-6 py-8 mb-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="w-1 h-8 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
-            <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
-              Willkommen zurück, User
-            </h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+              <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
+                Willkommen zurück, User
+              </h1>
+            </div>
+            
+            <button
+              onClick={triggerFileUpload}
+              className="w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-200 select-none"
+              style={{ 
+                borderColor: jonyColors.accent1,
+                backgroundColor: 'transparent',
+                outline: 'none',
+                WebkitTapHighlightColor: 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = jonyColors.accent1;
+                e.target.style.borderColor = jonyColors.accent1;
+                e.target.style.transform = 'scale(1.05)';
+                // Change icon color to black
+                const icon = e.target.querySelector('.upload-icon');
+                if (icon) icon.style.color = 'black';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = 'transparent';
+                e.target.style.borderColor = jonyColors.accent1;
+                e.target.style.transform = 'scale(1)';
+                // Change icon color back to green
+                const icon = e.target.querySelector('.upload-icon');
+                if (icon) icon.style.color = jonyColors.accent1;
+              }}
+              onFocus={(e) => {
+                e.target.style.outline = 'none';
+              }}
+              onBlur={(e) => {
+                e.target.style.outline = 'none';
+              }}
+              title="Kontoauszug hochladen"
+            >
+              <Plus 
+                className="w-5 h-5 pointer-events-none select-none upload-icon" 
+                style={{ 
+                  color: jonyColors.accent1,
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  MozUserSelect: 'none',
+                  msUserSelect: 'none',
+                  transition: 'color 0.2s ease'
+                }} 
+              />
+            </button>
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.txt"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
           </div>
         </div>
       </div>
@@ -209,7 +508,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
-              }}>
+              }}
+              title="Dein Gesamtvermögen minus alle Schulden. Zeigt deine echte finanzielle Position - alles was du besitzt abzüglich allem was du schuldest.">
               <div>
                 <div className="text-4xl font-bold mb-2" style={{ 
                   color: jonyColors.accent1
@@ -227,7 +527,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
-              }}>
+              }}
+              title="Financial Independence: Wie lange es dauert, bis du genug Geld angespart hast, um von den Zinsen zu leben (25x deine jährlichen Ausgaben). FI = Arbeiten wird optional.">
               <div>
                 <div className="text-5xl font-bold mb-2" style={{ 
                   color: (fiMetrics?.yearsToFI !== null && fiMetrics?.yearsToFI !== undefined) ? jonyColors.accent1 : jonyColors.textSecondary
@@ -245,7 +546,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
-              }}>
+              }}
+              title="Dein Vermögens-Rating im Vergleich zum deutschen Durchschnitt deiner Altersgruppe. A = Top 20%, B = Überdurchschnittlich, C = Durchschnitt, D-F = Unterdurchschnittlich.">
               <div>
                 <div className="text-5xl font-bold mb-2" style={{ 
                   color: fiMetrics?.finanzScore === 'A' ? jonyColors.accent1 : 
@@ -264,7 +566,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
-              }}>
+              }}
+              title="Wieviel Prozent deines Einkommens du durchschnittlich sparst. 20%+ ist sehr gut, 10-20% ist solide, unter 10% sollte verbessert werden. Deutsche sparen im Schnitt 11%.">
               <div>
                 <div className="text-5xl font-bold mb-2" style={{ 
                   color: jonyColors.accent1
@@ -449,7 +752,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={annualSavingsRateData[savingsRatePeriod]} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <AreaChart data={annualSavingsRateData[savingsRatePeriod]} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                   <defs>
                     <linearGradient id="savingsGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={jonyColors.accent1} stopOpacity={0.3}/>
@@ -511,16 +814,14 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                     }}
                     cursor={{ fill: jonyColors.accent1Alpha, opacity: 0.1 }}
                   />
-                  <Area type="monotone" dataKey="savingsRate" stroke="none" fill="url(#savingsGradient)" />
-                  <Line 
+                  <Area 
                     type="monotone" 
                     dataKey="savingsRate" 
                     stroke={jonyColors.accent1} 
                     strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6, fill: jonyColors.accent1, strokeWidth: 2, stroke: 'white' }}
+                    fill="url(#savingsGradient)"
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -578,7 +879,13 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                 </div>
               ) : (
                 <div className="text-center py-8" style={{ color: jonyColors.textSecondary }}>
-                  <div className="text-2xl mb-2">🎯</div>
+                  <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{
+                    background: `linear-gradient(135deg, ${jonyColors.accent1}, ${jonyColors.greenDark})`
+                  }}>
+                    <div className="w-6 h-6 rounded-full border-2 border-black flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-black"></div>
+                    </div>
+                  </div>
                   <div className="text-sm">Keine Sparziele definiert</div>
                 </div>
               )}
@@ -635,7 +942,13 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                 </div>
               ) : (
                 <div className="text-center py-8" style={{ color: jonyColors.textSecondary }}>
-                  <div className="text-2xl mb-2">✅</div>
+                  <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{
+                    background: `linear-gradient(135deg, ${jonyColors.accent1}, ${jonyColors.greenDark})`
+                  }}>
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      <div className="w-3 h-1 bg-black rounded-full"></div>
+                    </div>
+                  </div>
                   <div className="text-sm">Schuldenfrei!</div>
                 </div>
               )}
@@ -718,7 +1031,10 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                   Aktive Abos gesamt:
                 </span>
                 <span className="text-lg font-light" style={{ color: jonyColors.textPrimary }}>
-                  52,88€/Monat
+                  {subscriptions
+                    .filter(sub => sub.isActive)
+                    .reduce((total, sub) => total + sub.amount, 0)
+                    .toFixed(2)}€/Monat
                 </span>
               </div>
             </div>
@@ -928,10 +1244,16 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart 
+                <AreaChart 
                   data={dailySpendingData} 
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
                 >
+                  <defs>
+                    <linearGradient id="dailySpendingGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={jonyColors.magenta} stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor={jonyColors.magenta} stopOpacity={0.05}/>
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="1 1" stroke={jonyColors.textTertiary} opacity={0.2} />
                   <XAxis 
                     dataKey="day" 
@@ -987,15 +1309,14 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                     }}
                     cursor={{ fill: jonyColors.accent1Alpha, opacity: 0.1 }}
                   />
-                  <Line 
+                  <Area 
                     type="monotone" 
                     dataKey="expense" 
                     stroke={jonyColors.magenta} 
                     strokeWidth={2}
-                    dot={{ fill: jonyColors.magenta, strokeWidth: 1, r: 3 }}
-                    activeDot={{ r: 5, fill: jonyColors.magenta, strokeWidth: 2, stroke: 'white' }}
+                    fill="url(#dailySpendingGradient)"
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>

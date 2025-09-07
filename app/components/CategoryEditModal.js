@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Palette, Trash2, Save, X, Dices, Euro, Target } from 'lucide-react';
 import Modal from './ui/Modal';
 import ConfirmationModal from './ui/ConfirmationModal';
+import { jonyColors } from '../theme';
 
 const CategoryEditModal = ({ category, isOpen, onClose, onSave, onDelete }) => {
   const [formData, setFormData] = useState({
@@ -32,7 +33,8 @@ const CategoryEditModal = ({ category, isOpen, onClose, onSave, onDelete }) => {
   }, [category, isOpen]);
 
   const generateRandomColor = () => {
-    const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+    const colors = [jonyColors.accent1, jonyColors.accent2, jonyColors.magenta, jonyColors.red, '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
     setFormData(prev => ({ ...prev, color: randomColor }));
   };
 
@@ -68,119 +70,227 @@ const CategoryEditModal = ({ category, isOpen, onClose, onSave, onDelete }) => {
 
   return (
     <>
-      <Modal 
-        isOpen={isOpen} 
-        onClose={onClose} 
-        title={category ? `${category.name} bearbeiten` : 'Neue Kategorie'}
-        size="default"
-      >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Category Name */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-800 mb-3">
-              Kategoriename
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="z.B. Lebensmittel, Transport..."
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 font-medium"
-              required
-              autoFocus
-            />
-          </div>
-
-          {/* Color Selection */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-800 mb-3">
-              Farbe
-            </label>
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <input
-                  type="color"
-                  name="color"
-                  value={formData.color}
-                  onChange={handleChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                <div
-                  className="w-16 h-16 rounded-xl border-2 border-white shadow-lg ring-2 ring-slate-200 hover:ring-indigo-300 transition-all cursor-pointer"
-                  style={{ backgroundColor: formData.color }}
-                ></div>
+      {isOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-lg border" style={{ 
+            backgroundColor: jonyColors.surface, 
+            border: `1px solid ${jonyColors.border}` 
+          }}>
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{
+                    background: `linear-gradient(135deg, ${jonyColors.accent1}, ${jonyColors.greenDark})`
+                  }}>
+                    <Palette className="w-6 h-6 text-black" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold" style={{ color: jonyColors.textPrimary }}>
+                      {category ? category.name : 'Neue Kategorie'}
+                    </h2>
+                    <p className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                      {category ? 'Bearbeiten' : 'Erstellen'}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={onClose} className="p-2 rounded-lg transition-colors" style={{ 
+                  backgroundColor: jonyColors.cardBackground,
+                  color: jonyColors.textSecondary
+                }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = jonyColors.border;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = jonyColors.cardBackground;
+                  }}>
+                  <X className="w-5 h-5" />
+                </button>
               </div>
               
-              <button
-                type="button"
-                onClick={generateRandomColor}
-                className="flex items-center gap-2 px-4 py-3 bg-white hover:bg-indigo-50 rounded-xl text-slate-600 hover:text-indigo-600 transition-all shadow-sm border border-slate-200 hover:border-indigo-300 font-medium"
-              >
-                <Dices className="w-5 h-5" />
-                Zufällige Farbe
-              </button>
-            </div>
-          </div>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Category Name */}
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+                    Kategoriename
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="z.B. Lebensmittel, Transport..."
+                    className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+                    style={{
+                      backgroundColor: jonyColors.cardBackground,
+                      color: jonyColors.textPrimary,
+                      border: `1px solid ${jonyColors.border}`
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = jonyColors.textSecondary;
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = jonyColors.border;
+                    }}
+                    required
+                    autoFocus
+                  />
+                </div>
 
-          {/* Budget Setting */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
-              <Target className="w-4 h-4 text-indigo-600" />
-              Monatliches Budget
-            </label>
-            <div className="relative">
-              <Euro className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="0.00"
-                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 font-medium"
-              />
-            </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Leer lassen für kein Budget
-            </p>
-          </div>
+                {/* Color & Budget Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Color Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+                      Farbe
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <input
+                          type="color"
+                          name="color"
+                          value={formData.color}
+                          onChange={handleChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div
+                          className="w-10 h-10 rounded-lg shadow-sm transition-all cursor-pointer border"
+                          style={{ 
+                            backgroundColor: formData.color,
+                            borderColor: jonyColors.border
+                          }}
+                        ></div>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={generateRandomColor}
+                        className="p-2 rounded-lg transition-all"
+                        style={{
+                          backgroundColor: jonyColors.cardBackground,
+                          color: jonyColors.textSecondary,
+                          border: `1px solid ${jonyColors.border}`
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = jonyColors.border;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = jonyColors.cardBackground;
+                        }}
+                        title="Zufällige Farbe"
+                      >
+                        <Dices className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-6 border-t border-slate-200">
-            <div>
-              {category && (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Löschen
-                </button>
-              )}
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors"
-              >
-                Abbrechen
-              </button>
-              <button
-                type="submit"
-                disabled={!formData.name.trim()}
-                className="flex items-center gap-2 px-6 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold transition-all hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Save className="w-4 h-4" />
-                Speichern
-              </button>
-            </div>
+                  {/* Budget Setting */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: jonyColors.textPrimary }}>
+                      <Target className="w-4 h-4" style={{ color: jonyColors.accent1 }} />
+                      Budget
+                    </label>
+                    <div className="relative">
+                      <Euro className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: jonyColors.textSecondary }} />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={budget}
+                        onChange={(e) => setBudget(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-9 pr-3 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+                        style={{
+                          backgroundColor: jonyColors.cardBackground,
+                          color: jonyColors.textPrimary,
+                          border: `1px solid ${jonyColors.border}`
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = jonyColors.textSecondary;
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = jonyColors.border;
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-6 border-t" style={{ borderColor: jonyColors.border }}>
+                {category && (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors"
+                    style={{
+                      backgroundColor: jonyColors.redAlpha,
+                      color: jonyColors.red
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = jonyColors.red;
+                      e.target.style.color = 'white';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = jonyColors.redAlpha;
+                      e.target.style.color = jonyColors.red;
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Löschen
+                  </button>
+                )}
+                
+                <div className="flex gap-3 ml-auto">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-lg font-medium transition-colors"
+                    style={{
+                      backgroundColor: jonyColors.cardBackground,
+                      color: jonyColors.textSecondary,
+                      border: `1px solid ${jonyColors.border}`
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = jonyColors.border;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = jonyColors.cardBackground;
+                    }}
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!formData.name.trim()}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all"
+                    style={{
+                      backgroundColor: !formData.name.trim() ? jonyColors.border : jonyColors.accent1,
+                      color: !formData.name.trim() ? jonyColors.textSecondary : 'black',
+                      cursor: !formData.name.trim() ? 'not-allowed' : 'pointer',
+                      opacity: !formData.name.trim() ? 0.5 : 1
+                    }}
+                    onMouseEnter={(e) => {
+                      if (formData.name.trim()) {
+                        e.target.style.transform = 'scale(1.02)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (formData.name.trim()) {
+                        e.target.style.transform = 'scale(1)';
+                      }
+                    }}
+                  >
+                    <Save className="w-4 h-4" />
+                    {category ? 'Speichern' : 'Erstellen'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-        </form>
-      </Modal>
+        </div>
+      </div>
+      )}
 
       <ConfirmationModal
         isOpen={showDeleteConfirm}

@@ -10,6 +10,7 @@ import Sidebar from './Sidebar';
 import DashboardPage from './DashboardPage';
 import InboxPage from './InboxPage';
 import TransactionsPage from './TransactionsPage';
+import InvestmentsPage from './InvestmentsPage';
 import SharedExpensesPage from './SharedExpensesPage';
 import BudgetPage from './BudgetPage';
 import DebtPage from './DebtPage';
@@ -112,6 +113,8 @@ const AppContent = () => {
         />;
       case 'transactions': 
         return <TransactionsPage />;
+      case 'investments':
+        return <InvestmentsPage />;
       case 'shared-expenses':
         return <SharedExpensesPage />;
       case 'budget':

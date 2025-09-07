@@ -233,6 +233,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
       ? existingContacts.filter(c => c.name !== contact.name)
       : [...existingContacts, contact];
 
+    // Limitiere auf maximal 3 Personen
     if (!isSelected && newSharedWith.length > 3) {
       return;
     }
@@ -256,6 +257,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
       return;
     }
     
+    // Limitiere auf maximal 3 Personen
     if (sharedExpenseData?.sharedWith?.length >= 3) {
       setPersonSearch('');
       return;
@@ -381,7 +383,9 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
             </div>
           </div>
         ) : (
+          
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+            
             <div className="lg:col-span-2">
               <div className="p-6 rounded-2xl border flex flex-col" style={{ 
                 height: '580px',
@@ -514,6 +518,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
             </div>
 
             <div className="flex flex-col gap-6">
+              
               <div className="p-4 rounded-2xl border flex flex-col" style={{ 
                 height: '280px',
                 backgroundColor: jonyColors.surface,
@@ -580,174 +585,176 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
               }}>
                 {currentTx.amount < 0 ? (
                   <>
-                    <div className="flex items-center space-x-3 mb-4 flex-shrink-0">
-                      <Users className="w-5 h-5" style={{ color: jonyColors.textSecondary }} />
-                      <h3 className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>Teilen</h3>
-                    </div>
-                    
-                    <div className="flex-1 flex flex-col">
-                      <div className="mb-4">
-                        <div className="relative">
-                          <input 
-                            type="text" 
-                            value={personSearch} 
-                            onChange={(e) => setPersonSearch(e.target.value)} 
-                            onFocus={() => setShowPersonSuggestions(true)} 
-                            onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 150)} 
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                if (personSearch.trim()) {
-                                  handleAddPerson(personSearch.trim());
-                                }
+                  <div className="flex items-center space-x-3 mb-4 flex-shrink-0">
+                    <Users className="w-5 h-5" style={{ color: jonyColors.textSecondary }} />
+                    <h3 className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>Teilen</h3>
+                  </div>
+                  
+                  <div className="flex-1 flex flex-col">
+                    {/* Input zum Hinzufügen neuer Personen */}
+                    <div className="mb-4">
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          value={personSearch} 
+                          onChange={(e) => setPersonSearch(e.target.value)} 
+                          onFocus={() => setShowPersonSuggestions(true)} 
+                          onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 150)} 
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (personSearch.trim()) {
+                                handleAddPerson(personSearch.trim());
                               }
-                            }}
-                            placeholder="Person hinzufügen..." 
-                            className="w-full px-4 py-3 text-base border rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200"
-                            style={{
-                              backgroundColor: jonyColors.cardBackground,
-                              color: jonyColors.textPrimary,
-                              borderColor: jonyColors.cardBorder,
-                              focusRingColor: jonyColors.accent1
-                            }} 
-                          />
-                          {showPersonSuggestions && personSearch && (
-                            <div className="absolute z-30 w-full mt-1 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto" style={{
-                              backgroundColor: jonyColors.surface,
-                              border: `1px solid ${jonyColors.border}`
-                            }}>
-                              {frequentContacts.filter(p => 
-                                p.name.toLowerCase().includes(personSearch.toLowerCase()) && 
-                                !sharedExpenseData?.sharedWith?.some(s => s.name === p.name)
-                              ).slice(0, 5).map(person => (
-                                <button 
-                                  key={person.name} 
-                                  onClick={() => {
-                                    toggleContactInShare(person);
-                                    setPersonSearch('');
-                                  }} 
-                                  className="w-full text-left px-3 py-2 text-sm flex items-center space-x-3 transition-colors duration-200"
-                                  style={{ color: jonyColors.textPrimary }}
-                                  onMouseEnter={(e) => {
-                                    e.target.style.backgroundColor = jonyColors.cardBackground;
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.target.style.backgroundColor = 'transparent';
-                                  }}
-                                >
-                                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: person.color}}>
-                                    {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                  </div>
-                                  <span>{person.name}</span>
-                                </button>
-                              ))}
-                              {personSearch && !allContacts.some(c => c.name.toLowerCase() === personSearch.toLowerCase()) && (
-                                <div style={{ borderTop: `1px solid ${jonyColors.border}` }}>
-                                  <button 
-                                    onClick={() => {
-                                      handleAddPerson(personSearch.trim());
-                                      setPersonSearch('');
-                                    }} 
-                                    className="w-full text-left px-3 py-2 text-sm flex items-center space-x-2 transition-colors duration-200"
-                                    style={{ color: jonyColors.accent1 }}
-                                    onMouseEnter={(e) => {
-                                      e.target.style.backgroundColor = jonyColors.accent1Alpha;
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.target.style.backgroundColor = 'transparent';
-                                    }}
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                    <span>Person "{personSearch}" erstellen</span>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {sharedExpenseData && sharedExpenseData.sharedWith.length > 0 ? (
-                        <div className="flex-1">
-                          <div className="text-xs font-medium mb-3 uppercase tracking-wide" style={{ color: jonyColors.textSecondary }}>
-                            Geteilt mit {sharedExpenseData.sharedWith.length} Person{sharedExpenseData.sharedWith.length > 1 ? 'en' : ''}
-                          </div>
-                          <div className="space-y-2 mb-4">
-                            {sharedExpenseData.sharedWith.map(person => (
-                              <div 
-                                key={person.name} 
-                                className="flex items-center justify-between p-3 rounded-lg"
-                                style={{ backgroundColor: jonyColors.cardBackground }}
-                              >
-                                <div className="flex items-center space-x-3">
-                                  <div 
-                                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-                                    style={{backgroundColor: person.color}}
-                                  >
-                                    {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                  </div>
-                                  <div>
-                                    <span className="text-sm font-medium" style={{ color: jonyColors.textPrimary }}>{person.name}</span>
-                                    <div className="text-xs" style={{ color: jonyColors.textSecondary }}>{formatCurrency(person.amount)}</div>
-                                  </div>
-                                </div>
-                                <button 
-                                  onClick={() => toggleContactInShare(person)} 
-                                  className="p-1 rounded transition-colors"
-                                  style={{ color: jonyColors.textSecondary }}
-                                  onMouseEnter={(e) => {
-                                    e.target.style.color = jonyColors.red;
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.target.style.color = jonyColors.textSecondary;
-                                  }}
-                                  title="Person entfernen"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="mt-auto pt-3" style={{ borderTop: `1px solid ${jonyColors.border}` }}>
-                            <div className="flex items-center justify-between text-sm">
-                              <span style={{ color: jonyColors.textSecondary }}>Dein Anteil:</span>
-                              <span className="font-semibold" style={{ color: jonyColors.textPrimary }}>
-                                {formatCurrency(Math.abs(currentTx.amount) / (sharedExpenseData.sharedWith.length + 1))}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex-1 flex flex-col justify-center">
-                          <div className="text-center mb-4">
-                            <p style={{ color: jonyColors.textSecondary }}>Häufige Kontakte:</p>
-                          </div>
-                          <div className="space-y-2">
-                            {frequentContacts.slice(0, 4).map((person) => (
+                            }
+                          }}
+                          placeholder="Person hinzufügen..." 
+                          className="w-full px-4 py-3 text-base border rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200"
+                          style={{
+                            backgroundColor: jonyColors.cardBackground,
+                            color: jonyColors.textPrimary,
+                            borderColor: jonyColors.cardBorder,
+                            focusRingColor: jonyColors.accent1
+                          }} 
+                        />
+                        {showPersonSuggestions && personSearch && (
+                          <div className="absolute z-30 w-full mt-1 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto" style={{
+                            backgroundColor: jonyColors.surface,
+                            border: `1px solid ${jonyColors.border}`
+                          }}>
+                            {frequentContacts.filter(p => 
+                              p.name.toLowerCase().includes(personSearch.toLowerCase()) && 
+                              !sharedExpenseData?.sharedWith?.some(s => s.name === p.name)
+                            ).slice(0, 5).map(person => (
                               <button 
                                 key={person.name} 
-                                onClick={() => toggleContactInShare(person)} 
-                                className="w-full flex items-center space-x-3 p-2 rounded-lg transition-all duration-200"
-                                style={{ color: jonyColors.textSecondary }}
+                                onClick={() => {
+                                  toggleContactInShare(person);
+                                  setPersonSearch('');
+                                }} 
+                                className="w-full text-left px-3 py-2 text-sm flex items-center space-x-3 transition-colors duration-200"
+                                style={{ color: jonyColors.textPrimary }}
                                 onMouseEnter={(e) => {
                                   e.target.style.backgroundColor = jonyColors.cardBackground;
-                                  e.target.style.color = jonyColors.textPrimary;
                                 }}
                                 onMouseLeave={(e) => {
                                   e.target.style.backgroundColor = 'transparent';
-                                  e.target.style.color = jonyColors.textSecondary;
                                 }}
                               >
                                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: person.color}}>
                                   {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                 </div>
-                                <span className="text-sm">{person.name}</span>
+                                <span>{person.name}</span>
                               </button>
                             ))}
+                            {personSearch && !allContacts.some(c => c.name.toLowerCase() === personSearch.toLowerCase()) && (
+                              <div style={{ borderTop: `1px solid ${jonyColors.border}` }}>
+                                <button 
+                                  onClick={() => {
+                                    handleAddPerson(personSearch.trim());
+                                    setPersonSearch('');
+                                  }} 
+                                  className="w-full text-left px-3 py-2 text-sm flex items-center space-x-2 transition-colors duration-200"
+                                  style={{ color: jonyColors.accent1 }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.backgroundColor = 'transparent';
+                                  }}
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  <span>Person "{personSearch}" erstellen</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Geteilte Personen anzeigen */}
+                    {sharedExpenseData && sharedExpenseData.sharedWith.length > 0 ? (
+                      <div className="flex-1">
+                        <div className="text-xs font-medium mb-3 uppercase tracking-wide" style={{ color: jonyColors.textSecondary }}>
+                          Geteilt mit {sharedExpenseData.sharedWith.length} Person{sharedExpenseData.sharedWith.length > 1 ? 'en' : ''}
+                        </div>
+                        <div className="space-y-2 mb-4">
+                          {sharedExpenseData.sharedWith.map(person => (
+                            <div 
+                              key={person.name} 
+                              className="flex items-center justify-between p-3 rounded-lg"
+                              style={{ backgroundColor: jonyColors.cardBackground }}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div 
+                                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white"
+                                  style={{backgroundColor: person.color}}
+                                >
+                                  {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                </div>
+                                <div>
+                                  <span className="text-sm font-medium" style={{ color: jonyColors.textPrimary }}>{person.name}</span>
+                                  <div className="text-xs" style={{ color: jonyColors.textSecondary }}>{formatCurrency(person.amount)}</div>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => toggleContactInShare(person)} 
+                                className="p-1 rounded transition-colors"
+                                style={{ color: jonyColors.textSecondary }}
+                                onMouseEnter={(e) => {
+                                  e.target.style.color = jonyColors.red;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.target.style.color = jonyColors.textSecondary;
+                                }}
+                                title="Person entfernen"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-auto pt-3" style={{ borderTop: `1px solid ${jonyColors.border}` }}>
+                          <div className="flex items-center justify-between text-sm">
+                            <span style={{ color: jonyColors.textSecondary }}>Dein Anteil:</span>
+                            <span className="font-semibold" style={{ color: jonyColors.textPrimary }}>
+                              {formatCurrency(Math.abs(currentTx.amount) / (sharedExpenseData.sharedWith.length + 1))}
+                            </span>
                           </div>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col justify-center">
+                        <div className="text-center mb-4">
+                          <p style={{ color: jonyColors.textSecondary }}>Häufige Kontakte:</p>
+                        </div>
+                        <div className="space-y-2">
+                          {frequentContacts.slice(0, 4).map((person) => (
+                            <button 
+                              key={person.name} 
+                              onClick={() => toggleContactInShare(person)} 
+                              className="w-full flex items-center space-x-3 p-2 rounded-lg transition-all duration-200"
+                              style={{ color: jonyColors.textSecondary }}
+                              onMouseEnter={(e) => {
+                                e.target.style.backgroundColor = jonyColors.cardBackground;
+                                e.target.style.color = jonyColors.textPrimary;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.backgroundColor = 'transparent';
+                                e.target.style.color = jonyColors.textSecondary;
+                              }}
+                            >
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: person.color}}>
+                                {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </div>
+                              <span className="text-sm">{person.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   </>
                 ) : (
                   <div className="flex items-center justify-center h-full" style={{ color: jonyColors.textSecondary }}>
@@ -766,7 +773,6 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
             </div>
           </div>
         )}
-        </div>
       </div>
 
       {showClearConfirmation && (

@@ -5,6 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Target, TrendingUp, Plus, Edit3, Save, X, PiggyBank, Calendar, Euro, Trash2, Info } from 'lucide-react';
 import Card from './ui/Card';
 import { db } from '../utils/db';
+import { jonyColors } from '../theme';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 
@@ -197,39 +198,56 @@ const SavingsGoalsPage = () => {
 
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 bg-white dark:bg-slate-900 min-h-screen">
-      <div className="flex items-center justify-between w-full mb-8">
-          <div className="flex-1">
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                  Sparziele
+    <div className="min-h-screen font-sans" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
+      <div className="px-6 py-8 mb-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+              <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
+                Sparziele
               </h1>
+            </div>
+
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-base"
+              style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = jonyColors.greenDark;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = jonyColors.accent1;
+              }}
+            >
+              <Plus className="w-5 h-5" />
+              Neues Ziel
+            </button>
           </div>
-          <div className="flex-1 flex items-center justify-center">
-          </div>
-          <div className="flex-1 flex justify-end">
-              <button
-                onClick={handleCreate}
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base"
-              >
-                <Plus className="w-5 h-5" />
-                Neues Ziel
-              </button>
-          </div>
+        </div>
       </div>
 
-      {/* Emergency Fund Section */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-          <PiggyBank className="w-5 h-5 text-purple-500" />
-          Notgroschen
-        </h2>
+      <div className="px-6 mb-12">
+        <div className="max-w-7xl mx-auto">
+
+          {/* Emergency Fund Section */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2" style={{ color: jonyColors.textPrimary }}>
+              <PiggyBank className="w-5 h-5" style={{ color: jonyColors.magenta }} />
+              Notgroschen
+            </h2>
         
         {emergencyFund ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               {flippedCards.has(emergencyFund.id) ? (
-                <Card 
-                  className="!p-6 h-72 cursor-pointer !bg-white dark:!bg-slate-800" 
+                <div 
+                  className="p-6 h-72 cursor-pointer rounded-2xl border" 
+                  style={{
+                    backgroundColor: jonyColors.surface,
+                    border: `1px solid ${jonyColors.border}`
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleCardFlip(emergencyFund.id);
@@ -238,7 +256,7 @@ const SavingsGoalsPage = () => {
                 {editingGoal === emergencyFund.id ? (
                   <div className="h-full overflow-y-auto">
                     <div className="space-y-3">
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">Notgroschen bearbeiten</h3>
+                      <h3 className="text-lg font-semibold mb-3" style={{ color: jonyColors.textPrimary }}>Notgroschen bearbeiten</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Ziel</label>
@@ -363,10 +381,13 @@ const SavingsGoalsPage = () => {
                     </div>
                   </div>
                 )}
-              </Card>
+                </div>
               ) : (
-                <Card 
-                  className="!p-6 h-72 cursor-pointer !bg-gradient-to-br !from-purple-600 !to-indigo-600"
+                <div 
+                  className="p-6 h-72 cursor-pointer rounded-2xl"
+                  style={{
+                    background: `linear-gradient(to bottom right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleCardFlip(emergencyFund.id);
@@ -386,17 +407,19 @@ const SavingsGoalsPage = () => {
                     </p>
                     <p className="text-xs text-white opacity-75 mt-1">Klicken für Details</p>
                   </div>
-                </Card>
+                </div>
               )}
             </div>
           </div>
         ) : (
-          <Card className="!p-6 border-dashed">
+          <div className="p-6 border-dashed rounded-2xl border" style={{ borderColor: jonyColors.border }}>
             <div className="text-center py-8">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
-                <PiggyBank className="w-8 h-8 text-purple-500" />
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{
+                backgroundColor: jonyColors.magentaAlpha
+              }}>
+                <PiggyBank className="w-8 h-8" style={{ color: jonyColors.magenta }} />
               </div>
-              <p className="text-slate-600 dark:text-slate-300 mb-6 font-medium">Erstelle einen Notgroschen für finanzielle Sicherheit</p>
+              <p className="mb-6 font-medium" style={{ color: jonyColors.textSecondary }}>Erstelle einen Notgroschen für finanzielle Sicherheit</p>
               <button
                 onClick={() => {
                   setIsCreating(true);
@@ -409,25 +432,35 @@ const SavingsGoalsPage = () => {
                     isEmergencyFund: true
                   });
                 }}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                className="px-6 py-3 rounded-lg font-medium transition-colors"
+                style={{ backgroundColor: jonyColors.magenta, color: jonyColors.background }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.magentaDark;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.magenta;
+                }}
               >
                 Notgroschen erstellen
               </button>
             </div>
-          </Card>
+          </div>
         )}
       </div>
 
-      {/* Regular Savings Goals */}
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-          <Target className="w-5 h-5 text-purple-500" />
-          Sparziele
-        </h2>
+          {/* Regular Savings Goals */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2" style={{ color: jonyColors.textPrimary }}>
+              <Target className="w-5 h-5" style={{ color: jonyColors.accent1 }} />
+              Sparziele
+            </h2>
 
-        {isCreating && !editForm.isEmergencyFund && (
-          <Card className="!p-6 mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Neues Sparziel</h3>
+            {isCreating && !editForm.isEmergencyFund && (
+              <div className="p-6 mb-6 rounded-2xl border" style={{
+                backgroundColor: jonyColors.surface,
+                border: `1px solid ${jonyColors.border}`
+              }}>
+                <h3 className="text-lg font-semibold mb-4" style={{ color: jonyColors.textPrimary }}>Neues Sparziel</h3>
             <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
               <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-slate-600 dark:text-slate-400 mt-0.5 flex-shrink-0" />
@@ -500,20 +533,43 @@ const SavingsGoalsPage = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={handleSave} className="btn bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base flex items-center gap-2">
+                <button 
+                  onClick={handleSave} 
+                  className="px-6 py-3 text-white rounded-lg font-medium shadow-lg hover:shadow-xl text-base flex items-center gap-2 transition-all duration-200"
+                  style={{ backgroundColor: jonyColors.accent1 }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = jonyColors.greenDark;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = jonyColors.accent1;
+                  }}
+                >
                   <Save className="w-5 h-5" /> Speichern
                 </button>
-                <button onClick={handleCancel} className="btn bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base flex items-center gap-2 dark:bg-slate-600 dark:hover:bg-slate-700">
+                <button 
+                  onClick={handleCancel} 
+                  className="px-6 py-3 text-white rounded-lg font-medium shadow-lg hover:shadow-xl text-base flex items-center gap-2 transition-all duration-200"
+                  style={{ backgroundColor: jonyColors.textSecondary }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = jonyColors.border;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = jonyColors.textSecondary;
+                  }}
+                >
                   <X className="w-5 h-5" /> Abbrechen
                 </button>
               </div>
             </div>
-          </Card>
-        )}
+              </div>
+            )}
 
-        {isCreating && editForm.isEmergencyFund && (
-          <Card className="!p-6 mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Notgroschen erstellen</h3>
+            {isCreating && editForm.isEmergencyFund && (
+              <div className="p-6 mb-6 rounded-2xl border" style={{
+                backgroundColor: jonyColors.surface,
+                border: `1px solid ${jonyColors.border}`
+              }}>
+                <h3 className="text-lg font-semibold mb-4" style={{ color: jonyColors.textPrimary }}>Notgroschen erstellen</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -558,28 +614,52 @@ const SavingsGoalsPage = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={handleSave} className="btn bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base flex items-center gap-2">
+                <button 
+                  onClick={handleSave} 
+                  className="px-6 py-3 text-white rounded-lg font-medium shadow-lg hover:shadow-xl text-base flex items-center gap-2 transition-all duration-200"
+                  style={{ backgroundColor: jonyColors.accent1 }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = jonyColors.greenDark;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = jonyColors.accent1;
+                  }}
+                >
                   <Save className="w-5 h-5" /> Speichern
                 </button>
-                <button onClick={handleCancel} className="btn bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base flex items-center gap-2 dark:bg-slate-600 dark:hover:bg-slate-700">
+                <button 
+                  onClick={handleCancel} 
+                  className="px-6 py-3 text-white rounded-lg font-medium shadow-lg hover:shadow-xl text-base flex items-center gap-2 transition-all duration-200"
+                  style={{ backgroundColor: jonyColors.textSecondary }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = jonyColors.border;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = jonyColors.textSecondary;
+                  }}
+                >
                   <X className="w-5 h-5" /> Abbrechen
                 </button>
               </div>
             </div>
-          </Card>
-        )}
+              </div>
+            )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {regularGoals.map((goal) => (
-            <div key={goal.id}>
-              {flippedCards.has(goal.id) ? (
-                <Card 
-                  className="!p-6 h-72 cursor-pointer !bg-white dark:!bg-slate-800" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleCardFlip(goal.id);
-                  }}
-                >
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {regularGoals.map((goal) => (
+                <div key={goal.id}>
+                  {flippedCards.has(goal.id) ? (
+                    <div 
+                      className="p-6 h-72 cursor-pointer rounded-2xl border" 
+                      style={{
+                        backgroundColor: jonyColors.surface,
+                        border: `1px solid ${jonyColors.border}`
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleCardFlip(goal.id);
+                      }}
+                    >
                   {editingGoal === goal.id ? (
                     <div className="h-full overflow-y-auto">
                       <div className="space-y-3">
@@ -718,10 +798,13 @@ const SavingsGoalsPage = () => {
                       </div>
                     </div>
                   )}
-                </Card>
+                    </div>
               ) : (
-                <Card 
-                  className="!p-6 h-72 cursor-pointer !bg-gradient-to-br !from-purple-600 !to-indigo-600"
+                <div 
+                  className="p-6 h-72 cursor-pointer rounded-2xl"
+                  style={{
+                    background: `linear-gradient(to bottom right, ${jonyColors.accent1}, ${jonyColors.greenDark})`
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleCardFlip(goal.id);
@@ -741,28 +824,39 @@ const SavingsGoalsPage = () => {
                     </p>
                     <p className="text-xs text-white opacity-75 mt-1">Klicken für Details</p>
                   </div>
-                </Card>
+                </div>
               )}
             </div>
           ))}
-        </div>
-
-        {regularGoals.length === 0 && !isCreating && (
-          <Card className="!p-6 border-dashed">
-            <div className="text-center py-8">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center">
-                <Target className="w-8 h-8 text-indigo-500" />
-              </div>
-              <p className="text-slate-600 dark:text-slate-300 mb-6 font-medium">Keine Sparziele vorhanden</p>
-              <button
-                onClick={handleCreate}
-                className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-              >
-                Erstes Sparziel erstellen
-              </button>
             </div>
-          </Card>
-        )}
+
+            {regularGoals.length === 0 && !isCreating && (
+              <div className="p-6 border-dashed rounded-2xl border" style={{ borderColor: jonyColors.border }}>
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{
+                    backgroundColor: jonyColors.accent1Alpha
+                  }}>
+                    <Target className="w-8 h-8" style={{ color: jonyColors.accent1 }} />
+                  </div>
+                  <p className="mb-6 font-medium" style={{ color: jonyColors.textSecondary }}>Keine Sparziele vorhanden</p>
+                  <button
+                    onClick={handleCreate}
+                    className="px-6 py-3 rounded-lg font-medium transition-colors"
+                    style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = jonyColors.greenDark;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = jonyColors.accent1;
+                    }}
+                  >
+                    Erstes Sparziel erstellen
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

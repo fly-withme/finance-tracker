@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, LayoutDashboard, Repeat, Inbox, Users, PiggyBank, Calculator, Target, CreditCard, LogOut } from 'lucide-react';
+import { Settings, Repeat, Inbox, Users, PiggyBank, Calculator, Target, CreditCard, LogOut, TrendingUp } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../utils/db';
 import { useAuth } from './hooks/useAuth';
@@ -14,6 +14,7 @@ const Sidebar = ({ currentPage, setPage }) => {
   const allNavItems = [
     { id: 'inbox', label: 'Posteingang', icon: Inbox, count: inboxCount },
     { id: 'transactions', label: 'Transactions', icon: Repeat },
+    { id: 'investments', label: 'Investments', icon: TrendingUp },
     { id: 'shared-expenses', label: 'Geteilte Ausgaben', icon: Users },
     { id: 'budget', label: 'Budget', icon: Calculator },
     { id: 'debts', label: 'Schulden', icon: CreditCard },
@@ -41,19 +42,31 @@ const Sidebar = ({ currentPage, setPage }) => {
   return (
     <aside className="w-20 p-4 flex-shrink-0 hidden md:flex flex-col h-screen sticky top-0" style={{ backgroundColor: jonyColors.background, borderRight: `1px solid ${jonyColors.border}` }}>
       {/* Logo */}
-      <div className="flex justify-center mb-8">
+      <div className="flex justify-center mb-12 mt-4">
         <button 
           onClick={() => setPage('dashboard')}
-          className="w-12 h-12 flex items-center justify-center rounded-xl" 
-          style={{ backgroundColor: jonyColors.surface, border: `1px solid ${jonyColors.cardBorder}` }}
+          className="w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-200" 
+          style={{ 
+            background: `linear-gradient(135deg, ${jonyColors.accent1}, ${jonyColors.greenDark})`,
+            border: 'none',
+            boxShadow: '0 4px 16px rgba(34, 197, 94, 0.2)'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.transform = 'scale(1.05)';
+            e.target.style.boxShadow = '0 8px 32px rgba(34, 197, 94, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.transform = 'scale(1)';
+            e.target.style.boxShadow = '0 4px 16px rgba(34, 197, 94, 0.2)';
+          }}
           title="Dashboard"
         >
-          <PiggyBank className="w-6 h-6" style={{ color: jonyColors.accent1 }} strokeWidth={1.5} />
+          <PiggyBank className="w-6 h-6 text-black" strokeWidth={1.5} />
         </button>
       </div>
       
       {/* Navigation */}
-      <nav className="flex-1 flex flex-col items-center space-y-3">
+      <nav className="flex-1 flex flex-col items-center space-y-4">
         {navItems.map(item => {
           const isActive = currentPage === item.id;
           
@@ -61,28 +74,42 @@ const Sidebar = ({ currentPage, setPage }) => {
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
-              className="w-12 h-12 flex items-center justify-center rounded-xl transition-colors duration-200 group relative"
+              className={`w-12 h-12 flex items-center justify-center rounded-xl group relative transition-all duration-200 ${
+                isActive 
+                  ? '' 
+                  : 'hover:bg-opacity-80'
+              }`}
               style={{
                 backgroundColor: isActive ? jonyColors.accent1Alpha : jonyColors.cardBackground,
-                color: isActive ? jonyColors.accent1 : jonyColors.textSecondary,
                 border: `1px solid ${isActive ? jonyColors.accent1 : jonyColors.cardBorder}`
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
-                  e.target.style.backgroundColor = jonyColors.surface;
-                  e.target.style.color = jonyColors.textPrimary;
+                  e.currentTarget.style.backgroundColor = jonyColors.surface;
+                  e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
+                  const icon = e.currentTarget.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.textPrimary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
-                  e.target.style.backgroundColor = jonyColors.cardBackground;
-                  e.target.style.color = jonyColors.textSecondary;
+                  e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
+                  e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
+                  const icon = e.currentTarget.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.textSecondary;
                 }
               }}
               title={item.label}
             >
               <div className="relative">
-                <item.icon className="w-5 h-5" strokeWidth={1.5} />
+                <item.icon 
+                  className="w-5 h-5" 
+                  strokeWidth={1.5} 
+                  style={{ 
+                    color: isActive ? jonyColors.accent1 : jonyColors.textSecondary,
+                    transition: 'color 0.2s ease'
+                  }}
+                />
                 {/* Badge for inbox count */}
                 {item.count > 0 && (
                   <span className="absolute -top-2 -right-2 w-4 h-4 text-xs font-medium rounded-full flex items-center justify-center" 
@@ -103,7 +130,7 @@ const Sidebar = ({ currentPage, setPage }) => {
       </nav>
       
       {/* Bottom Items */}
-      <div className="pt-4 flex flex-col items-center space-y-3" style={{ borderTop: `1px solid ${jonyColors.border}` }}>
+      <div className="pt-4 flex flex-col items-center space-y-6" style={{ borderTop: `1px solid ${jonyColors.border}` }}>
         {bottomItems.map(item => {
           const isActive = currentPage === item.id;
           
@@ -111,27 +138,41 @@ const Sidebar = ({ currentPage, setPage }) => {
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
-              className="w-12 h-12 flex items-center justify-center rounded-xl transition-colors duration-200 group relative"
+              className={`w-12 h-12 flex items-center justify-center rounded-xl group relative transition-all duration-200 ${
+                isActive 
+                  ? '' 
+                  : 'hover:bg-opacity-80'
+              }`}
               style={{
-                backgroundColor: isActive ? jonyColors.accent2Alpha : jonyColors.cardBackground,
-                color: isActive ? jonyColors.accent2 : jonyColors.textSecondary,
-                border: `1px solid ${isActive ? jonyColors.accent2 : jonyColors.cardBorder}`
+                backgroundColor: isActive ? jonyColors.accent1Alpha : jonyColors.cardBackground,
+                border: `1px solid ${isActive ? jonyColors.accent1 : jonyColors.cardBorder}`
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
-                  e.target.style.backgroundColor = jonyColors.surface;
-                  e.target.style.color = jonyColors.textPrimary;
+                  e.currentTarget.style.backgroundColor = jonyColors.surface;
+                  e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
+                  const icon = e.currentTarget.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.textPrimary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
-                  e.target.style.backgroundColor = jonyColors.cardBackground;
-                  e.target.style.color = jonyColors.textSecondary;
+                  e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
+                  e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
+                  const icon = e.currentTarget.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.textSecondary;
                 }
               }}
               title={item.label}
             >
-              <item.icon className="w-5 h-5" strokeWidth={1.5} />
+              <item.icon 
+                className="w-5 h-5" 
+                strokeWidth={1.5} 
+                style={{ 
+                  color: isActive ? jonyColors.accent1 : jonyColors.textSecondary,
+                  transition: 'color 0.2s ease'
+                }}
+              />
               {/* Tooltip */}
               <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
                    style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>

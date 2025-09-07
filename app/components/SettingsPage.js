@@ -4,22 +4,24 @@ import { Settings, Palette, Trash2, Plus, Edit, Folder, Users, Sliders, Database
 import ConfirmationModal from './ui/ConfirmationModal';
 import CategoryEditModal from './CategoryEditModal';
 import { db } from '../utils/db';
+import { jonyColors } from '../theme';
 
 const SettingsPage = ({ settings, setSettings, categories, setCategories, enhancedClassifier, useEnhancedML }) => {
   // Profile States (need to be declared first since they're used in useLiveQuery)
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
     userName: '',
     age: '',
     annualIncome: '',
     monthlyExpenses: ''
   });
+  const [hasProfileChanges, setHasProfileChanges] = useState(false);
 
   // Live-Daten aus der Datenbank
   const liveCategories = useLiveQuery(() => db.categories.toArray(), []) || [];
   const pageVisibilitySettings = useLiveQuery(() => db.settings.get('pageVisibility'), []);
-  // Nur userSettings laden wenn nicht editiert wird, um Input-Interferenz zu vermeiden
-  const userSettings = useLiveQuery(() => db.settings.get('userProfile'), []) || {};
+  // userSettings nur laden, nicht bei jedem Re-Render aktualisieren
+  const userSettingsRaw = useLiveQuery(() => db.settings.get('userProfile'), []);
+  const userSettings = React.useMemo(() => userSettingsRaw || {}, [userSettingsRaw?.value]);
   
   // UI States
   const [activeTab, setActiveTab] = useState('profile');
@@ -29,6 +31,8 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [deleteAllCategoriesConfirm, setDeleteAllCategoriesConfirm] = useState(false);
+  const [deleteAllCategoriesText, setDeleteAllCategoriesText] = useState('');
   
   // Grouping States
   const [isGroupModalOpen, setGroupModalOpen] = useState(false);
@@ -64,63 +68,30 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     }
   ];
 
-  // Load profile data when userSettings changes (only when not editing)
+  // Load profile data when userSettings changes - but only when not actively editing
   React.useEffect(() => {
-    if (!isEditingProfile && userSettings?.value) {
-      setProfileData({
-        userName: userSettings.value.userName || '',
-        age: userSettings.value.age || '',
-        annualIncome: userSettings.value.annualIncome || '',
-        monthlyExpenses: userSettings.value.monthlyExpenses || ''
-      });
-    } else if (!isEditingProfile && !userSettings?.value) {
-      setProfileData({
-        userName: '',
-        age: '',
-        annualIncome: '',
-        monthlyExpenses: ''
-      });
+    if (!hasProfileChanges) {
+      if (userSettings?.value) {
+        setProfileData({
+          userName: userSettings.value.userName || '',
+          age: userSettings.value.age || '',
+          annualIncome: userSettings.value.annualIncome || '',
+          monthlyExpenses: userSettings.value.monthlyExpenses || ''
+        });
+      } else {
+        setProfileData({
+          userName: '',
+          age: '',
+          annualIncome: '',
+          monthlyExpenses: ''
+        });
+      }
     }
-  }, [userSettings?.value?.userName, userSettings?.value?.age, userSettings?.value?.annualIncome, userSettings?.value?.monthlyExpenses, isEditingProfile]);
+  }, [userSettings?.value, hasProfileChanges]);
 
   // --- HANDLERS ---
   
   // Profile Management
-  const handleProfileEdit = async () => {
-    // Aktuelle Daten aus der Datenbank laden bevor Edit-Modus startet
-    const currentUserSettings = await db.settings.get('userProfile');
-    if (currentUserSettings?.value) {
-      setProfileData({
-        userName: currentUserSettings.value.userName || '',
-        age: currentUserSettings.value.age || '',
-        annualIncome: currentUserSettings.value.annualIncome || '',
-        monthlyExpenses: currentUserSettings.value.monthlyExpenses || ''
-      });
-    }
-    setIsEditingProfile(true);
-  };
-
-  const handleProfileCancel = async () => {
-    // Reset to original values from database
-    const currentUserSettings = await db.settings.get('userProfile');
-    if (currentUserSettings?.value) {
-      setProfileData({
-        userName: currentUserSettings.value.userName || '',
-        age: currentUserSettings.value.age || '',
-        annualIncome: currentUserSettings.value.annualIncome || '',
-        monthlyExpenses: currentUserSettings.value.monthlyExpenses || ''
-      });
-    } else {
-      setProfileData({
-        userName: '',
-        age: '',
-        annualIncome: '',
-        monthlyExpenses: ''
-      });
-    }
-    setIsEditingProfile(false);
-  };
-
   const handleProfileSave = async () => {
     try {
       await db.settings.put({
@@ -135,7 +106,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
           updatedAt: new Date().toISOString()
         }
       });
-      setIsEditingProfile(false);
+      setHasProfileChanges(false);
     } catch (error) {
       console.error('Fehler beim Speichern der Profildaten:', error);
     }
@@ -146,16 +117,19 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
       ...prev,
       [field]: value
     }));
+    setHasProfileChanges(true);
   };
   
   // Page Visibility Management
   const handlePageVisibilityToggle = async (pageId) => {
-    if (!pageVisibilitySettings) return;
+    const currentSettings = pageVisibilitySettings?.value || {};
     
-    const currentSettings = pageVisibilitySettings.value || {};
+    // Get current visibility (default to true if not set)
+    const currentVisibility = currentSettings[pageId] !== false;
+    
     const newSettings = {
       ...currentSettings,
-      [pageId]: !currentSettings[pageId]
+      [pageId]: !currentVisibility
     };
     
     try {
@@ -163,6 +137,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
         key: 'pageVisibility',
         value: newSettings
       });
+      console.log(`Sichtbarkeit für ${pageId} geändert zu:`, !currentVisibility);
     } catch (error) {
       console.error('Fehler beim Aktualisieren der Seitensichtbarkeit:', error);
     }
@@ -215,6 +190,30 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     } catch (error) {
       console.error('Fehler beim Löschen der Kategorie:', error);
     }
+  };
+
+  const handleDeleteAllCategories = async () => {
+    if (deleteAllCategoriesText !== 'ALLE LÖSCHEN') {
+      return;
+    }
+    
+    try {
+      // Delete all categories and their associated budgets
+      await Promise.all([
+        db.categories.clear(),
+        db.budgets.clear()
+      ]);
+      console.log('Alle Kategorien wurden gelöscht.');
+      setDeleteAllCategoriesConfirm(false);
+      setDeleteAllCategoriesText('');
+    } catch (error) {
+      console.error('Fehler beim Löschen aller Kategorien:', error);
+    }
+  };
+
+  const handleCloseDeleteAllCategoriesModal = () => {
+    setDeleteAllCategoriesConfirm(false);
+    setDeleteAllCategoriesText('');
   };
 
   // Grouping Functions
@@ -383,7 +382,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     { id: 'savings-goals', label: 'Sparziele', icon: Target, description: 'Langfristige Sparziele' }
   ];
 
-  // Pages Tab Component
+  // Pages Tab Component - Matching Profile Style
   const PagesTab = () => {
     const visibilitySettings = pageVisibilitySettings?.value || {};
     
@@ -391,51 +390,68 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Seiten verwalten</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Wähle aus, welche Seiten in der Sidebar angezeigt werden sollen.</p>
+            <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>Seiten verwalten</h2>
+            <p className="text-sm mt-1" style={{ color: jonyColors.textSecondary }}>Konfiguriere sichtbare Navigation</p>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-200 dark:divide-slate-700">
+        {/* Pages List - Direct Style */}
+        <div className="space-y-3">
           {availablePages.map((page) => {
             const Icon = page.icon;
             const isVisible = visibilitySettings[page.id] !== false;
             
             return (
-              <div key={page.id} className="flex items-center justify-between p-4 group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <Icon className="w-5 h-5 text-white" />
+              <div 
+                key={page.id} 
+                className="flex items-center justify-between p-4 border rounded-xl group transition-colors"
+                style={{
+                  backgroundColor: jonyColors.cardBackground,
+                  border: `1px solid ${jonyColors.border}`
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = jonyColors.surface;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{
+                    backgroundColor: jonyColors.accent1Alpha
+                  }}>
+                    <Icon className="w-4 h-4" style={{ color: jonyColors.accent1 }} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-slate-100">{page.label}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{page.description}</p>
+                    <h3 className="font-medium" style={{ color: jonyColors.textPrimary }}>{page.label}</h3>
+                    <p className="text-xs" style={{ color: jonyColors.textSecondary }}>{page.description}</p>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-3">
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    isVisible 
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                  }`}>
+                  <span className="text-xs font-medium" style={{
+                    color: isVisible ? jonyColors.accent1 : jonyColors.textSecondary
+                  }}>
                     {isVisible ? 'Sichtbar' : 'Versteckt'}
-                  </div>
+                  </span>
                   
                   <button
                     onClick={() => handlePageVisibilityToggle(page.id)}
                     disabled={page.id === 'dashboard'}
-                    className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
-                      page.id === 'dashboard'
-                        ? 'bg-slate-300 dark:bg-slate-600 opacity-50 cursor-not-allowed'
+                    className="relative inline-flex items-center h-5 w-9 rounded-full transition-colors"
+                    style={{
+                      backgroundColor: page.id === 'dashboard' 
+                        ? jonyColors.border
                         : isVisible 
-                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600' 
-                          : 'bg-slate-300 dark:bg-slate-600'
-                    }`}
+                          ? jonyColors.accent1
+                          : jonyColors.border,
+                      opacity: page.id === 'dashboard' ? 0.5 : 1,
+                      cursor: page.id === 'dashboard' ? 'not-allowed' : 'pointer'
+                    }}
                   >
                     <span
-                      className={`inline-block w-4 h-4 transform rounded-full bg-white shadow-lg transition-transform ${
-                        isVisible ? 'translate-x-6' : 'translate-x-1'
+                      className={`inline-block w-3 h-3 transform rounded-full bg-white shadow-sm transition-transform ${
+                        isVisible ? 'translate-x-5' : 'translate-x-1'
                       }`}
                     />
                   </button>
@@ -445,328 +461,348 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
           })}
         </div>
         
-        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-          <div className="flex items-start gap-3">
-            <div className="w-5 h-5 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-              <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Hinweis</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Versteckte Seiten sind weiterhin über die URL erreichbar, werden aber nicht in der Sidebar angezeigt. 
-                Das Dashboard kann nicht versteckt werden, da es die Startseite ist.
-              </p>
-            </div>
-          </div>
+        {/* Info Note */}
+        <div className="p-4 border rounded-xl" style={{ 
+          backgroundColor: jonyColors.cardBackground, 
+          border: `1px solid ${jonyColors.border}` 
+        }}>
+          <p className="text-xs" style={{ color: jonyColors.textSecondary }}>
+            Versteckte Seiten sind über die URL erreichbar, aber nicht in der Sidebar sichtbar. Das Dashboard kann nicht versteckt werden.
+          </p>
         </div>
       </div>
     );
   };
 
-  // Categories Tab Component
+  // Categories Tab Component - Matching Profile Style
   const CategoriesTab = () => (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Kategorien verwalten</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Organisiere deine Ausgabenkategorien in Gruppen.</p>
+          <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>Kategorien verwalten</h2>
+          <p className="text-sm mt-1" style={{ color: jonyColors.textSecondary }}>Organisiere deine Ausgabenkategorien</p>
         </div>
-        <button
-          onClick={() => { setEditingCategory(null); setEditModalOpen(true); }}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg shadow-md hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-all"
-        >
-          <Plus className="w-5 h-5" />
-          Neue Kategorie
-        </button>
+        <div className="flex items-center gap-3">
+          {liveCategories.length > 0 && (
+            <button
+              onClick={() => setDeleteAllCategoriesConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200"
+              style={{ 
+                backgroundColor: jonyColors.redAlpha,
+                color: jonyColors.red
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = jonyColors.red;
+                e.target.style.color = 'white';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = jonyColors.redAlpha;
+                e.target.style.color = jonyColors.red;
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+              Alle löschen
+            </button>
+          )}
+          <button
+            onClick={() => { setEditingCategory(null); setEditModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200"
+            style={{ 
+              backgroundColor: jonyColors.accent1,
+              color: 'black'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'scale(1)';
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            Neue Kategorie
+          </button>
+        </div>
       </div>
 
-      {/* Grouped Categories */}
-      {organizedCategories.grouped.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Gruppen</h3>
-          {organizedCategories.grouped.map((group) => (
-            <div key={group.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50" onClick={() => toggleGroupExpansion(group.id)}>
-                <div className="flex items-center gap-4">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }}></div>
-                  <div>
-                    <h4 className="font-semibold text-slate-900 dark:text-slate-100">{group.name}</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{group.subcategories.length} Unterkategorien</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={(e) => { e.stopPropagation(); handleEditCategory(group); }} className="p-2 text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors" title="Bearbeiten"><Edit className="w-4 h-4" /></button>
-                  <button onClick={(e) => { e.stopPropagation(); handleDeleteRequest(group.id); }} className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors" title="Löschen"><Trash2 className="w-4 h-4" /></button>
-                  <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${expandedGroups.has(group.id) ? 'rotate-180' : ''}`} />
-                </div>
-              </div>
-              {expandedGroups.has(group.id) && (
-                <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-2">
-                  {group.subcategories.map((subcat) => (
-                    <div key={subcat.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 group">
-                      <div className="flex items-center gap-3"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: subcat.color }}></div><span className="font-medium text-slate-800 dark:text-slate-200">{subcat.name}</span></div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleUngroupCategory(subcat)} className="px-2 py-1 text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/50 rounded transition-colors">Entgruppieren</button>
-                        <button onClick={() => handleEditCategory(subcat)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 rounded transition-colors"><Edit className="w-4 h-4" /></button>
-                        <button onClick={() => handleDeleteRequest(subcat.id)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+      {/* Categories List - Direct Style */}
+      <div className="space-y-3">
+        {liveCategories.map((category) => (
+          <div key={category.id} className="flex items-center justify-between p-4 border rounded-xl group transition-colors"
+            style={{
+              backgroundColor: jonyColors.cardBackground,
+              border: `1px solid ${jonyColors.border}`
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = jonyColors.surface;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
+            }}>
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 rounded-full" style={{ backgroundColor: category.color }}></div>
+              <span className="font-medium" style={{ color: jonyColors.textPrimary }}>{category.name}</span>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Ungrouped Categories */}
-      {organizedCategories.ungrouped.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Einzelne Kategorien</h3>
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-200 dark:divide-slate-700">
-            {organizedCategories.ungrouped.map((category) => (
-              <div key={category.id} className="flex items-center justify-between p-4 group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                <div className="flex items-center gap-4"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }}></div><span className="font-semibold text-slate-900 dark:text-slate-100">{category.name}</span></div>
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => handleGroupCategory(category)} className="px-3 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-full flex items-center gap-1"> <Users className="w-3 h-3" /> Gruppieren</button>
-                  <button onClick={() => handleEditCategory(category)} className="p-2 text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"><Edit className="w-4 h-4" /></button>
-                  <button onClick={() => handleDeleteRequest(category.id)} className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))}
+            
+            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => handleEditCategory(category)} className="p-2 rounded-lg transition-colors" style={{ 
+                backgroundColor: jonyColors.accent1Alpha,
+                color: jonyColors.accent1
+              }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.accent1;
+                  e.target.style.color = 'black';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                  e.target.style.color = jonyColors.accent1;
+                }}
+                title="Bearbeiten">
+                <Edit className="w-4 h-4" />
+              </button>
+              <button onClick={() => handleDeleteRequest(category.id)} className="p-2 rounded-lg transition-colors" style={{ 
+                backgroundColor: jonyColors.redAlpha,
+                color: jonyColors.red
+              }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.red;
+                  e.target.style.color = 'white';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.redAlpha;
+                  e.target.style.color = jonyColors.red;
+                }}
+                title="Löschen">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-
-      {liveCategories.length === 0 && (
-        <div className="text-center py-16 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-          <Palette className="w-12 h-12 mx-auto text-slate-400 dark:text-slate-500" />
-          <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Keine Kategorien vorhanden</h3>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Erstelle deine erste Kategorie, um loszulegen.</p>
-        </div>
-      )}
+        ))}
+        
+        {/* Empty State */}
+        {liveCategories.length === 0 && (
+          <div className="p-8 text-center border rounded-xl" style={{
+            backgroundColor: jonyColors.cardBackground,
+            border: `1px solid ${jonyColors.border}`
+          }}>
+            <div className="text-sm" style={{ color: jonyColors.textSecondary }}>Keine Kategorien vorhanden</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 
+  // Data Tab Component - Matching Profile Style
   const DataTab = () => (
-    <div className="space-y-6">
-      {/* Export Section */}
-      <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-3">
-          <Download className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-          <div>
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Daten exportieren</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Backup aller Finanzdaten erstellen</p>
-          </div>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>Datenverwaltung</h2>
+          <p className="text-sm mt-1" style={{ color: jonyColors.textSecondary }}>Exportiere oder lösche deine Daten</p>
         </div>
-        <button 
-          onClick={handleExportData}
-          className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium rounded-lg transition-all duration-200"
-        >
-          Backup erstellen
-        </button>
       </div>
 
-      {/* Delete All Section */}
-      <div className="flex items-center justify-between py-4">
-        <div className="flex items-center gap-3">
-          <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
-          <div>
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Alle Daten löschen</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Unwiderruflich alle Daten entfernen</p>
+      {/* Data Actions - Direct Style */}
+      <div className="space-y-4">
+        {/* Export Action */}
+        <div className="flex items-center justify-between p-4 border rounded-xl group transition-colors cursor-pointer"
+          style={{
+            backgroundColor: jonyColors.cardBackground,
+            border: `1px solid ${jonyColors.border}`
+          }}
+          onClick={handleExportData}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = jonyColors.surface;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
+          }}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{
+              backgroundColor: jonyColors.accent1Alpha
+            }}>
+              <Download className="w-4 h-4" style={{ color: jonyColors.accent1 }} />
+            </div>
+            <div>
+              <h3 className="font-medium" style={{ color: jonyColors.textPrimary }}>Backup erstellen</h3>
+              <p className="text-xs" style={{ color: jonyColors.textSecondary }}>Exportiere alle deine Finanzdaten</p>
+            </div>
           </div>
+          <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: jonyColors.accent1 }}>
+            Klicken zum Exportieren
+          </span>
         </div>
-        <button 
-          onClick={() => setDeleteAllConfirmOpen(true)} 
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors duration-200"
-        >
-          Alle löschen
-        </button>
+
+        {/* Delete Action */}
+        <div className="flex items-center justify-between p-4 border rounded-xl group transition-colors cursor-pointer"
+          style={{
+            backgroundColor: jonyColors.cardBackground,
+            border: `1px solid ${jonyColors.border}`
+          }}
+          onClick={() => setDeleteAllConfirmOpen(true)}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = jonyColors.redAlpha;
+            e.currentTarget.style.borderColor = jonyColors.red;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
+            e.currentTarget.style.borderColor = jonyColors.border;
+          }}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center group-hover:bg-red-500 transition-colors" style={{
+              backgroundColor: jonyColors.redAlpha
+            }}>
+              <Trash2 className="w-4 h-4 group-hover:text-white transition-colors" style={{ color: jonyColors.red }} />
+            </div>
+            <div>
+              <h3 className="font-medium group-hover:text-red-600 transition-colors" style={{ color: jonyColors.textPrimary }}>Alle Daten löschen</h3>
+              <p className="text-xs group-hover:text-red-500 transition-colors" style={{ color: jonyColors.textSecondary }}>Komplett zurücksetzen (unwiderruflich)</p>
+            </div>
+          </div>
+          <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: jonyColors.red }}>
+            Mit Vorsicht verwenden
+          </span>
+        </div>
       </div>
     </div>
   );
 
-  // Profile Tab Component
+  // Profile Tab Component - Direct Edit Style
   const ProfileTab = () => (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Profil verwalten</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Personalisiere deine App-Einstellungen und Anzeigename.</p>
+          <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>Profil verwalten</h2>
+          <p className="text-sm mt-1" style={{ color: jonyColors.textSecondary }}>Deine persönlichen Finanzdaten</p>
         </div>
-        {!isEditingProfile && (
+        {hasProfileChanges && (
           <button
-            onClick={handleProfileEdit}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-lg shadow-md hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-all"
+            onClick={handleProfileSave}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200"
+            style={{ 
+              backgroundColor: jonyColors.accent1,
+              color: 'black'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'scale(1)';
+            }}
           >
-            <Edit className="w-4 h-4" />
-            Bearbeiten
+            <Save className="w-4 h-4" />
+            Speichern
           </button>
         )}
       </div>
 
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
-        <div className="p-6">
-          {/* Profile Header */}
-          <div className="flex items-center gap-6 mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <User className="w-10 h-10 text-white" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                {isEditingProfile ? 'Profil bearbeiten' : profileData.userName || 'Benutzerprofil'}
-              </h3>
-              <p className="text-slate-500 dark:text-slate-400">
-                {isEditingProfile ? 'Ändere deine persönlichen Daten' : 'Willkommen in deiner Finanz-App'}
-              </p>
-            </div>
-          </div>
-
-          {/* Profile Fields */}
-          <div className="space-y-6">
-            {/* User Name Field */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Benutzername
-              </label>
-              <div className="relative">
-                {isEditingProfile ? (
-                  <input
-                    type="text"
-                    value={profileData.userName || ''}
-                    onChange={(e) => handleProfileInputChange('userName', e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                    placeholder="Dein Name"
-                    autoComplete="off"
-                    spellCheck="false"
-                  />
-                ) : (
-                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
-                    {profileData.userName || 'Noch kein Name gesetzt'}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Dieser Name wird im Dashboard und anderen Stellen der App angezeigt.
-              </p>
-            </div>
-
-            {/* Age Field */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Alter
-              </label>
-              <div className="relative">
-                {isEditingProfile ? (
-                  <input
-                    type="number"
-                    min="18"
-                    max="120"
-                    value={profileData.age || ''}
-                    onChange={(e) => handleProfileInputChange('age', e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                    placeholder="z.B. 30"
-                  />
-                ) : (
-                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
-                    {profileData.age ? `${profileData.age} Jahre` : 'Noch kein Alter angegeben'}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Wird für die Berechnung des Finanz-Alters benötigt.
-              </p>
-            </div>
-
-            {/* Annual Income Field */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Brutto-Jahreseinkommen
-              </label>
-              <div className="relative">
-                {isEditingProfile ? (
-                  <input
-                    type="number"
-                    min="0"
-                    step="100"
-                    value={profileData.annualIncome || ''}
-                    onChange={(e) => handleProfileInputChange('annualIncome', e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                    placeholder="z.B. 50000"
-                  />
-                ) : (
-                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
-                    {profileData.annualIncome ? `${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(profileData.annualIncome)}` : 'Noch kein Einkommen angegeben'}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Wird für die Berechnung des Finanz-Alters und der FI-Zahl verwendet.
-              </p>
-            </div>
-
-            {/* Monthly Expenses Field */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Geplante monatliche Ausgaben im Ruhestand
-              </label>
-              <div className="relative">
-                {isEditingProfile ? (
-                  <input
-                    type="number"
-                    min="0"
-                    step="10"
-                    value={profileData.monthlyExpenses || ''}
-                    onChange={(e) => handleProfileInputChange('monthlyExpenses', e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                    placeholder="z.B. 2500"
-                  />
-                ) : (
-                  <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100">
-                    {profileData.monthlyExpenses ? `${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(profileData.monthlyExpenses)}` : 'Noch keine Ausgaben angegeben'}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Wird für die Berechnung der FI-Zahl (25x Regel) und der Zeit bis zur finanziellen Unabhängigkeit verwendet.
-              </p>
-            </div>
-
-            {/* Action Buttons */}
-            {isEditingProfile && (
-              <div className="flex gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <button
-                  onClick={handleProfileCancel}
-                  className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  onClick={handleProfileSave}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  Speichern
-                </button>
-              </div>
-            )}
-          </div>
+      {/* Profile Fields - Direct Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* User Name */}
+        <div>
+          <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+            Name
+          </label>
+          <input
+            type="text"
+            value={profileData.userName || ''}
+            onChange={(e) => handleProfileInputChange('userName', e.target.value)}
+            className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+            style={{
+              backgroundColor: jonyColors.cardBackground,
+              color: jonyColors.textPrimary,
+              border: `1px solid ${jonyColors.border}`
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = jonyColors.textSecondary;
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = jonyColors.border;
+            }}
+            placeholder="Dein Name"
+            autoComplete="off"
+            spellCheck="false"
+          />
         </div>
-      </div>
 
-      {/* Additional Profile Info */}
-      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-        <div className="flex items-start gap-3">
-          <div className="w-5 h-5 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-            <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
-          </div>
-          <div>
-            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Personalisierung</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Deine Einstellungen werden lokal gespeichert und synchronisieren sich nicht zwischen Geräten. 
-              Die Änderungen werden sofort in der gesamten App übernommen.
-            </p>
-          </div>
+        {/* Age */}
+        <div>
+          <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+            Alter
+          </label>
+          <input
+            type="number"
+            min="18"
+            max="120"
+            value={profileData.age || ''}
+            onChange={(e) => handleProfileInputChange('age', e.target.value)}
+            className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+            style={{
+              backgroundColor: jonyColors.cardBackground,
+              color: jonyColors.textPrimary,
+              border: `1px solid ${jonyColors.border}`
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = jonyColors.textSecondary;
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = jonyColors.border;
+            }}
+            placeholder="30"
+          />
+        </div>
+
+        {/* Annual Income */}
+        <div>
+          <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+            Jahreseinkommen
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="1000"
+            value={profileData.annualIncome || ''}
+            onChange={(e) => handleProfileInputChange('annualIncome', e.target.value)}
+            className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+            style={{
+              backgroundColor: jonyColors.cardBackground,
+              color: jonyColors.textPrimary,
+              border: `1px solid ${jonyColors.border}`
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = jonyColors.textSecondary;
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = jonyColors.border;
+            }}
+            placeholder="50000"
+          />
+        </div>
+
+        {/* Monthly Expenses */}
+        <div>
+          <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+            Monatliche Ausgaben (Ruhestand)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="100"
+            value={profileData.monthlyExpenses || ''}
+            onChange={(e) => handleProfileInputChange('monthlyExpenses', e.target.value)}
+            className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+            style={{
+              backgroundColor: jonyColors.cardBackground,
+              color: jonyColors.textPrimary,
+              border: `1px solid ${jonyColors.border}`
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = jonyColors.textSecondary;
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = jonyColors.border;
+            }}
+            placeholder="2500"
+          />
         </div>
       </div>
     </div>
@@ -783,20 +819,23 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-200 p-4 sm:p-6 md:p-8 flex flex-col items-center">
+    <div className="min-h-screen font-sans flex flex-col items-center" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
       <div className="w-full max-w-7xl mx-auto">
-        {/* ## Page Header mit Grid-Layout ## */}
-        <header className="mb-8">
+        {/* Page Header */}
+        <div className="px-6 py-8 mb-8">
           <div className="grid grid-cols-3 items-center">
-            {/* Linke Spalte: Titel */}
-            <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Einstellungen</h1>
+            {/* Left: Title */}
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+              <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
+                Einstellungen
+              </h1>
             </div>
 
-            {/* Mittlere Spalte: Leer */}
+            {/* Middle: Empty */}
             <div></div>
 
-            {/* Rechte Spalte: Navigation */}
+            {/* Right: Navigation */}
             <div className="flex justify-end">
               <nav className="flex items-center gap-1">
                 {tabs.map((tab, index) => {
@@ -807,66 +846,89 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`relative flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                        isActive
-                          ? 'text-purple-600 dark:text-purple-400'
-                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
-                      }`}
+                      className="relative flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200"
+                      style={{
+                        color: isActive ? jonyColors.accent1 : '#ffffff'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.target.style.color = '#ffffff';
+                          const icon = e.target.querySelector('svg');
+                          if (icon) icon.style.color = '#ffffff';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.target.style.color = '#ffffff';
+                          const icon = e.target.querySelector('svg');
+                          if (icon) icon.style.color = '#ffffff';
+                        }
+                      }}
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-4 h-4" style={{
+                        color: isActive ? jonyColors.accent1 : '#ffffff'
+                      }} />
                       <span>{tab.label}</span>
                       {tab.count && (
-                        <span className={`ml-1 px-1.5 py-0.5 text-xs font-medium rounded-full ${
-                          isActive 
-                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' 
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                        }`}>
+                        <span 
+                          className="ml-1 px-1.5 py-0.5 text-xs font-medium rounded-full"
+                          style={{
+                            backgroundColor: isActive ? jonyColors.accent1Alpha : jonyColors.cardBackground,
+                            color: isActive ? jonyColors.accent1 : '#ffffff'
+                          }}
+                        >
                           {tab.count}
                         </span>
                       )}
                       
-                      {/* Active underline */}
-                      {isActive && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full"></div>
-                      )}
                     </button>
                   );
                 })}
               </nav>
             </div>
           </div>
-        </header>
+        </div>
 
         {/* Content */}
-        <main>
-          {renderContent()}
-        </main>
+        <div className="px-6 mb-12">
+          <div className="max-w-7xl mx-auto">
+            {renderContent()}
+          </div>
+        </div>
       </div>
 
       {/* Modals */}
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setConfirmOpen(false)} onConfirm={handleDeleteConfirm} title="Kategorie löschen" message="Möchtest du diese Kategorie wirklich löschen? Zugehörige Budgets werden ebenfalls entfernt." />
 {/* Enhanced Delete All Data Modal */}
       {isDeleteAllConfirmOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg border border-red-200 dark:border-red-800/50">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-lg border" style={{ 
+            backgroundColor: jonyColors.surface, 
+            border: `1px solid ${jonyColors.red}` 
+          }}>
             <div className="p-8">
               {/* Header */}
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg" style={{
+                  background: `linear-gradient(to bottom right, ${jonyColors.red}, ${jonyColors.redDark})`
+                }}>
                   <Trash2 className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-red-800 dark:text-red-300">Alle Daten löschen?</h2>
-                  <p className="text-sm text-red-600 dark:text-red-400 font-medium">Dieser Vorgang ist unwiderruflich</p>
+                  <h2 className="text-2xl font-bold" style={{ color: jonyColors.red }}>Alle Daten löschen?</h2>
+                  <p className="text-sm font-medium" style={{ color: jonyColors.red }}>Dieser Vorgang ist unwiderruflich</p>
                 </div>
               </div>
               
               {/* Warning Message */}
-              <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/50 rounded-xl p-4 mb-6">
-                <p className="text-sm text-red-700 dark:text-red-300 leading-relaxed">
+              <div className="rounded-xl p-4 mb-6 border" style={{ 
+                backgroundColor: jonyColors.redAlpha, 
+                border: `1px solid ${jonyColors.red}` 
+              }}>
+                <p className="text-sm leading-relaxed" style={{ color: jonyColors.textPrimary }}>
                   <span className="font-semibold">Warnung:</span> Diese Aktion löscht permanent alle deine:
                 </p>
-                <ul className="text-sm text-red-600 dark:text-red-400 mt-2 ml-4 space-y-1">
+                <ul className="text-sm mt-2 ml-4 space-y-1" style={{ color: jonyColors.textPrimary }}>
                   <li>• Transaktionen und Kategorien</li>
                   <li>• Budgets und Sparziele</li>
                   <li>• Kontakte und geteilte Ausgaben</li>
@@ -876,14 +938,20 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               
               {/* Confirmation Input */}
               <div className="mb-8">
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
-                  Tippe <span className="px-2 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded font-mono text-xs">LÖSCHEN</span> um zu bestätigen:
+                <label className="block text-sm font-semibold mb-3" style={{ color: jonyColors.textPrimary }}>
+                  Tippe <span className="px-2 py-1 rounded font-mono text-xs" style={{ backgroundColor: jonyColors.redAlpha, color: jonyColors.red }}>LÖSCHEN</span> um zu bestätigen:
                 </label>
                 <input
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-red-200 dark:border-red-700 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-mono"
+                  className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 font-mono transition-colors"
+                  style={{ 
+                    backgroundColor: jonyColors.cardBackground,
+                    color: jonyColors.textPrimary,
+                    borderColor: jonyColors.red,
+                    '--tw-ring-color': jonyColors.red
+                  }}
                   placeholder="LÖSCHEN"
                 />
               </div>
@@ -892,14 +960,37 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               <div className="flex gap-4">
                 <button
                   onClick={handleCloseDeleteModal}
-                  className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl font-semibold transition-all duration-200"
+                  className="flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200"
+                  style={{
+                    backgroundColor: jonyColors.cardBackground,
+                    color: jonyColors.textSecondary
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = jonyColors.border;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = jonyColors.cardBackground;
+                  }}
                 >
                   Abbrechen
                 </button>
                 <button
                   onClick={handleDeleteAllData}
                   disabled={deleteConfirmText !== 'LÖSCHEN'}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
+                  className="flex-1 px-6 py-3 text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
+                  style={{
+                    background: `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})`
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!e.target.disabled) {
+                      e.target.style.transform = 'scale(1.02)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!e.target.disabled) {
+                      e.target.style.transform = 'scale(1)';
+                    }
+                  }}
                 >
                   Alle Daten löschen
                 </button>
@@ -928,6 +1019,106 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               {liveCategories.filter(cat => !cat.parentId && cat.id !== categoryToGroup.id).length === 0 && (
                 <div className="text-center py-8 text-slate-500 dark:text-slate-400"><Folder className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" /><p>Keine anderen Hauptkategorien verfügbar.</p></div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Categories Modal */}
+      {deleteAllCategoriesConfirm && (
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-lg border" style={{ 
+            backgroundColor: jonyColors.surface, 
+            border: `1px solid ${jonyColors.red}` 
+          }}>
+            <div className="p-8">
+              {/* Header */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg" style={{
+                  background: `linear-gradient(to bottom right, ${jonyColors.red}, ${jonyColors.redDark})`
+                }}>
+                  <Trash2 className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold" style={{ color: jonyColors.red }}>Alle Kategorien löschen?</h2>
+                  <p className="text-sm font-medium" style={{ color: jonyColors.red }}>Dieser Vorgang ist unwiderruflich</p>
+                </div>
+              </div>
+              
+              {/* Warning Message */}
+              <div className="rounded-xl p-4 mb-6 border" style={{ 
+                backgroundColor: jonyColors.redAlpha, 
+                border: `1px solid ${jonyColors.red}` 
+              }}>
+                <p className="text-sm leading-relaxed" style={{ color: jonyColors.textPrimary }}>
+                  <span className="font-semibold">Warnung:</span> Diese Aktion löscht permanent alle deine:
+                </p>
+                <ul className="text-sm mt-2 ml-4 space-y-1" style={{ color: jonyColors.textPrimary }}>
+                  <li>• Alle {liveCategories.length} Kategorien</li>
+                  <li>• Alle damit verbundenen Budgets</li>
+                  <li>• Kategorisierung bestehender Transaktionen geht verloren</li>
+                </ul>
+              </div>
+              
+              {/* Confirmation Input */}
+              <div className="mb-8">
+                <label className="block text-sm font-semibold mb-3" style={{ color: jonyColors.textPrimary }}>
+                  Tippe <span className="px-2 py-1 rounded font-mono text-xs" style={{ backgroundColor: jonyColors.redAlpha, color: jonyColors.red }}>ALLE LÖSCHEN</span> um zu bestätigen:
+                </label>
+                <input
+                  type="text"
+                  value={deleteAllCategoriesText}
+                  onChange={(e) => setDeleteAllCategoriesText(e.target.value)}
+                  className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 font-mono transition-colors"
+                  style={{ 
+                    backgroundColor: jonyColors.cardBackground,
+                    color: jonyColors.textPrimary,
+                    borderColor: jonyColors.red,
+                    '--tw-ring-color': jonyColors.red
+                  }}
+                  placeholder="ALLE LÖSCHEN"
+                />
+              </div>
+              
+              {/* Actions */}
+              <div className="flex gap-4">
+                <button
+                  onClick={handleCloseDeleteAllCategoriesModal}
+                  className="flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200"
+                  style={{
+                    backgroundColor: jonyColors.cardBackground,
+                    color: jonyColors.textSecondary
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = jonyColors.border;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = jonyColors.cardBackground;
+                  }}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleDeleteAllCategories}
+                  disabled={deleteAllCategoriesText !== 'ALLE LÖSCHEN'}
+                  className="flex-1 px-6 py-3 text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
+                  style={{
+                    background: `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})`
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!e.target.disabled) {
+                      e.target.style.transform = 'scale(1.02)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!e.target.disabled) {
+                      e.target.style.transform = 'scale(1)';
+                    }
+                  }}
+                >
+                  Alle Kategorien löschen
+                </button>
+              </div>
             </div>
           </div>
         </div>

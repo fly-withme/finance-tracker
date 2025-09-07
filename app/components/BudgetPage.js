@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Card from './ui/Card';
 import { db } from '../utils/db';
+import { jonyColors } from '../theme';
 
 const formatCurrency = (amount) => {
   if (isNaN(amount) || !isFinite(amount)) {
@@ -390,291 +391,357 @@ const BudgetPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-200 p-4 sm:p-6 md:p-8 flex flex-col items-center">
-      <div className="w-full max-w-7xl mx-auto">
-        {/* ## Page Header mit Grid-Layout ## */}
-        <header className="mb-8">
-          <div className="grid grid-cols-3 items-center">
-            {/* Linke Spalte: Titel */}
-            <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Budget</h1>
-              <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-sm rounded-full">
+    <div className="min-h-screen font-sans" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
+      <div className="px-6 py-8 mb-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+              <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
+                Budget
+              </h1>
+              <div className="px-3 py-1 rounded-full font-semibold text-sm" style={{ backgroundColor: jonyColors.accent1Alpha, color: jonyColors.accent1 }}>
                 {budgetData.length}
               </div>
             </div>
 
-            {/* Mittlere Spalte: Monats-Toggle, zentriert */}
-            <div className="flex items-center justify-center">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={goToPreviousMonth}
-                  className="bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 p-3 rounded-full transition-colors"
-                  title="Vorheriger Monat"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <div className="px-4 py-2 min-w-[180px] text-center">
-                  <span className="font-bold text-slate-800 dark:text-slate-200 text-2xl tracking-wide">
-                    {currentDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
-                  </span>
-                </div>
-                <button
-                  onClick={goToNextMonth}
-                  className="bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 p-3 rounded-full transition-colors"
-                  title="Nächster Monat"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Rechte Spalte: Buttons, ausgerichtet am Ende */}
-            <div className="flex justify-end gap-3">
-
+            {/* Month Navigation */}
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 text-white rounded-lg transition-all duration-300 ease-in-out font-medium shadow-lg hover:shadow-xl py-3 px-6 text-base"
+                onClick={goToPreviousMonth}
+                className="p-3 rounded-full transition-all duration-200"
+                style={{ backgroundColor: jonyColors.cardBackground, color: jonyColors.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                  e.target.style.color = jonyColors.accent1;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                  e.target.style.color = jonyColors.textSecondary;
+                }}
+                title="Vorheriger Monat"
               >
-                <Plus className="w-5 h-5" />
-                <span className="hidden sm:inline">Neues Budget</span>
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="px-4 py-2 min-w-[180px] text-center w-48">
+                <span className="font-bold text-xl" style={{ color: jonyColors.textPrimary }}>
+                  {currentDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+                </span>
+              </div>
+              <button
+                onClick={goToNextMonth}
+                className="p-3 rounded-full transition-all duration-200"
+                style={{ backgroundColor: jonyColors.cardBackground, color: jonyColors.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                  e.target.style.color = jonyColors.accent1;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                  e.target.style.color = jonyColors.textSecondary;
+                }}
+                title="Nächster Monat"
+              >
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
-          </div>
-        </header>
 
-        {/* Monthly Budget Overview */}
-        {(
-          <div className="mb-6">
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-              {/* Income Input for future months when no calculated income is available */}
-              {!currentMonthlyIncome && isFutureMonth ? (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Erwartetes Einkommen
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type="number"
-                        value={monthlyIncomeInput}
-                        onChange={(e) => setMonthlyIncomeInput(e.target.value)}
-                        placeholder="3000"
-                        className="w-full px-3 py-2 pr-8 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">€</span>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-base"
+              style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = jonyColors.greenDark;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = jonyColors.accent1;
+              }}
+            >
+              <Plus className="w-5 h-5" />
+              <span className="hidden sm:inline">Neues Budget</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 mb-12">
+        <div className="max-w-7xl mx-auto">
+
+          {/* Monthly Budget Overview */}
+          {(
+            <div className="mb-6">
+              <div className="rounded-2xl p-6 border" style={{
+                backgroundColor: jonyColors.surface,
+                border: `1px solid ${jonyColors.border}`
+              }}>
+                {/* Income Input for future months when no calculated income is available */}
+                {!currentMonthlyIncome && isFutureMonth ? (
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: jonyColors.textPrimary }}>
+                      Erwartetes Einkommen
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="number"
+                          value={monthlyIncomeInput}
+                          onChange={(e) => setMonthlyIncomeInput(e.target.value)}
+                          placeholder="3000"
+                          className="w-full px-3 py-2 pr-8 border rounded-lg focus:outline-none focus:ring-2"
+                          style={{
+                            backgroundColor: jonyColors.cardBackground,
+                            color: jonyColors.textPrimary,
+                            borderColor: jonyColors.cardBorder,
+                            '--tw-ring-color': jonyColors.accent1
+                          }}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: jonyColors.textSecondary }}>€</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (monthlyIncomeInput && parseFloat(monthlyIncomeInput) > 0) {
+                            handleSaveIncome();
+                          }
+                        }}
+                        disabled={!monthlyIncomeInput || parseFloat(monthlyIncomeInput) <= 0}
+                        className="px-4 py-2 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+                      >
+                        OK
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        if (monthlyIncomeInput && parseFloat(monthlyIncomeInput) > 0) {
-                          handleSaveIncome();
-                        }
-                      }}
-                      disabled={!monthlyIncomeInput || parseFloat(monthlyIncomeInput) <= 0}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      OK
-                    </button>
                   </div>
-                </div>
               ) : currentMonthlyIncome > 0 ? (
                 /* Show recommendations when income is set */
                 <>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="text-lg font-semibold text-slate-800 dark:text-slate-200">
-                        {formatCurrency(currentMonthlyIncome)}
-                      </div>
-                      {calculatedMonthlyIncome > 0 ? (
-                        <div className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs rounded-full font-medium">
-                          Aus Transaktionen
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
+                          {formatCurrency(currentMonthlyIncome)}
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setMonthlyIncomeInput(currentMonthlyIncome.toString());
-                            setShowIncomeModal(true);
-                          }}
-                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                        {formatCurrency(Math.max(0, currentMonthlyIncome - summary.totalBudget))}
+                        {calculatedMonthlyIncome > 0 ? (
+                          <div className="px-2 py-1 text-xs rounded-full font-medium" style={{
+                            backgroundColor: jonyColors.accent1Alpha,
+                            color: jonyColors.accent1
+                          }}>
+                            Aus Transaktionen
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setMonthlyIncomeInput(currentMonthlyIncome.toString());
+                              setShowIncomeModal(true);
+                            }}
+                            className="transition-colors duration-200"
+                            style={{ color: jonyColors.textSecondary }}
+                            onMouseEnter={(e) => {
+                              e.target.style.color = jonyColors.textPrimary;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.color = jonyColors.textSecondary;
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">verfügbar</div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold" style={{ color: jonyColors.accent1 }}>
+                          {formatCurrency(Math.max(0, currentMonthlyIncome - summary.totalBudget))}
+                        </div>
+                        <div className="text-xs" style={{ color: jonyColors.textSecondary }}>verfügbar</div>
+                      </div>
                     </div>
-                  </div>
                   
-                  <div className="grid grid-cols-3 gap-4">
-                    {/* Essentiell */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-                      <div className="text-center space-y-4">
-                        <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
-                          <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                            Essentiell (50%)
+                    <div className="grid grid-cols-3 gap-4">
+                      {/* Essentiell */}
+                      <div className="p-4 rounded-xl border shadow-sm" style={{
+                        backgroundColor: jonyColors.surface,
+                        border: `1px solid ${jonyColors.border}`
+                      }}>
+                        <div className="text-center space-y-4">
+                          <div className="pb-3" style={{ borderBottom: `1px solid ${jonyColors.border}` }}>
+                            <div className="text-sm font-semibold mb-2" style={{ color: jonyColors.textSecondary }}>
+                              Essentiell (50%)
+                            </div>
+                            <div className="text-2xl font-bold" style={{ color: jonyColors.accent1 }}>
+                              {formatCurrency(currentMonthlyIncome * 0.5)}
+                            </div>
+                            <div className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                              {isFutureMonth ? 'Empfohlenes Maximum' : 'Empfohlen gewesen wäre'}
+                            </div>
                           </div>
-                          <div className="text-2xl font-bold text-slate-800 dark:text-slate-200">
-                            {formatCurrency(currentMonthlyIncome * 0.5)}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            {isFutureMonth ? 'Empfohlenes Maximum' : 'Empfohlen gewesen wäre'}
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 dark:text-slate-400">Budgetiert:</span>
-                            <span className={`font-medium ${
-                              summary.typeBreakdown.essentiell.budget > currentMonthlyIncome * 0.5
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-slate-700 dark:text-slate-300'
-                            }`}>
-                              {formatCurrency(summary.typeBreakdown.essentiell.budget)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 dark:text-slate-400">Ausgegeben:</span>
-                            <span className={`font-medium ${
-                              summary.typeBreakdown.essentiell.spent > summary.typeBreakdown.essentiell.budget
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-slate-700 dark:text-slate-300'
-                            }`}>
-                              {formatCurrency(summary.typeBreakdown.essentiell.spent)}
-                            </span>
+                          
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span style={{ color: jonyColors.textSecondary }}>Budgetiert:</span>
+                              <span className="font-medium" style={{
+                                color: summary.typeBreakdown.essentiell.budget > currentMonthlyIncome * 0.5
+                                  ? jonyColors.red
+                                  : jonyColors.textPrimary
+                              }}>
+                                {formatCurrency(summary.typeBreakdown.essentiell.budget)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span style={{ color: jonyColors.textSecondary }}>Ausgegeben:</span>
+                              <span className="font-medium" style={{
+                                color: summary.typeBreakdown.essentiell.spent > summary.typeBreakdown.essentiell.budget
+                                  ? jonyColors.red
+                                  : jonyColors.textPrimary
+                              }}>
+                                {formatCurrency(summary.typeBreakdown.essentiell.spent)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Unterhaltung */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-                      <div className="text-center space-y-4">
-                        <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
-                          <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                            Unterhaltung (30%)
+                      {/* Unterhaltung */}
+                      <div className="p-4 rounded-xl border shadow-sm" style={{
+                        backgroundColor: jonyColors.surface,
+                        border: `1px solid ${jonyColors.border}`
+                      }}>
+                        <div className="text-center space-y-4">
+                          <div className="pb-3" style={{ borderBottom: `1px solid ${jonyColors.border}` }}>
+                            <div className="text-sm font-semibold mb-2" style={{ color: jonyColors.textSecondary }}>
+                              Unterhaltung (30%)
+                            </div>
+                            <div className="text-2xl font-bold" style={{ color: jonyColors.accent2 }}>
+                              {formatCurrency(currentMonthlyIncome * 0.3)}
+                            </div>
+                            <div className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                              {isFutureMonth ? 'Empfohlenes Maximum' : 'Empfohlen gewesen wäre'}
+                            </div>
                           </div>
-                          <div className="text-2xl font-bold text-slate-800 dark:text-slate-200">
-                            {formatCurrency(currentMonthlyIncome * 0.3)}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            {isFutureMonth ? 'Empfohlenes Maximum' : 'Empfohlen gewesen wäre'}
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 dark:text-slate-400">Budgetiert:</span>
-                            <span className={`font-medium ${
-                              summary.typeBreakdown.lifestyle.budget > currentMonthlyIncome * 0.3
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-slate-700 dark:text-slate-300'
-                            }`}>
-                              {formatCurrency(summary.typeBreakdown.lifestyle.budget)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 dark:text-slate-400">Ausgegeben:</span>
-                            <span className={`font-medium ${
-                              summary.typeBreakdown.lifestyle.spent > summary.typeBreakdown.lifestyle.budget
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-slate-700 dark:text-slate-300'
-                            }`}>
-                              {formatCurrency(summary.typeBreakdown.lifestyle.spent)}
-                            </span>
+                          
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span style={{ color: jonyColors.textSecondary }}>Budgetiert:</span>
+                              <span className="font-medium" style={{
+                                color: summary.typeBreakdown.lifestyle.budget > currentMonthlyIncome * 0.3
+                                  ? jonyColors.red
+                                  : jonyColors.textPrimary
+                              }}>
+                                {formatCurrency(summary.typeBreakdown.lifestyle.budget)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span style={{ color: jonyColors.textSecondary }}>Ausgegeben:</span>
+                              <span className="font-medium" style={{
+                                color: summary.typeBreakdown.lifestyle.spent > summary.typeBreakdown.lifestyle.budget
+                                  ? jonyColors.red
+                                  : jonyColors.textPrimary
+                              }}>
+                                {formatCurrency(summary.typeBreakdown.lifestyle.spent)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Sparen */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-                      <div className="text-center space-y-4">
-                        <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
-                          <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                            Sparen (20%)
+                      {/* Sparen */}
+                      <div className="p-4 rounded-xl border shadow-sm" style={{
+                        backgroundColor: jonyColors.surface,
+                        border: `1px solid ${jonyColors.border}`
+                      }}>
+                        <div className="text-center space-y-4">
+                          <div className="pb-3" style={{ borderBottom: `1px solid ${jonyColors.border}` }}>
+                            <div className="text-sm font-semibold mb-2" style={{ color: jonyColors.textSecondary }}>
+                              Sparen (20%)
+                            </div>
+                            <div className="text-2xl font-bold" style={{ color: jonyColors.magenta }}>
+                              {formatCurrency(currentMonthlyIncome * 0.2)}
+                            </div>
+                            <div className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                              {isFutureMonth ? 'Empfohlenes Minimum' : 'Empfohlen gewesen wäre'}
+                            </div>
                           </div>
-                          <div className="text-2xl font-bold text-slate-800 dark:text-slate-200">
-                            {formatCurrency(currentMonthlyIncome * 0.2)}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            {isFutureMonth ? 'Empfohlenes Minimum' : 'Empfohlen gewesen wäre'}
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 dark:text-slate-400">Budgetiert:</span>
-                            <span className="font-medium text-slate-700 dark:text-slate-300">
-                              {formatCurrency(summary.typeBreakdown.sparen.budget)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 dark:text-slate-400">Ausgegeben:</span>
-                            <span className={`font-medium ${
-                              summary.typeBreakdown.sparen.spent > summary.typeBreakdown.sparen.budget
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-slate-700 dark:text-slate-300'
-                            }`}>
-                              {formatCurrency(summary.typeBreakdown.sparen.spent)}
-                            </span>
+                          
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span style={{ color: jonyColors.textSecondary }}>Budgetiert:</span>
+                              <span className="font-medium" style={{ color: jonyColors.textPrimary }}>
+                                {formatCurrency(summary.typeBreakdown.sparen.budget)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span style={{ color: jonyColors.textSecondary }}>Ausgegeben:</span>
+                              <span className="font-medium" style={{
+                                color: summary.typeBreakdown.sparen.spent > summary.typeBreakdown.sparen.budget
+                                  ? jonyColors.red
+                                  : jonyColors.textPrimary
+                              }}>
+                                {formatCurrency(summary.typeBreakdown.sparen.spent)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </>
-              ) : (
-                /* Show message when no income is available for current/past months */
-                !isFutureMonth && (
-                  <div className="text-center py-8">
-                    <div className="text-slate-500 dark:text-slate-400 mb-4">
-                      Keine Einkommen-Transaktionen für diesen Monat gefunden
+                  </>
+                ) : (
+                  /* Show message when no income is available for current/past months */
+                  !isFutureMonth && (
+                    <div className="text-center py-8">
+                      <div className="mb-4" style={{ color: jonyColors.textSecondary }}>
+                        Keine Einkommen-Transaktionen für diesen Monat gefunden
+                      </div>
+                      <div className="text-sm mb-4" style={{ color: jonyColors.textTertiary }}>
+                        Das Einkommen wird automatisch aus deinen Einnahme-Transaktionen berechnet
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowIncomeModal(true);
+                        }}
+                        className="px-4 py-2 rounded-lg font-medium transition-colors duration-200"
+                        style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = jonyColors.greenDark;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = jonyColors.accent1;
+                        }}
+                      >
+                        Manuell erfassen
+                      </button>
                     </div>
-                    <div className="text-sm text-slate-400 dark:text-slate-500 mb-4">
-                      Das Einkommen wird automatisch aus deinen Einnahme-Transaktionen berechnet
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowIncomeModal(true);
-                      }}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
-                    >
-                      Manuell erfassen
-                    </button>
-                  </div>
-                )
-              )}
+                  )
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
 
         
-        {/* Budget Overview */}
-        <Card className="relative overflow-hidden">
-          <div className="relative z-10">
+          {/* Budget Overview */}
+          <div className="p-8 rounded-2xl border" style={{
+            backgroundColor: jonyColors.surface,
+            border: `1px solid ${jonyColors.border}`
+          }}>
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-1">Budget Übersicht</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Deine monatlichen Budgets im Überblick</p>
+                <h3 className="text-2xl font-bold mb-1" style={{ color: jonyColors.textPrimary }}>Budget Übersicht</h3>
+                <p className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>Deine monatlichen Budgets im Überblick</p>
               </div>
               
               {(summary.overBudgetCount > 0 || summary.warningCount > 0) && (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+                <div className="rounded-2xl border p-3 shadow-sm" style={{
+                  backgroundColor: jonyColors.cardBackground,
+                  border: `1px solid ${jonyColors.cardBorder}`
+                }}>
                   <div className="flex items-center gap-4 text-sm">
                     {summary.overBudgetCount > 0 && (
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500"/>
-                        <span className="font-medium text-slate-700 dark:text-slate-300">{summary.overBudgetCount} überschritten</span>
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.red }}/>
+                        <span className="font-medium" style={{ color: jonyColors.textPrimary }}>{summary.overBudgetCount} überschritten</span>
                       </div>
                     )}
                     {summary.warningCount > 0 && (
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-yellow-500"/>
-                        <span className="font-medium text-slate-700 dark:text-slate-300">{summary.warningCount} Warnung</span>
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.orange }}/>
+                        <span className="font-medium" style={{ color: jonyColors.textPrimary }}>{summary.warningCount} Warnung</span>
                       </div>
                     )}
                   </div>
@@ -685,27 +752,30 @@ const BudgetPage = () => {
         {budgetData.length > 0 ? (
           <div className="space-y-6">
             {budgetData.map((budget) => (
-              <div key={budget.id} className={`group relative p-6 rounded-2xl border ${
-                isFutureMonth 
-                  ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-              }`}>
+              <div key={budget.id} className="group relative p-6 rounded-2xl border" style={{
+                backgroundColor: jonyColors.surface,
+                border: `1px solid ${jonyColors.border}`
+              }}>
                 {/* Header Row */}
                 <div className="flex items-start justify-between mb-6">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-bold text-xl text-slate-800 dark:text-slate-200">
+                      <h3 className="font-bold text-xl" style={{ color: jonyColors.textPrimary }}>
                         {budget.category}
                       </h3>
                       
                       {/* Budget Type Badge */}
                       {budget.type && (
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                          budget.type === 'essentiell' ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' :
-                          budget.type === 'lifestyle' ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' :
-                          budget.type === 'sparen' ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' :
-                          'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                        }`}>
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold" style={{
+                          backgroundColor: budget.type === 'essentiell' ? jonyColors.accent1Alpha : 
+                                         budget.type === 'lifestyle' ? jonyColors.accent2Alpha :
+                                         budget.type === 'sparen' ? jonyColors.magentaAlpha :
+                                         jonyColors.cardBackground,
+                          color: budget.type === 'essentiell' ? jonyColors.accent1 :
+                                budget.type === 'lifestyle' ? jonyColors.accent2 :
+                                budget.type === 'sparen' ? jonyColors.magenta :
+                                jonyColors.textSecondary
+                        }}>
                           {budget.type === 'essentiell' && <Calculator className="w-3 h-3" />}
                           {budget.type === 'lifestyle' && <BarChart3 className="w-3 h-3" />}
                           {budget.type === 'sparen' && <Euro className="w-3 h-3" />}
@@ -716,16 +786,19 @@ const BudgetPage = () => {
                       )}
                       
                       {/* Status Badge */}
-                      <div className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        budget.status === 'over' ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300' :
-                        budget.status === 'warning' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' :
-                        'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300'
-                      }`}>
+                      <div className="px-2 py-1 rounded-full text-xs font-semibold" style={{
+                        backgroundColor: budget.status === 'over' ? jonyColors.redAlpha :
+                                        budget.status === 'warning' ? jonyColors.orangeAlpha :
+                                        jonyColors.accent1Alpha,
+                        color: budget.status === 'over' ? jonyColors.red :
+                               budget.status === 'warning' ? jonyColors.orange :
+                               jonyColors.accent1
+                      }}>
                         {budget.status === 'over' ? 'Überschritten' :
                          budget.status === 'warning' ? 'Warnung' : 'Im Rahmen'}
                       </div>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                    <p className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
                       {budget.transactionCount} Transaktionen in diesem Monat
                     </p>
                   </div>
@@ -736,14 +809,32 @@ const BudgetPage = () => {
                         setEditingBudget(budget);
                         setEditBudgetDisplayAmount('');
                       }}
-                      className="btn-icon bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/70 hover:scale-105 transition-all duration-200"
+                      className="p-2 rounded-xl transition-all duration-200 hover:scale-105"
+                      style={{ backgroundColor: jonyColors.magentaAlpha, color: jonyColors.magenta }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = jonyColors.magenta;
+                        e.target.style.color = jonyColors.background;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = jonyColors.magentaAlpha;
+                        e.target.style.color = jonyColors.magenta;
+                      }}
                       title="Bearbeiten"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteBudget(budget.id)}
-                      className="btn-icon bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/70 hover:scale-105 transition-all duration-200"
+                      className="p-2 rounded-xl transition-all duration-200 hover:scale-105"
+                      style={{ backgroundColor: jonyColors.redAlpha, color: jonyColors.red }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = jonyColors.red;
+                        e.target.style.color = jonyColors.background;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = jonyColors.redAlpha;
+                        e.target.style.color = jonyColors.red;
+                      }}
                       title="Löschen"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -754,23 +845,24 @@ const BudgetPage = () => {
                 {/* Simple Progress Bar */}
                 <div className="mb-6">
                   <div className="flex justify-between items-center mb-3">
-                    <div className="text-sm text-slate-600 dark:text-slate-300 font-medium">
+                    <div className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
                       {formatCurrency(budget.actualSpent)} von {formatCurrency(budget.amount)}
                     </div>
-                    <div className={`text-sm font-semibold ${
-                      budget.remaining >= 0 ? 'text-slate-600 dark:text-slate-300' : 'text-red-600 dark:text-red-400'
-                    }`}>
+                    <div className="text-sm font-semibold" style={{ 
+                      color: budget.remaining >= 0 ? jonyColors.textSecondary : jonyColors.red 
+                    }}>
                       {budget.remaining >= 0 ? formatCurrency(budget.remaining) + ' verfügbar' : formatCurrency(Math.abs(budget.remaining)) + ' überschritten'}
                     </div>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 shadow-inner">
+                  <div className="w-full rounded-full h-3 shadow-inner" style={{ backgroundColor: jonyColors.cardBackground }}>
                     <div 
-                      className={`h-3 rounded-full transition-all duration-700 shadow-sm ${
-                        budget.status === 'over' ? 'bg-gradient-to-r from-red-500 to-red-600' :
-                        budget.status === 'warning' ? 'bg-gradient-to-r from-orange-500 to-yellow-500' :
-                        'bg-gradient-to-r from-indigo-500 to-purple-600'
-                      }`}
-                      style={{ width: `${Math.min(100, budget.progressPercentage)}%` }}
+                      className="h-3 rounded-full transition-all duration-700 shadow-sm"
+                      style={{ 
+                        width: `${Math.min(100, budget.progressPercentage)}%`,
+                        background: budget.status === 'over' ? `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})` :
+                                   budget.status === 'warning' ? `linear-gradient(to right, ${jonyColors.orange}, ${jonyColors.orangeDark})` :
+                                   `linear-gradient(to right, ${jonyColors.accent1}, ${jonyColors.greenDark})`
+                      }}
                     ></div>
                   </div>
                 </div>
@@ -780,17 +872,32 @@ const BudgetPage = () => {
           </div>
         ) : (
           <div className="flex items-center justify-center py-16">
-            <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-3xl border border-white/60 dark:border-slate-700/60 p-12 shadow-lg text-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <div className="backdrop-blur-sm rounded-3xl border p-12 shadow-lg text-center" style={{
+              backgroundColor: jonyColors.surfaceAlpha,
+              border: `1px solid ${jonyColors.border}`
+            }}>
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg" style={{
+                background: `linear-gradient(to bottom right, ${jonyColors.accent1}, ${jonyColors.greenDark})`
+              }}>
                 <Calculator className="w-8 h-8 text-white" />
               </div>
-              <h4 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-3">Noch keine Budgets</h4>
-              <p className="text-slate-500 dark:text-slate-400 font-medium mb-6 max-w-sm">
+              <h4 className="text-xl font-bold mb-3" style={{ color: jonyColors.textPrimary }}>Noch keine Budgets</h4>
+              <p className="font-medium mb-6 max-w-sm" style={{ color: jonyColors.textSecondary }}>
                 Erstelle dein erstes Budget um deine Ausgaben zu verfolgen und bessere Kontrolle über deine Finanzen zu haben
               </p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                className="px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                style={{
+                  background: `linear-gradient(to right, ${jonyColors.accent1}, ${jonyColors.greenDark})`,
+                  color: jonyColors.background
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'scale(1.02)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'scale(1)';
+                }}
               >
                 Erstes Budget erstellen
               </button>
@@ -798,29 +905,43 @@ const BudgetPage = () => {
           </div>
         )}
           </div>
-        </Card>
 
         {/* Quick Budget Entry for Available Categories */}
         {availableCategories.length > 0 && (
-          <Card className="mt-6">
+          <div className="mt-6 p-8 rounded-2xl border" style={{
+            backgroundColor: jonyColors.surface,
+            border: `1px solid ${jonyColors.border}`
+          }}>
             <div 
               className="flex items-center justify-between cursor-pointer"
               onClick={() => setShowQuickBudget(!showQuickBudget)}
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg" style={{
+                  background: `linear-gradient(to bottom right, ${jonyColors.accent1}, ${jonyColors.greenDark})`
+                }}>
                   <Plus className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-1">Schnell-Budget</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Budgets für weitere Kategorien festlegen</p>
+                  <h3 className="text-2xl font-bold mb-1" style={{ color: jonyColors.textPrimary }}>Schnell-Budget</h3>
+                  <p className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>Budgets für weitere Kategorien festlegen</p>
                 </div>
               </div>
-              <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+              <button 
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: jonyColors.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = 'transparent';
+                }}
+              >
                 <ChevronDown 
-                  className={`w-5 h-5 text-slate-600 dark:text-slate-400 transition-transform duration-200 ${
+                  className={`w-5 h-5 transition-transform duration-200 ${
                     showQuickBudget ? 'rotate-180' : ''
-                  }`} 
+                  }`}
+                  style={{ color: jonyColors.textSecondary }}
                 />
               </button>
             </div>
@@ -828,9 +949,12 @@ const BudgetPage = () => {
             {showQuickBudget && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
               {availableCategories.map(category => (
-                <div key={category.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                <div key={category.id} className="rounded-xl p-4 border" style={{
+                  backgroundColor: jonyColors.cardBackground,
+                  border: `1px solid ${jonyColors.cardBorder}`
+                }}>
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{category.name}</h4>
+                    <h4 className="font-semibold" style={{ color: jonyColors.textPrimary }}>{category.name}</h4>
                   </div>
                   
                   <div className="space-y-3">
@@ -842,19 +966,28 @@ const BudgetPage = () => {
                           value={quickBudgets[category.name] || ''}
                           onChange={(e) => handleQuickBudgetChange(category.name, e.target.value)}
                           placeholder="Budget eingeben"
-                          className="w-full px-3 py-2 pr-8 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                          className="w-full px-3 py-2 pr-8 border rounded-lg focus:ring-2 text-sm transition-colors"
+                          style={{
+                            backgroundColor: jonyColors.surface,
+                            color: jonyColors.textPrimary,
+                            borderColor: jonyColors.border,
+                            '--tw-ring-color': jonyColors.accent1
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               handleQuickBudgetSave(category.name);
                             }
                           }}
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">€</span>
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: jonyColors.textTertiary }}>€</span>
                       </div>
                       <button
                         onClick={() => handleQuickBudgetSave(category.name)}
                         disabled={!quickBudgets[category.name] || parseFloat(quickBudgets[category.name]) <= 0}
-                        className="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-full flex items-center justify-center transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+                        className="w-10 h-10 text-white rounded-full flex items-center justify-center transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+                        style={{
+                          background: `linear-gradient(to right, ${jonyColors.accent1}, ${jonyColors.greenDark})`
+                        }}
                         title="Budget speichern"
                       >
                         <Plus className="w-4 h-4" />
@@ -866,11 +999,31 @@ const BudgetPage = () => {
                       <button
                         type="button"
                         onClick={() => handleQuickBudgetTypeChange(category.name, 'essentiell')}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 ${
-                          (quickBudgetTypes[category.name] || 'essentiell') === 'essentiell'
-                            ? 'bg-indigo-100 border-2 border-indigo-500 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-400 dark:text-indigo-300 scale-110'
-                            : 'bg-slate-100 border border-slate-300 text-slate-500 hover:bg-indigo-50 hover:border-indigo-300 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-indigo-900/20'
-                        }`}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 border-2"
+                        style={{
+                          backgroundColor: (quickBudgetTypes[category.name] || 'essentiell') === 'essentiell'
+                            ? jonyColors.accent1Alpha
+                            : jonyColors.surface,
+                          borderColor: (quickBudgetTypes[category.name] || 'essentiell') === 'essentiell'
+                            ? jonyColors.accent1
+                            : jonyColors.border,
+                          color: (quickBudgetTypes[category.name] || 'essentiell') === 'essentiell'
+                            ? jonyColors.accent1
+                            : jonyColors.textSecondary,
+                          transform: (quickBudgetTypes[category.name] || 'essentiell') === 'essentiell' ? 'scale(1.1)' : 'scale(1)'
+                        }}
+                        onMouseEnter={(e) => {
+                          if ((quickBudgetTypes[category.name] || 'essentiell') !== 'essentiell') {
+                            e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                            e.target.style.borderColor = jonyColors.accent1;
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if ((quickBudgetTypes[category.name] || 'essentiell') !== 'essentiell') {
+                            e.target.style.backgroundColor = jonyColors.surface;
+                            e.target.style.borderColor = jonyColors.border;
+                          }
+                        }}
                         title="Essentiell"
                       >
                         <Calculator className="w-3 h-3" />
@@ -878,11 +1031,31 @@ const BudgetPage = () => {
                       <button
                         type="button"
                         onClick={() => handleQuickBudgetTypeChange(category.name, 'lifestyle')}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 ${
-                          (quickBudgetTypes[category.name] || 'essentiell') === 'lifestyle'
-                            ? 'bg-indigo-100 border-2 border-indigo-500 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-400 dark:text-indigo-300 scale-110'
-                            : 'bg-slate-100 border border-slate-300 text-slate-500 hover:bg-indigo-50 hover:border-indigo-300 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-indigo-900/20'
-                        }`}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 border-2"
+                        style={{
+                          backgroundColor: (quickBudgetTypes[category.name] || 'essentiell') === 'lifestyle'
+                            ? jonyColors.accent2Alpha
+                            : jonyColors.surface,
+                          borderColor: (quickBudgetTypes[category.name] || 'essentiell') === 'lifestyle'
+                            ? jonyColors.accent2
+                            : jonyColors.border,
+                          color: (quickBudgetTypes[category.name] || 'essentiell') === 'lifestyle'
+                            ? jonyColors.accent2
+                            : jonyColors.textSecondary,
+                          transform: (quickBudgetTypes[category.name] || 'essentiell') === 'lifestyle' ? 'scale(1.1)' : 'scale(1)'
+                        }}
+                        onMouseEnter={(e) => {
+                          if ((quickBudgetTypes[category.name] || 'essentiell') !== 'lifestyle') {
+                            e.target.style.backgroundColor = jonyColors.accent2Alpha;
+                            e.target.style.borderColor = jonyColors.accent2;
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if ((quickBudgetTypes[category.name] || 'essentiell') !== 'lifestyle') {
+                            e.target.style.backgroundColor = jonyColors.surface;
+                            e.target.style.borderColor = jonyColors.border;
+                          }
+                        }}
                         title="Unterhaltung"
                       >
                         <BarChart3 className="w-3 h-3" />
@@ -890,11 +1063,31 @@ const BudgetPage = () => {
                       <button
                         type="button"
                         onClick={() => handleQuickBudgetTypeChange(category.name, 'sparen')}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 ${
-                          (quickBudgetTypes[category.name] || 'essentiell') === 'sparen'
-                            ? 'bg-indigo-100 border-2 border-indigo-600 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-500 dark:text-indigo-300 scale-110'
-                            : 'bg-slate-100 border border-slate-300 text-slate-500 hover:bg-indigo-50 hover:border-indigo-300 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-indigo-900/20'
-                        }`}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 border-2"
+                        style={{
+                          backgroundColor: (quickBudgetTypes[category.name] || 'essentiell') === 'sparen'
+                            ? jonyColors.magentaAlpha
+                            : jonyColors.surface,
+                          borderColor: (quickBudgetTypes[category.name] || 'essentiell') === 'sparen'
+                            ? jonyColors.magenta
+                            : jonyColors.border,
+                          color: (quickBudgetTypes[category.name] || 'essentiell') === 'sparen'
+                            ? jonyColors.magenta
+                            : jonyColors.textSecondary,
+                          transform: (quickBudgetTypes[category.name] || 'essentiell') === 'sparen' ? 'scale(1.1)' : 'scale(1)'
+                        }}
+                        onMouseEnter={(e) => {
+                          if ((quickBudgetTypes[category.name] || 'essentiell') !== 'sparen') {
+                            e.target.style.backgroundColor = jonyColors.magentaAlpha;
+                            e.target.style.borderColor = jonyColors.magenta;
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if ((quickBudgetTypes[category.name] || 'essentiell') !== 'sparen') {
+                            e.target.style.backgroundColor = jonyColors.surface;
+                            e.target.style.borderColor = jonyColors.border;
+                          }
+                        }}
                         title="Sparen"
                       >
                         <Euro className="w-3 h-3" />
@@ -905,24 +1098,30 @@ const BudgetPage = () => {
               ))}
               </div>
             )}
-          </Card>
+          </div>
         )}
 
-      {/* Create Budget Modal - Minimalist */}
+      {/* Create Budget Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-6">Neues Budget</h2>
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="rounded-2xl max-w-md w-full p-6 shadow-xl" style={{ backgroundColor: jonyColors.surface }}>
+            <h2 className="text-xl font-bold mb-6" style={{ color: jonyColors.textPrimary }}>Neues Budget</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: jonyColors.textPrimary }}>
                   Kategorie
                 </label>
                 <select
                   value={newBudget.category}
                   onChange={(e) => setNewBudget(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 transition-colors"
+                  style={{
+                    backgroundColor: jonyColors.cardBackground,
+                    color: jonyColors.textPrimary,
+                    borderColor: jonyColors.border,
+                    '--tw-ring-color': jonyColors.accent1
+                  }}
                 >
                   <option value="">Kategorie wählen</option>
                   {availableCategoriesForModal.map(cat => (
@@ -932,7 +1131,7 @@ const BudgetPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: jonyColors.textPrimary }}>
                   Budget
                 </label>
                 <div className="relative">
@@ -945,47 +1144,86 @@ const BudgetPage = () => {
                       setNewBudget(prev => ({ ...prev, amount: value }));
                     }}
                     placeholder="500 oder =40+30+60"
-                    className="w-full px-3 py-2 pr-8 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 pr-8 border rounded-lg focus:ring-2 transition-colors"
+                    style={{
+                      backgroundColor: jonyColors.cardBackground,
+                      color: jonyColors.textPrimary,
+                      borderColor: jonyColors.border,
+                      '--tw-ring-color': jonyColors.accent1
+                    }}
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">€</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: jonyColors.textTertiary }}>€</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: jonyColors.textPrimary }}>
                   Typ
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setNewBudget(prev => ({ ...prev, type: 'essentiell' }))}
-                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-                      newBudget.type === 'essentiell'
-                        ? 'bg-green-100 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-600 dark:text-green-300'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-600'
-                    }`}
+                    className="px-3 py-2 text-sm rounded-lg border transition-colors"
+                    style={{
+                      backgroundColor: newBudget.type === 'essentiell' ? jonyColors.accent1Alpha : jonyColors.cardBackground,
+                      borderColor: newBudget.type === 'essentiell' ? jonyColors.accent1 : jonyColors.border,
+                      color: newBudget.type === 'essentiell' ? jonyColors.accent1 : jonyColors.textSecondary
+                    }}
+                    onMouseEnter={(e) => {
+                      if (newBudget.type !== 'essentiell') {
+                        e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (newBudget.type !== 'essentiell') {
+                        e.target.style.backgroundColor = jonyColors.cardBackground;
+                      }
+                    }}
                   >
                     Essentiell
                   </button>
                   <button
                     type="button"
                     onClick={() => setNewBudget(prev => ({ ...prev, type: 'lifestyle' }))}
-                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-                      newBudget.type === 'lifestyle'
-                        ? 'bg-yellow-100 border-yellow-300 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-600 dark:text-yellow-300'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-600'
-                    }`}
+                    className="px-3 py-2 text-sm rounded-lg border transition-colors"
+                    style={{
+                      backgroundColor: newBudget.type === 'lifestyle' ? jonyColors.accent2Alpha : jonyColors.cardBackground,
+                      borderColor: newBudget.type === 'lifestyle' ? jonyColors.accent2 : jonyColors.border,
+                      color: newBudget.type === 'lifestyle' ? jonyColors.accent2 : jonyColors.textSecondary
+                    }}
+                    onMouseEnter={(e) => {
+                      if (newBudget.type !== 'lifestyle') {
+                        e.target.style.backgroundColor = jonyColors.accent2Alpha;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (newBudget.type !== 'lifestyle') {
+                        e.target.style.backgroundColor = jonyColors.cardBackground;
+                      }
+                    }}
                   >
                     Lifestyle
                   </button>
                   <button
                     type="button"
                     onClick={() => setNewBudget(prev => ({ ...prev, type: 'sparen' }))}
-                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-                      newBudget.type === 'sparen'
-                        ? 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-600 dark:text-blue-300'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-600'
-                    }`}
+                    className="px-3 py-2 text-sm rounded-lg border transition-colors"
+                    style={{
+                      backgroundColor: newBudget.type === 'sparen' ? jonyColors.magentaAlpha : jonyColors.cardBackground,
+                      borderColor: newBudget.type === 'sparen' ? jonyColors.magenta : jonyColors.border,
+                      color: newBudget.type === 'sparen' ? jonyColors.magenta : jonyColors.textSecondary
+                    }}
+                    onMouseEnter={(e) => {
+                      if (newBudget.type !== 'sparen') {
+                        e.target.style.backgroundColor = jonyColors.magentaAlpha;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (newBudget.type !== 'sparen') {
+                        e.target.style.backgroundColor = jonyColors.cardBackground;
+                      }
+                    }}
                   >
                     Sparen
                   </button>
@@ -993,14 +1231,14 @@ const BudgetPage = () => {
               </div>
 
               {currentMonthlyIncome > 0 && newBudget.type && (
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    Empfehlung ({newBudget.type === 'essentiell' ? '50%' : newBudget.type === 'lifestyle' ? '30%' : '20%'}): <span className="font-medium text-slate-700 dark:text-slate-300">{formatCurrency(currentMonthlyIncome * (newBudget.type === 'essentiell' ? 0.5 : newBudget.type === 'lifestyle' ? 0.3 : 0.2))}</span>
+                <div className="rounded-lg p-3" style={{ backgroundColor: jonyColors.cardBackground }}>
+                  <div className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                    Empfehlung ({newBudget.type === 'essentiell' ? '50%' : newBudget.type === 'lifestyle' ? '30%' : '20%'}): <span className="font-medium" style={{ color: jonyColors.textPrimary }}>{formatCurrency(currentMonthlyIncome * (newBudget.type === 'essentiell' ? 0.5 : newBudget.type === 'lifestyle' ? 0.3 : 0.2))}</span>
                   </div>
                   {newBudgetDisplayAmount && newBudgetDisplayAmount.startsWith('=') && (
                     <div className="text-xs mt-1">
-                      <span className="text-slate-500 dark:text-slate-400">Berechnet: </span>
-                      <span className="font-medium text-indigo-600 dark:text-indigo-400">
+                      <span style={{ color: jonyColors.textSecondary }}>Berechnet: </span>
+                      <span className="font-medium" style={{ color: jonyColors.accent1 }}>
                         {isNaN(evaluateFormula(newBudgetDisplayAmount)) ? 'Ungültige Formel' : formatCurrency(evaluateFormula(newBudgetDisplayAmount))}
                       </span>
                     </div>
@@ -1012,14 +1250,35 @@ const BudgetPage = () => {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
+                className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
+                style={{
+                  backgroundColor: jonyColors.cardBackground,
+                  color: jonyColors.textSecondary
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.border;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                }}
               >
                 Abbrechen
               </button>
               <button
                 onClick={handleCreateBudget}
                 disabled={!newBudget.category || (!newBudget.amount && !newBudgetDisplayAmount)}
-                className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+                onMouseEnter={(e) => {
+                  if (!e.target.disabled) {
+                    e.target.style.backgroundColor = jonyColors.greenDark;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!e.target.disabled) {
+                    e.target.style.backgroundColor = jonyColors.accent1;
+                  }
+                }}
               >
                 Erstellen
               </button>
@@ -1030,17 +1289,22 @@ const BudgetPage = () => {
 
       {/* Edit Budget Modal */}
       {editingBudget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-white/20 dark:border-slate-700/50">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="backdrop-blur-md rounded-3xl max-w-lg w-full p-8 shadow-2xl border" style={{
+            backgroundColor: jonyColors.surfaceAlpha,
+            border: `1px solid ${jonyColors.border}`
+          }}>
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg" style={{
+                background: `linear-gradient(to bottom right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
+              }}>
                 <Edit className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
+                <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>
                   Budget bearbeiten
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm" style={{ color: jonyColors.textSecondary }}>
                   {editingBudget.category} Budget anpassen
                 </p>
               </div>
@@ -1048,11 +1312,11 @@ const BudgetPage = () => {
             
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
+                <label className="block text-sm font-semibold mb-3" style={{ color: jonyColors.textPrimary }}>
                   Budget Betrag
                 </label>
                 <div className="relative">
-                  <Euro className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <Euro className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: jonyColors.textTertiary }} />
                   <input
                     type="text"
                     value={editBudgetDisplayAmount || (editingBudget.amount ? editingBudget.amount.toString() : '')}
@@ -1061,14 +1325,20 @@ const BudgetPage = () => {
                       setEditBudgetDisplayAmount(value);
                       setEditingBudget(prev => ({ ...prev, amount: value }));
                     }}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white/80 dark:bg-slate-700/80 text-slate-800 dark:text-slate-200 text-base font-medium transition-all duration-200"
+                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-2 text-base font-medium transition-all duration-200"
+                    style={{
+                      backgroundColor: jonyColors.cardBackground,
+                      color: jonyColors.textPrimary,
+                      borderColor: jonyColors.border,
+                      '--tw-ring-color': jonyColors.magenta
+                    }}
                   />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Geben Sie einen Betrag ein oder verwenden Sie Formeln wie =40+30+60</p>
+                <p className="text-xs mt-2" style={{ color: jonyColors.textSecondary }}>Geben Sie einen Betrag ein oder verwenden Sie Formeln wie =40+30+60</p>
                 {editBudgetDisplayAmount && editBudgetDisplayAmount.startsWith('=') && (
                   <div className="text-xs mt-2">
-                    <span className="text-slate-500 dark:text-slate-400">Berechnet: </span>
-                    <span className="font-medium text-indigo-600 dark:text-indigo-400">
+                    <span style={{ color: jonyColors.textSecondary }}>Berechnet: </span>
+                    <span className="font-medium" style={{ color: jonyColors.magenta }}>
                       {isNaN(evaluateFormula(editBudgetDisplayAmount)) ? 'Ungültige Formel' : formatCurrency(evaluateFormula(editBudgetDisplayAmount))}
                     </span>
                   </div>
@@ -1076,15 +1346,21 @@ const BudgetPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
+                <label className="block text-sm font-semibold mb-3" style={{ color: jonyColors.textPrimary }}>
                   Zeitraum
                 </label>
                 <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: jonyColors.textTertiary }} />
                   <select
                     value={editingBudget.period}
                     onChange={(e) => setEditingBudget(prev => ({ ...prev, period: e.target.value }))}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white/80 dark:bg-slate-700/80 text-slate-800 dark:text-slate-200 text-base font-medium transition-all duration-200"
+                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-2 text-base font-medium transition-all duration-200"
+                    style={{
+                      backgroundColor: jonyColors.cardBackground,
+                      color: jonyColors.textPrimary,
+                      borderColor: jonyColors.border,
+                      '--tw-ring-color': jonyColors.magenta
+                    }}
                   >
                     <option value="monthly">Monatlich</option>
                     <option value="weekly">Wöchentlich</option>
@@ -1097,13 +1373,32 @@ const BudgetPage = () => {
             <div className="flex gap-4 mt-8">
               <button
                 onClick={() => setEditingBudget(null)}
-                className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl font-semibold transition-all duration-200"
+                className="flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200"
+                style={{
+                  backgroundColor: jonyColors.cardBackground,
+                  color: jonyColors.textSecondary
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.border;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                }}
               >
                 Abbrechen
               </button>
               <button
                 onClick={() => handleEditBudget(editingBudget)}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                className="flex-1 px-6 py-3 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                style={{
+                  background: `linear-gradient(to right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'scale(1.02)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'scale(1)';
+                }}
               >
                 Änderungen speichern
               </button>
@@ -1114,15 +1409,20 @@ const BudgetPage = () => {
 
       {/* Income Modal */}
       {showIncomeModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-white/20 dark:border-slate-700/50">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="backdrop-blur-md rounded-3xl max-w-lg w-full p-8 shadow-2xl border" style={{
+            backgroundColor: jonyColors.surfaceAlpha,
+            border: `1px solid ${jonyColors.border}`
+          }}>
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg" style={{
+                background: `linear-gradient(to bottom right, ${jonyColors.accent2}, ${jonyColors.cyanDark})`
+              }}>
                 <Euro className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Monatseinkommen festlegen</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>Monatseinkommen festlegen</h2>
+                <p className="text-sm" style={{ color: jonyColors.textSecondary }}>
                   Für {currentDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
                 </p>
               </div>
@@ -1130,41 +1430,47 @@ const BudgetPage = () => {
             
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
+                <label className="block text-sm font-semibold mb-3" style={{ color: jonyColors.textPrimary }}>
                   Erwartetes Einkommen
                 </label>
                 <div className="relative">
-                  <Euro className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <Euro className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: jonyColors.textTertiary }} />
                   <input
                     type="number"
                     value={monthlyIncomeInput}
                     onChange={(e) => setMonthlyIncomeInput(e.target.value)}
                     placeholder="3000.00"
-                    className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/80 dark:bg-slate-700/80 text-slate-800 dark:text-slate-200 text-base font-medium transition-all duration-200"
+                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-2 text-base font-medium transition-all duration-200"
+                    style={{
+                      backgroundColor: jonyColors.cardBackground,
+                      color: jonyColors.textPrimary,
+                      borderColor: jonyColors.border,
+                      '--tw-ring-color': jonyColors.accent2
+                    }}
                   />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                <p className="text-xs mt-2" style={{ color: jonyColors.textSecondary }}>
                   Dein voraussichtliches Nettoeinkommen für diesen Monat
                 </p>
               </div>
               
               {summary.totalBudget > 0 && (
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                <div className="rounded-xl p-4" style={{ backgroundColor: jonyColors.cardBackground }}>
+                  <div className="text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
                     Budget Übersicht
                   </div>
-                  <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                  <div className="flex justify-between text-sm" style={{ color: jonyColors.textSecondary }}>
                     <span>Gesamtbudget:</span>
                     <span className="font-medium">{formatCurrency(summary.totalBudget)}</span>
                   </div>
                   {monthlyIncomeInput && (
-                    <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400 mt-1">
+                    <div className="flex justify-between text-sm mt-1" style={{ color: jonyColors.textSecondary }}>
                       <span>Verbleibendes Einkommen:</span>
-                      <span className={`font-medium ${
-                        (parseFloat(monthlyIncomeInput) - summary.totalBudget) >= 0 
-                          ? 'text-purple-600 dark:text-purple-400' 
-                          : 'text-red-600 dark:text-red-400'
-                      }`}>
+                      <span className="font-medium" style={{
+                        color: (parseFloat(monthlyIncomeInput) - summary.totalBudget) >= 0 
+                          ? jonyColors.accent2
+                          : jonyColors.red
+                      }}>
                         {formatCurrency(parseFloat(monthlyIncomeInput) - summary.totalBudget)}
                       </span>
                     </div>
@@ -1176,13 +1482,32 @@ const BudgetPage = () => {
             <div className="flex gap-4 mt-8">
               <button
                 onClick={() => setShowIncomeModal(false)}
-                className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl font-semibold transition-all duration-200"
+                className="flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200"
+                style={{
+                  backgroundColor: jonyColors.cardBackground,
+                  color: jonyColors.textSecondary
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.border;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                }}
               >
                 Abbrechen
               </button>
               <button
                 onClick={handleSaveIncome}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                className="flex-1 px-6 py-3 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                style={{
+                  background: `linear-gradient(to right, ${jonyColors.accent2}, ${jonyColors.cyanDark})`
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'scale(1.02)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'scale(1)';
+                }}
               >
                 Einkommen speichern
               </button>
@@ -1193,39 +1518,47 @@ const BudgetPage = () => {
 
       {/* Delete All Budgets Modal */}
       {showDeleteAllModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-white/20 dark:border-slate-700/50">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="backdrop-blur-md rounded-3xl max-w-lg w-full p-8 shadow-2xl border" style={{
+            backgroundColor: jonyColors.surfaceAlpha,
+            border: `1px solid ${jonyColors.border}`
+          }}>
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg" style={{
+                background: `linear-gradient(to bottom right, ${jonyColors.red}, ${jonyColors.redDark})`
+              }}>
                 <Trash2 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Alle Budgets löschen</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>Alle Budgets löschen</h2>
+                <p className="text-sm" style={{ color: jonyColors.textSecondary }}>
                   Komplett neu anfangen mit der Budget-Planung
                 </p>
               </div>
             </div>
             
             <div className="space-y-6">
-              <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 border border-red-200 dark:border-red-800">
+              <div className="rounded-xl p-4 border" style={{
+                backgroundColor: jonyColors.redAlpha,
+                border: `1px solid ${jonyColors.red}`
+              }}>
                 <div className="flex items-center gap-3 mb-3">
-                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                  <div className="text-sm font-semibold text-red-800 dark:text-red-200">
+                  <AlertTriangle className="w-5 h-5" style={{ color: jonyColors.red }} />
+                  <div className="text-sm font-semibold" style={{ color: jonyColors.textPrimary }}>
                     Achtung: Diese Aktion kann nicht rückgängig gemacht werden
                   </div>
                 </div>
-                <ul className="space-y-2 text-sm text-red-700 dark:text-red-300">
+                <ul className="space-y-2 text-sm" style={{ color: jonyColors.textPrimary }}>
                   <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: jonyColors.red }} />
                     Alle {budgets.length} Budget-Kategorien werden gelöscht
                   </li>
                   <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: jonyColors.red }} />
                     Das geplante Einkommen für diesen Monat wird entfernt
                   </li>
                   <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: jonyColors.red }} />
                     Du kannst danach komplett neu mit der Budget-Planung beginnen
                   </li>
                 </ul>
@@ -1235,13 +1568,32 @@ const BudgetPage = () => {
             <div className="flex gap-4 mt-8">
               <button
                 onClick={() => setShowDeleteAllModal(false)}
-                className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl font-semibold transition-all duration-200"
+                className="flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200"
+                style={{
+                  backgroundColor: jonyColors.cardBackground,
+                  color: jonyColors.textSecondary
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.border;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                }}
               >
                 Abbrechen
               </button>
               <button
                 onClick={handleDeleteAllBudgets}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                className="flex-1 px-6 py-3 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                style={{
+                  background: `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})`
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'scale(1.02)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'scale(1)';
+                }}
               >
                 Alle Budgets löschen
               </button>
@@ -1250,6 +1602,7 @@ const BudgetPage = () => {
         </div>
       )}
 
+        </div>
       </div>
     </div>
   );
