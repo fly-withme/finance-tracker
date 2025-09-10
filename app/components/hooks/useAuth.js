@@ -53,9 +53,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const setupPassword = () => {
-    setHasPassword(true);
-    // After password setup, user is automatically logged in
-    login();
+    // Re-check auth status to ensure password is properly set
+    checkAuthStatus();
   };
 
   const resetPassword = () => {

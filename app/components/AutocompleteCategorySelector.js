@@ -88,15 +88,19 @@ const AutocompleteCategorySelector = ({
           placeholder="Kategorie suchen oder erstellen..."
           className={`
             w-full px-4 py-3 text-base border rounded-lg
-            text-slate-800 dark:text-slate-200
             placeholder-slate-400 dark:placeholder-slate-500
-            focus:outline-none focus:ring-2 focus:ring-purple-500
+            focus:outline-none
             transition-colors duration-200
             ${hasPrediction 
               ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-700' 
-              : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600'
+              : ''
             }
           `}
+          style={{
+            backgroundColor: hasPrediction ? undefined : '#111113',
+            borderColor: hasPrediction ? undefined : '#333333',
+            color: '#ffffff'
+          }}
         />
         <button
           type="button"
@@ -108,10 +112,10 @@ const AutocompleteCategorySelector = ({
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-xl shadow-xl max-h-60 overflow-y-auto" style={{ backgroundColor: '#111113', border: '1px solid #333333' }}>
           {/* AI Suggestions */}
           {suggestions.length > 0 && inputValue.length === 0 && (
-             <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+             <div className="p-2 border-b" style={{ borderColor: '#333333' }}>
               <div className="text-xs text-blue-600 dark:text-blue-400 mb-1 px-2">Vorschläge</div>
               {suggestions.slice(0, 3).map(suggestion => (
                 <button
@@ -136,7 +140,8 @@ const AutocompleteCategorySelector = ({
                 <button
                   key={category.id}
                   onClick={() => handleSelectCategory(category.name)}
-                  className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-between"
+                  className="w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:opacity-80 transition-opacity"
+                  style={{ color: '#ffffff' }}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: category.color }} />
@@ -149,10 +154,11 @@ const AutocompleteCategorySelector = ({
 
           {/* Create new category option */}
           {showCreateOption && (
-            <div className="border-t border-slate-200 dark:border-slate-700">
+            <div className="border-t" style={{ borderColor: '#333333' }}>
               <button
                 onClick={handleCreateNew}
-                className="w-full text-left px-3 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50 flex items-center space-x-2"
+                className="w-full text-left px-3 py-2 text-sm flex items-center space-x-2 hover:opacity-80 transition-opacity"
+                style={{ color: '#10B981' }}
               >
                 <Plus className="w-4 h-4" />
                 <span>Erstelle Kategorie "{inputValue}"</span>

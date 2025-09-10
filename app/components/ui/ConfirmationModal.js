@@ -24,7 +24,6 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
                 <h2 className="text-xl font-bold" style={{ color: jonyColors.textPrimary }}>
                   {title}
                 </h2>
-                <p className="text-sm" style={{ color: jonyColors.red }}>Diese Aktion ist unwiderruflich</p>
               </div>
             </div>
             <button onClick={onClose} className="p-2 rounded-lg transition-colors" style={{ 
@@ -41,46 +40,16 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
             </button>
           </div>
           
-          {/* Message */}
-          <div className="rounded-xl p-4 mb-6 border" style={{ 
-            backgroundColor: jonyColors.cardBackground, 
-            border: `1px solid ${jonyColors.border}` 
-          }}>
-            <p className="text-sm leading-relaxed" style={{ color: jonyColors.textPrimary }}>
-              {message}
-            </p>
-          </div>
           
           {/* Action Buttons */}
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-200"
-              style={{
-                backgroundColor: jonyColors.cardBackground,
-                color: jonyColors.textSecondary,
-                border: `1px solid ${jonyColors.border}`
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = jonyColors.border;
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = jonyColors.cardBackground;
-              }}
-            >
-              Abbrechen
-            </button>
+          <div className="flex justify-center">
             <button
               onClick={onConfirm}
-              className="flex-1 px-4 py-3 text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-xl"
+              className="px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:opacity-80"
               style={{
-                background: `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})`
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.transform = 'scale(1.02)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.transform = 'scale(1)';
+                backgroundColor: 'transparent',
+                color: jonyColors.red,
+                border: `1px solid ${jonyColors.red}`
               }}
             >
               Löschen

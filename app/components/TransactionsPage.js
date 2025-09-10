@@ -4,41 +4,35 @@ import { db } from '../utils/db';
 import { jonyColors } from '../theme';
 
 // Import more icons for categories
-import { Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, Users, X, List, Utensils, ShoppingCart, Car, Home, Shirt, Gift, Fuel, Film, PiggyBank } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, ChevronLeft, ChevronRight, Users, X, List, Utensils, ShoppingCart, Home, Gift, Fuel, Film, PiggyBank, Briefcase } from 'lucide-react';
 
 // UI Components
 import Modal from './ui/Modal';
 import ConfirmationModal from './ui/ConfirmationModal';
 import TransactionForm from './forms/TransactionForm';
 
-// --- UPDATED: THEMING ENGINE for Transaction Icons & Colors ---
+// --- THEME ENGINE (Improved with more categories) ---
 const transactionThemes = [
-  // Food & Dining
-  { name: 'Food & Dining', keywords: ['essen', 'food', 'restaurant', 'lieferando', 'rewe', 'edeka', 'supermarkt'], Icon: Utensils, bgColor: jonyColors.accent2Alpha, iconColor: jonyColors.accent2 },
-  // Shopping
-  { name: 'Shopping', keywords: ['shopping', 'einkauf', 'zalando', 'amazon', 'kleidung', 'ikea'], Icon: ShoppingCart, bgColor: jonyColors.accent1Alpha, iconColor: jonyColors.accent1 },
-  // Transportation
-  { name: 'Transportation', keywords: ['transport', 'auto', 'car', 'db', 'bahn', 'fuel', 'tanken'], Icon: Fuel, bgColor: jonyColors.magentaAlpha, iconColor: jonyColors.magenta },
-  // Housing
-  { name: 'Housing', keywords: ['miete', 'wohnen', 'rent', 'housing'], Icon: Home, bgColor: jonyColors.accent2Alpha, iconColor: jonyColors.accent2 },
-  // Entertainment
-  { name: 'Entertainment', keywords: ['kino', 'cinema', 'film', 'spotify', 'netflix'], Icon: Film, bgColor: jonyColors.magentaAlpha, iconColor: jonyColors.magenta },
-  // Salary - Income gets accent1 (neon green)
-  { name: 'Salary', keywords: ['gehalt', 'salary', 'einkommen'], Icon: PiggyBank, bgColor: jonyColors.accent1Alpha, iconColor: jonyColors.accent1 },
+  { name: 'Food & Dining', keywords: ['essen', 'food', 'restaurant', 'lieferando', 'rewe', 'edeka', 'supermarkt', 'groceries'], Icon: Utensils },
+  { name: 'Shopping', keywords: ['shopping', 'einkauf', 'zalando', 'amazon', 'kleidung', 'ikea', 'electronics', 'clothing'], Icon: ShoppingCart },
+  { name: 'Transportation', keywords: ['transport', 'auto', 'car', 'db', 'bahn', 'fuel', 'tanken', 'gas'], Icon: Fuel },
+  { name: 'Housing', keywords: ['miete', 'wohnen', 'rent', 'housing'], Icon: Home },
+  { name: 'Entertainment', keywords: ['kino', 'cinema', 'film', 'spotify', 'netflix', 'music'], Icon: Film },
+  { name: 'Salary', keywords: ['gehalt', 'salary', 'einkommen', 'paycheck'], Icon: PiggyBank },
+  { name: 'Business', keywords: ['work', 'business', 'geschäft'], Icon: Briefcase },
 ];
 
 const defaultTheme = {
   Icon: Gift,
-  bgColor: jonyColors.cardBackground,
-  iconColor: jonyColors.textSecondary
 };
 
 const getTransactionTheme = (categoryName) => {
   if (!categoryName) return defaultTheme;
   const name = categoryName.toLowerCase();
-  return transactionThemes.find(theme => 
+  const theme = transactionThemes.find(theme => 
     theme.keywords.some(keyword => name.includes(keyword))
-  ) || defaultTheme;
+  );
+  return theme || defaultTheme;
 };
 // --- END THEMING ENGINE ---
 
@@ -79,6 +73,7 @@ const TransactionsPage = () => {
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [transactions, selectedDate, searchQuery, selectedCategory, selectedAccount, amountFilter]);
 
+
   const hasActiveFilters = searchQuery || selectedCategory || selectedAccount || amountFilter !== 'all';
 
   // --- Group transactions by date for the feed view ---
@@ -92,17 +87,21 @@ const TransactionsPage = () => {
       return acc;
     }, {});
   }, [filteredTransactions]);
-  
+
+  // NEU: fehlende Sortierung der Datums-Gruppen
+  const sortedDateKeys = useMemo(
+    () => Object.keys(groupedTransactions).sort((a, b) => new Date(b) - new Date(a)),
+    [groupedTransactions]
+  );
+
   const formatDateGroup = (dateStr) => {
     const date = new Date(dateStr);
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-
     if (date.toDateString() === today.toDateString()) return 'Heute';
     if (date.toDateString() === yesterday.toDateString()) return 'Gestern';
-    
-    return new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: 'long' }).format(date);
+    return new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
   };
 
 
@@ -145,12 +144,20 @@ const TransactionsPage = () => {
     <div className="min-h-screen font-sans" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
       <div className="px-6 py-8 mb-8">
         <div className="max-w-7xl mx-auto">
+        
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
-              <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>Transaktionen</h1>
-              <div className="px-3 py-1 rounded-full font-semibold text-sm" style={{ backgroundColor: jonyColors.accent1Alpha, color: jonyColors.accent1 }}>{filteredTransactions.length}</div>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+              <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
+                Transaktionen
+              </h1>
+              <div className="px-3 py-1 rounded-full font-semibold text-sm" style={{ 
+                backgroundColor: filteredTransactions.length > 0 ? jonyColors.accent1Alpha : 'transparent', 
+                color: filteredTransactions.length > 0 ? jonyColors.accent1 : 'transparent' 
+              }}>
+                {filteredTransactions.length || '0'}
+              </div>
             </div>
 
             {/* Month Navigation */}
@@ -171,10 +178,8 @@ const TransactionsPage = () => {
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <div className="px-4 py-2 min-w-[180px] text-center w-48">
-                <span className="font-bold text-xl" style={{ color: jonyColors.textPrimary }}>
-                  {selectedDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
-                </span>
+              <div className="font-semibold text-center" style={{ color: jonyColors.textPrimary, minWidth: '200px', fontSize: '20px' }}>
+                {selectedDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}
               </div>
               <button
                 onClick={goToNextMonth}
@@ -196,18 +201,11 @@ const TransactionsPage = () => {
 
             <button
               onClick={() => { setEditingTransaction(null); setModalOpen(true); }}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-base"
+              className="flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-base hover:scale-105 hover:opacity-90"
               style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = jonyColors.greenDark;
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = jonyColors.accent1;
-              }}
             >
               <Plus className="w-5 h-5" />
               <span className="hidden sm:inline">Neue Transaktion</span>
-              <span className="sm:hidden">Neu</span>
             </button>
           </div>
         </div>
@@ -215,258 +213,105 @@ const TransactionsPage = () => {
 
       <div className="px-6 mb-12">
         <div className="max-w-7xl mx-auto">
-
-          {/* Search and Filter Controls */}
-          <div className="mb-6 space-y-4">
-            <div className="flex flex-col md:flex-row gap-6 items-center">
-              <div className="flex-grow flex items-center gap-4 w-full">
-                <div className="relative flex-grow">
-                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: jonyColors.textSecondary }} />
-                  <input
-                    type="text"
-                    placeholder="Suchen..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-6 border rounded-2xl focus:outline-none focus:ring-2 transition-all text-base py-3"
-                    style={{
-                      backgroundColor: jonyColors.surface,
-                      color: jonyColors.textPrimary,
-                      borderColor: jonyColors.border,
-                      '--tw-ring-color': jonyColors.accent1
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="flex-shrink-0 flex items-center gap-2 rounded-xl transition-all duration-200 font-medium py-3 px-6 text-base"
-                  style={{
-                    backgroundColor: hasActiveFilters ? jonyColors.accent1 : jonyColors.cardBackground,
-                    color: hasActiveFilters ? jonyColors.background : jonyColors.textSecondary
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!hasActiveFilters) {
-                      e.target.style.backgroundColor = jonyColors.accent1Alpha;
-                      e.target.style.color = jonyColors.accent1;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!hasActiveFilters) {
-                      e.target.style.backgroundColor = jonyColors.cardBackground;
-                      e.target.style.color = jonyColors.textSecondary;
-                    }
-                  }}
-                >
-                  <Filter className="w-5 h-5" />
-                  <span>Filter</span>
-                </button>
-              </div>
-            </div>
-            {/* Expanded Filters */}
-            {showFilters && (
-              <div className="p-6 rounded-2xl border shadow-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" style={{
-                backgroundColor: jonyColors.surface,
-                borderColor: jonyColors.border
-              }}>
-                {[
-                  { label: 'Kategorie', value: selectedCategory, onChange: setSelectedCategory, options: categories.map(c => c.name) },
-                  { label: 'Konto', value: selectedAccount, onChange: setSelectedAccount, options: accounts.map(a => a.name) },
-                  { label: 'Typ', value: amountFilter, onChange: setAmountFilter, options: { 'all': 'Alle', 'income': 'Nur Einnahmen', 'expense': 'Nur Ausgaben' } }
-                ].map(filter => (
-                  <div key={filter.label}>
-                    <label className="block text-xs font-medium mb-2" style={{ color: jonyColors.textSecondary }}>{filter.label}</label>
-                    <select
-                      value={filter.value}
-                      onChange={(e) => filter.onChange(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 text-sm"
-                      style={{
-                        backgroundColor: jonyColors.cardBackground,
-                        color: jonyColors.textPrimary,
-                        borderColor: jonyColors.cardBorder,
-                        '--tw-ring-color': jonyColors.accent1
-                      }}
-                    >
-                      <option value="">Alle</option>
-                      {Array.isArray(filter.options)
-                        ? filter.options.map(opt => <option key={opt} value={opt}>{opt}</option>)
-                        : Object.entries(filter.options).map(([val, name]) => <option key={val} value={val}>{name}</option>)
-                      }
-                    </select>
+          <section className="mb-8">
+              <div className="flex flex-col md:flex-row gap-4">
+                  <div className="relative flex-grow">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: jonyColors.textSecondary }} />
+                      <input type="text" placeholder="Suchen nach Empfänger, Kategorie..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-full focus:outline-none" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}` }} />
                   </div>
-                ))}
-                {hasActiveFilters && (
-                  <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
-                    <button
-                      onClick={clearAllFilters}
-                      className="flex items-center gap-2 font-medium text-sm transition-colors duration-200"
-                      style={{ color: jonyColors.textSecondary }}
-                      onMouseEnter={(e) => {
-                        e.target.style.color = jonyColors.red;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.color = jonyColors.textSecondary;
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                      Alle Filter zurücksetzen
-                    </button>
-                  </div>
-                )}
+                  <button onClick={() => setShowFilters(!showFilters)} className="flex items-center justify-center gap-2 px-4 py-3 rounded-full font-normal transition-colors" style={{ backgroundColor: jonyColors.background, color: jonyColors.textSecondary, border: `1px solid ${jonyColors.cardBorder}` }}>
+                      <Filter className="w-5 h-5" strokeWidth={1.5} />
+                      <span>Filter</span>
+                      {hasActiveFilters && <div className="w-2 h-2 rounded-full" style={{backgroundColor: jonyColors.accent1}}></div>}
+                  </button>
               </div>
-            )}
-        </div>
-
-          {/* Transactions List */}
-          <main className="w-full">
-            {filteredTransactions.length === 0 ? (
-              <div className="text-center p-12 rounded-3xl border-2 max-w-md mx-auto" style={{
-                backgroundColor: jonyColors.surface,
-                border: `2px solid ${jonyColors.border}`
-              }}>
-                <div className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center" style={{
-                  backgroundColor: jonyColors.accent1Alpha
-                }}>
-                  <List className="w-8 h-8" style={{ color: jonyColors.accent1 }} />
-                </div>
-                <h2 className="text-2xl font-bold mb-4" style={{ color: jonyColors.textPrimary }}>Keine Transaktionen</h2>
-                <p className="text-lg" style={{ color: jonyColors.textSecondary }}>
-                  {hasActiveFilters ? 'Für deine Filterauswahl wurden keine Ergebnisse gefunden.' : 'Für diesen Monat sind keine Transaktionen vorhanden.'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {Object.keys(groupedTransactions).map(date => (
-                  <div key={date}>
-                    <h3 className="text-sm font-semibold px-4 py-2 rounded-lg inline-block mb-4" style={{
-                      backgroundColor: jonyColors.cardBackground,
-                      color: jonyColors.textSecondary
-                    }}>
-                      {formatDateGroup(date)}
-                    </h3>
-                    <div className="space-y-2">
-                      {groupedTransactions[date].map(tx => {
-                        const { Icon, bgColor, iconColor } = getTransactionTheme(tx.category);
-                        return (
-                          <div key={tx.id} className="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-200" style={{
-                            backgroundColor: jonyColors.surface,
-                            borderColor: jonyColors.border
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = jonyColors.surface;
-                          }}>
-                            <div className="flex items-center gap-4 min-w-0 flex-1">
-                              <div className="relative">
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: bgColor }}>
-                                  <Icon className="w-6 h-6" style={{ color: iconColor }} />
-                                </div>
-                                {/* Shared transaction indicator */}
-                                {tx.sharedWith && tx.sharedWith.length > 0 && (
-                                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: jonyColors.magenta }}>
-                                    <Users className="w-3 h-3" style={{ color: jonyColors.background }} />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p 
-                                  className="font-bold text-base truncate" 
-                                  style={{ color: jonyColors.textPrimary }}
-                                  title={tx.recipient || 'Unbekannt'}
-                                >
-                                  {tx.recipient || 'Unbekannt'}
-                                </p>
-                                <p 
-                                  className="text-sm truncate" 
-                                  style={{ color: jonyColors.textSecondary }}
-                                  title={tx.description || tx.category || 'Keine Beschreibung'}
-                                >
-                                  {tx.description || tx.category || 'Keine Beschreibung'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-6">
-                              <p className="font-bold text-base text-right" style={{
-                                color: tx.amount > 0 ? jonyColors.accent1 : jonyColors.magenta
-                              }}>
-                                {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
-                              </p>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {tx.amount < 0 && (!tx.sharedWith || tx.sharedWith.length === 0) && (
-                                  <button 
-                                    onClick={() => handleShareExpense(tx)} 
-                                    className="p-2 rounded-lg transition-all duration-200" 
-                                    style={{ color: jonyColors.textSecondary }}
-                                    onMouseEnter={(e) => {
-                                      e.target.style.backgroundColor = jonyColors.accent1Alpha;
-                                      e.target.style.color = jonyColors.accent1;
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.target.style.backgroundColor = 'transparent';
-                                      e.target.style.color = jonyColors.textSecondary;
-                                    }}
-                                    title="Ausgabe teilen"
-                                  >
-                                    <Users className="w-4 h-4"/>
-                                  </button>
-                                )}
-                                <button 
-                                  onClick={() => handleEdit(tx)} 
-                                  className="p-2 rounded-lg transition-all duration-200" 
-                                  style={{ color: jonyColors.textSecondary }}
-                                  onMouseEnter={(e) => {
-                                    e.target.style.backgroundColor = jonyColors.cardBackground;
-                                    e.target.style.color = jonyColors.textPrimary;
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.target.style.backgroundColor = 'transparent';
-                                    e.target.style.color = jonyColors.textSecondary;
-                                  }}
-                                  title="Bearbeiten"
-                                >
-                                  <Edit className="w-4 h-4"/>
-                                </button>
-                                <button 
-                                  onClick={() => handleDelete(tx)} 
-                                  className="p-2 rounded-lg transition-all duration-200" 
-                                  style={{ color: jonyColors.textSecondary }}
-                                  onMouseEnter={(e) => {
-                                    e.target.style.backgroundColor = jonyColors.redAlpha;
-                                    e.target.style.color = jonyColors.red;
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.target.style.backgroundColor = 'transparent';
-                                    e.target.style.color = jonyColors.textSecondary;
-                                  }}
-                                  title="Löschen"
-                                >
-                                  <Trash2 className="w-4 h-4"/>
-                                </button>
-                              </div>
-                            </div>
+              {showFilters && (
+                  <div className="pt-4 mt-4 border-t" style={{ borderColor: jonyColors.border }}>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                              <label className="text-xs font-medium mb-1 block pl-4" style={{color: jonyColors.textSecondary}}>Kategorie</label>
+                              <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full px-3 py-3 rounded-full text-sm focus:outline-none appearance-none text-center" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary }}>
+                                  <option value="">Alle</option>
+                                  {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                              </select>
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div>
+                              <label className="text-xs font-medium mb-1 block pl-4" style={{color: jonyColors.textSecondary}}>Konto</label>
+                              <select value={selectedAccount} onChange={(e) => setSelectedAccount(e.target.value)} className="w-full px-3 py-3 rounded-full text-sm focus:outline-none appearance-none text-center" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary }}>
+                                  <option value="">Alle</option>
+                                  {accounts.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
+                              </select>
+                          </div>
+                          <div>
+                              <label className="text-xs font-medium mb-1 block pl-4" style={{color: jonyColors.textSecondary}}>Typ</label>
+                              <select value={amountFilter} onChange={(e) => setAmountFilter(e.target.value)} className="w-full px-3 py-3 rounded-full text-sm focus:outline-none appearance-none text-center" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary }}>
+                                  <option value="all">Alle</option>
+                                  <option value="income">Nur Einnahmen</option>
+                                  <option value="expense">Nur Ausgaben</option>
+                              </select>
+                          </div>
+                      </div>
+                      {hasActiveFilters && <button onClick={clearAllFilters} className="text-xs mt-4 flex items-center gap-1.5" style={{color: jonyColors.textSecondary}}><X className="w-4 h-4"/>Filter zurücksetzen</button>}
                   </div>
-                ))}
-              </div>
+              )}
+          </section>
+
+        <main>
+            {sortedDateKeys.length > 0 ? (
+
+                <div className="space-y-8">
+                    {sortedDateKeys.map(date => (
+                        <div key={date}>
+                            <h2 className="font-semibold mb-3 pl-2 text-sm" style={{color: jonyColors.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em'}}>{formatDateGroup(date)}</h2>
+                            <div className="space-y-1">
+                                {groupedTransactions[date].map((tx) => {
+                                    const { Icon } = getTransactionTheme(tx.category);
+                                    const isIncome = tx.amount > 0;
+                                    const bgColor = isIncome ? jonyColors.accent1Alpha : jonyColors.magentaAlpha;
+                                    const iconColor = isIncome ? jonyColors.accent1 : jonyColors.magenta;
+                                    return (
+                                        <div key={tx.id} className="group flex items-center p-3 rounded-xl transition-colors hover:bg-[#1E1E1E] cursor-pointer" onClick={() => handleEdit(tx)}>
+                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: bgColor }}><Icon className="w-5 h-5" style={{ color: iconColor }} /></div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold truncate">{tx.recipient || 'Unbekannt'}</p>
+                                                    <p className="text-xs truncate" style={{ color: jonyColors.textSecondary }}>{tx.category}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-end gap-2 ml-4 flex-shrink-0">
+                                                <div className="scale-0 group-hover:scale-100 origin-left transition-transform flex items-center gap-1">
+                                                    <button onClick={(e) => { e.stopPropagation(); handleShareExpense(tx); }} className="p-2 rounded-lg text-gray-400 hover:text-green-500" title="Teilen"><Users className="w-4 h-4" /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(tx); }} className="p-2 rounded-lg text-gray-400 hover:text-pink-500" title="Löschen"><Trash2 className="w-4 h-4" /></button>
+                                                </div>
+                                                <p className="font-semibold text-lg" style={{color: isIncome ? jonyColors.accent1 : jonyColors.textPrimary}}>{isIncome ? '+' : ''}{formatCurrency(tx.amount)}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="flex items-center justify-center" style={{ minHeight: '500px' }}>
+                    <div className="text-center p-12 rounded-3xl border-2 max-w-md" style={{ backgroundColor: jonyColors.surface, border: `2px solid ${jonyColors.border}` }}>
+                        <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center shadow-xl" style={{ backgroundColor: jonyColors.accent1 }}>
+                            <List className="w-12 h-12" style={{ color: jonyColors.background }} />
+                        </div>
+                        <h2 className="text-3xl font-black mb-4" style={{ color: jonyColors.textPrimary }}>Keine Transaktionen</h2>
+                        <p className="text-lg leading-relaxed" style={{ color: jonyColors.textSecondary }}>Für die aktuelle Auswahl wurden keine Ergebnisse gefunden.</p>
+                    </div>
+                </div>
             )}
-          </main>
+        </main>
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setModalOpen(false)} title={editingTransaction?.id ? "Transaktion bearbeiten" : "Neue Transaktion erstellen"} size="large">
+      <Modal isOpen={isModalOpen} onClose={() => setModalOpen(false)} title={editingTransaction?.id ? "Transaktion bearbeiten" : "Neue Transaktion"}>
         <TransactionForm transaction={editingTransaction} onSave={handleSave} onCancel={() => setModalOpen(false)} categories={categories} accounts={accounts} />
       </Modal>
 
-      <ConfirmationModal
-        isOpen={showDeleteConfirm}
-        onClose={() => { setShowDeleteConfirm(false); setDeleteTransaction(null); }}
-        onConfirm={confirmDelete}
-        title="Transaktion löschen"
-        message={`Möchtest du die Transaktion "${deleteTransaction?.recipient || 'Unbekannt'}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
-      />
+      <ConfirmationModal isOpen={showDeleteConfirm} onClose={() => { setShowDeleteConfirm(false); setDeleteTransaction(null); }} onConfirm={confirmDelete} title="Transaktion löschen" message={`Sind Sie sicher, dass Sie die Transaktion mit "${deleteTransaction?.recipient || 'Unbekannt'}" löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.`} />
     </div>
   );
 };

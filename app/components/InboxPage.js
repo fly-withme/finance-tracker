@@ -309,7 +309,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
         <div className="max-w-7xl mx-auto">
           <div className="relative flex items-center">
             <div className="flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
               <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
                 Posteingang
               </h1>
