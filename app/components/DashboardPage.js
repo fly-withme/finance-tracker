@@ -261,21 +261,19 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     yearsToFI: yearsToFI
   };
   
-  // Calculate savings rate from real data for the last 6 months
+  // Calculate savings rate from real data starting from January
   const calculateSavingsRateData = () => {
     const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
     const data = [];
     const now = new Date();
+    const currentYear = now.getFullYear();
     
-    for (let i = 5; i >= 0; i--) {
-      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const month = targetDate.getMonth();
-      const year = targetDate.getFullYear();
-      
+    // Start from January of current year up to current month
+    for (let month = 0; month <= now.getMonth(); month++) {
       const monthlyTransactions = transactions.filter(t => {
         const transactionDate = new Date(t.date);
         return transactionDate.getMonth() === month && 
-               transactionDate.getFullYear() === year;
+               transactionDate.getFullYear() === currentYear;
       });
       
       const income = monthlyTransactions
@@ -424,27 +422,25 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   );
 
 
-  // Calculate annual savings rate data from real transactions
+  // Calculate annual savings rate data with different views
   const calculateAnnualSavingsRateData = () => {
+    const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
     const now = new Date();
+    const currentYear = now.getFullYear();
     
+    // 1 Year View: All 12 months of current year
     const oneYearData = [];
-    for (let i = 11; i >= 0; i--) {
-      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const month = targetDate.getMonth();
-      const year = targetDate.getFullYear();
-      
+    for (let month = 0; month < 12; month++) {
       const monthlyTransactions = transactions.filter(t => {
         const transactionDate = new Date(t.date);
         return transactionDate.getMonth() === month && 
-               transactionDate.getFullYear() === year;
+               transactionDate.getFullYear() === currentYear;
       });
       
       const income = monthlyTransactions
         .filter(t => t.amount > 0)
         .reduce((sum, t) => sum + t.amount, 0);
       
-      // Calculate actual savings (negative amounts that are savings-related)
       const savingsAmount = Math.abs(monthlyTransactions
         .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
         .reduce((sum, t) => sum + t.amount, 0));
@@ -452,57 +448,182 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       const savingsRate = income > 0 ? (savingsAmount / income * 100) : 0;
       
       oneYearData.push({
-        month: `${year}`,
+        month: monthNames[month],
         savingsRate: Math.max(0, Math.round(savingsRate * 10) / 10)
       });
     }
     
+    // 5 Years View: Last 5 years (annual savings rates)
+    const fiveYearsData = [];
+    for (let i = 4; i >= 0; i--) {
+      const year = currentYear - i;
+      
+      const yearTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getFullYear() === year;
+      });
+      
+      const annualIncome = yearTransactions
+        .filter(t => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const annualSavings = Math.abs(yearTransactions
+        .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
+        .reduce((sum, t) => sum + t.amount, 0));
+      
+      const annualSavingsRate = annualIncome > 0 ? (annualSavings / annualIncome * 100) : 0;
+      
+      fiveYearsData.push({
+        month: year.toString(),
+        savingsRate: Math.max(0, Math.round(annualSavingsRate * 10) / 10)
+      });
+    }
+    
+    // Max View: All years with data
+    const allYears = [...new Set(transactions.map(t => new Date(t.date).getFullYear()))].sort();
+    const maxData = allYears.map(year => {
+      const yearTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getFullYear() === year;
+      });
+      
+      const annualIncome = yearTransactions
+        .filter(t => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const annualSavings = Math.abs(yearTransactions
+        .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
+        .reduce((sum, t) => sum + t.amount, 0));
+      
+      const annualSavingsRate = annualIncome > 0 ? (annualSavings / annualIncome * 100) : 0;
+      
+      return {
+        month: year.toString(),
+        savingsRate: Math.max(0, Math.round(annualSavingsRate * 10) / 10)
+      };
+    });
+    
     return {
-      '1year': savingsRateData, // Use the 6-month data for 1-year view
-      '5years': oneYearData.slice(-5),
-      'max': oneYearData
+      '1year': oneYearData,
+      '5years': fiveYearsData,
+      'max': maxData
     };
   };
   
   const annualSavingsRateData = calculateAnnualSavingsRateData();
 
-  // Calculate cashflow data from real transactions
+  // Calculate cashflow data with different views
   const calculateCashflowData = () => {
     const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
     const now = new Date();
+    const currentYear = now.getFullYear();
     
+    // 1 Year View: January to December of current year
     const oneYearData = [];
-    for (let i = 11; i >= 0; i--) {
-      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const month = targetDate.getMonth();
-      const year = targetDate.getFullYear();
-      
+    for (let month = 0; month < 12; month++) {
       const monthlyTransactions = transactions.filter(t => {
         const transactionDate = new Date(t.date);
         return transactionDate.getMonth() === month && 
-               transactionDate.getFullYear() === year;
+               transactionDate.getFullYear() === currentYear;
       });
       
       const income = monthlyTransactions
         .filter(t => t.amount > 0)
         .reduce((sum, t) => sum + t.amount, 0);
-        
-      const expense = Math.abs(monthlyTransactions
-        .filter(t => t.amount < 0)
+      
+      // Separate savings from regular expenses  
+      const savings = Math.abs(monthlyTransactions
+        .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
         .reduce((sum, t) => sum + t.amount, 0));
+        
+      const regularExpenses = Math.abs(monthlyTransactions
+        .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
+        .reduce((sum, t) => sum + t.amount, 0));
+        
+      const totalExpense = savings + regularExpenses;
       
       oneYearData.push({
         month: monthNames[month],
         income: Math.round(income),
-        expense: Math.round(expense),
-        net: Math.round(income - expense)
+        expense: Math.round(totalExpense),
+        savings: Math.round(savings),
+        regularExpenses: Math.round(regularExpenses),
+        net: Math.round(income - totalExpense)
       });
     }
     
+    // 5 Years View: Last 5 years (2021, 2022, 2023, 2024, 2025)
+    const fiveYearsData = [];
+    for (let i = 4; i >= 0; i--) {
+      const year = currentYear - i;
+      
+      const yearTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getFullYear() === year;
+      });
+      
+      const income = yearTransactions
+        .filter(t => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      // Separate savings from regular expenses  
+      const savings = Math.abs(yearTransactions
+        .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
+        .reduce((sum, t) => sum + t.amount, 0));
+        
+      const regularExpenses = Math.abs(yearTransactions
+        .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
+        .reduce((sum, t) => sum + t.amount, 0));
+        
+      const totalExpense = savings + regularExpenses;
+      
+      fiveYearsData.push({
+        month: year.toString(),
+        income: Math.round(income),
+        expense: Math.round(totalExpense),
+        savings: Math.round(savings),
+        regularExpenses: Math.round(regularExpenses),
+        net: Math.round(income - totalExpense)
+      });
+    }
+    
+    // Max View: All years with data
+    const allYears = [...new Set(transactions.map(t => new Date(t.date).getFullYear()))].sort();
+    const maxData = allYears.map(year => {
+      const yearTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getFullYear() === year;
+      });
+      
+      const income = yearTransactions
+        .filter(t => t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      // Separate savings from regular expenses  
+      const savings = Math.abs(yearTransactions
+        .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
+        .reduce((sum, t) => sum + t.amount, 0));
+        
+      const regularExpenses = Math.abs(yearTransactions
+        .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
+        .reduce((sum, t) => sum + t.amount, 0));
+        
+      const totalExpense = savings + regularExpenses;
+      
+      return {
+        month: year.toString(),
+        income: Math.round(income),
+        expense: Math.round(totalExpense),
+        savings: Math.round(savings),
+        regularExpenses: Math.round(regularExpenses),
+        net: Math.round(income - totalExpense)
+      };
+    });
+    
     return {
       '1year': oneYearData,
-      '5years': oneYearData.slice(-5), // Fallback to recent data if no 5-year history
-      'max': oneYearData // Fallback to recent data if no full history
+      '5years': fiveYearsData,
+      'max': maxData
     };
   };
   
