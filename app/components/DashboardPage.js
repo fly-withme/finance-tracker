@@ -300,42 +300,57 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   
   const savingsRateData = calculateSavingsRateData();
   
-  // Calculate budget vs actual from real data
+  // Calculate expenses by category with percentage of total monthly expenses
   const calculateBudgetVsActual = () => {
-    if (!budgets.length) return [];
+    const selectedDate = currentMonth || new Date();
+    const selectedMonthIndex = selectedDate.getMonth();
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonthBudget = selectedMonthIndex + 1; // Convert to 1-12 for budget comparison
     
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1; // getMonth() returns 0-11, budgets use 1-12
-    const currentYear = now.getFullYear();
+    // Get all expense transactions for selected month
+    const selectedMonthTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getMonth() === selectedMonthIndex && 
+             transactionDate.getFullYear() === selectedYear &&
+             t.amount < 0; // Only expenses
+    });
     
-    const currentBudgets = budgets.filter(b => 
-      b.month === currentMonth && b.year === currentYear
-    );
+    // Calculate total monthly expenses
+    const totalMonthlyExpenses = selectedMonthTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
     
-    return currentBudgets.map(budget => {
-      const categoryTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.date);
-        return t.category === budget.categoryName &&
-               transactionDate.getMonth() === (currentMonth - 1) && // Convert back to 0-11
-               transactionDate.getFullYear() === currentYear &&
-               t.amount < 0; // Only expenses
-      });
+    // Group expenses by category
+    const expensesByCategory = selectedMonthTransactions.reduce((acc, t) => {
+      const category = t.category || 'Unbekannt';
+      acc[category] = (acc[category] || 0) + Math.abs(t.amount);
+      return acc;
+    }, {});
+    
+    // Create data for each category that has expenses
+    return Object.entries(expensesByCategory).map(([categoryName, actual]) => {
+      // Calculate percentage of total monthly expenses
+      const percentageOfTotal = totalMonthlyExpenses > 0 ? (actual / totalMonthlyExpenses) * 100 : 0;
       
-      const actual = Math.abs(categoryTransactions.reduce((sum, t) => sum + t.amount, 0));
-      const progress = budget.amount > 0 ? (actual / budget.amount) * 100 : 0;
+      // Try to find a budget for this category and month
+      const budget = budgets.find(b => 
+        b.categoryName === categoryName && 
+        b.month === selectedMonthBudget && 
+        b.year === selectedYear
+      );
       
       return {
-        name: budget.categoryName,
-        budget: budget.amount,
+        name: categoryName,
         actual,
-        progress: Math.round(progress),
+        budget: budget ? budget.amount : null,
+        hasBudget: !!budget,
+        totalMonthlyExpenses,
+        progress: Math.round(percentageOfTotal * 10) / 10, // Round to 1 decimal place
         color: jonyColors.magenta,
         bgColor: jonyColors.magentaAlpha
       };
-    });
+    }).sort((a, b) => b.actual - a.actual); // Sort by highest expenses first
   };
   
-  const budgetVsActualData = calculateBudgetVsActual();
+  const budgetVsActualData = useMemo(() => calculateBudgetVsActual(), [transactions, currentMonth, budgets]);
   
   // Use real savings goals data
   const savingsGoalsData = {
@@ -369,26 +384,44 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   const [savingsRatePeriod, setSavingsRatePeriod] = useState('1year');
   const [cashflowPeriod, setCashflowPeriod] = useState('1year');
 
-  // Generate daily spending data for the entire current month
-  const generateDailySpendingData = (month) => {
-    const year = month.getFullYear();
-    const monthIndex = month.getMonth();
+  // Generate daily spending data from real transactions for the selected month
+  const generateDailySpendingData = (selectedMonth) => {
+    const selectedDate = selectedMonth || new Date();
+    const year = selectedDate.getFullYear();
+    const monthIndex = selectedDate.getMonth();
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
     
+    // Get all expense transactions for the selected month
+    const monthTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getMonth() === monthIndex && 
+             transactionDate.getFullYear() === year &&
+             t.amount < 0; // Only expenses
+    });
+    
+    // Group expenses by day
+    const dailyExpenses = {};
+    monthTransactions.forEach(t => {
+      const day = new Date(t.date).getDate();
+      dailyExpenses[day] = (dailyExpenses[day] || 0) + Math.abs(t.amount);
+    });
+    
+    // Create daily data array
     const dailyData = [];
     for (let day = 1; day <= daysInMonth; day++) {
-      // Generate realistic spending amounts with some variation
-      const baseAmount = 50 + Math.random() * 150; // Base between 50-200
-      const weekdayMultiplier = (day % 7 === 0 || day % 7 === 6) ? 1.3 : 1; // Weekend multiplier
-      const monthlyVariation = Math.sin(day / daysInMonth * Math.PI) * 30; // Monthly curve
-      const expense = Math.round(baseAmount * weekdayMultiplier + monthlyVariation);
-      
-      dailyData.push({ day, expense });
+      dailyData.push({ 
+        day, 
+        expense: Math.round(dailyExpenses[day] || 0) 
+      });
     }
+    
     return dailyData;
   };
 
-  const dailySpendingData = generateDailySpendingData(currentMonth || new Date());
+  const dailySpendingData = useMemo(() => 
+    generateDailySpendingData(currentMonth), 
+    [transactions, currentMonth]
+  );
 
 
   // Calculate annual savings rate data from real transactions
@@ -1097,42 +1130,48 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
         <div className="max-w-7xl mx-auto">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
               <h2 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
                 Monatliche Metriken
               </h2>
             </div>
             
             {/* Monats-Umschalter */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => changeMonth(-1)}
-                className="p-3 rounded-xl border transition-all duration-300 hover:bg-opacity-80"
-                style={{
-                  backgroundColor: jonyColors.cardBackground,
-                  borderColor: jonyColors.cardBorder,
-                  color: jonyColors.textSecondary
+                className="p-3 rounded-full transition-all duration-200"
+                style={{ backgroundColor: jonyColors.cardBackground, color: jonyColors.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                  e.target.style.color = jonyColors.accent1;
                 }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                  e.target.style.color = jonyColors.textSecondary;
+                }}
+                title="Vorheriger Monat"
               >
-                <ChevronLeft className="w-4 h-4" style={{ strokeWidth: 1.5 }} />
+                <ChevronLeft className="w-5 h-5" />
               </button>
-              <div className="px-6 py-3 rounded-xl border font-light w-48 text-center" style={{
-                backgroundColor: jonyColors.cardBackground,
-                borderColor: jonyColors.cardBorder,
-                color: jonyColors.textPrimary
-              }}>
-                {currentMonth ? currentMonth.toLocaleString('de-DE', { month: 'long', year: 'numeric' }) : 'Juni 2024'}
+              <div className="font-semibold text-center" style={{ color: jonyColors.textPrimary, minWidth: '200px', fontSize: '20px' }}>
+                {currentMonth ? currentMonth.toLocaleString('de-DE', { month: 'long', year: 'numeric' }) : 'September 2025'}
               </div>
               <button
                 onClick={() => changeMonth(1)}
-                className="p-3 rounded-xl border transition-all duration-300 hover:bg-opacity-80"
-                style={{
-                  backgroundColor: jonyColors.cardBackground,
-                  borderColor: jonyColors.cardBorder,
-                  color: jonyColors.textSecondary
+                className="p-3 rounded-full transition-all duration-200"
+                style={{ backgroundColor: jonyColors.cardBackground, color: jonyColors.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                  e.target.style.color = jonyColors.accent1;
                 }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                  e.target.style.color = jonyColors.textSecondary;
+                }}
+                title="Nächster Monat"
               >
-                <ChevronRight className="w-4 h-4" style={{ strokeWidth: 1.5 }} />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -1217,9 +1256,6 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             
             <div className="space-y-6">
               {budgetVsActualData.map((item, index) => {
-                const progressPercentage = Math.min((item.actual / item.budget) * 100, 100);
-                const isOverBudget = item.actual > item.budget;
-                
                 return (
                   <div key={index} className="space-y-3">
                     <div className="flex justify-between items-center">
@@ -1234,37 +1270,48 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                             color: item.color
                           }}
                         >
-                          {item.progress.toFixed(0)}%
+                          {item.progress}%
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-medium" style={{ 
-                          color: isOverBudget ? item.color : jonyColors.textPrimary 
+                          color: jonyColors.textPrimary 
                         }}>
-                          {formatCurrency(item.actual)}
+                          {item.hasBudget 
+                            ? `${formatCurrencyNoDecimals(item.actual)} / ${formatCurrencyNoDecimals(item.budget)}`
+                            : formatCurrency(item.actual)
+                          }
                         </div>
-                        <div className="text-xs font-light" style={{ color: jonyColors.textSecondary }}>
-                          von {formatCurrency(item.budget)}
-                        </div>
+                        {item.hasBudget && (
+                          <div className="text-xs font-light" style={{ color: jonyColors.textSecondary }}>
+                            Budget
+                          </div>
+                        )}
                       </div>
                     </div>
                     
-                    {/* Progress Bar */}
+                    {/* Progress Bar - shows percentage of total monthly expenses */}
                     <div className="w-full rounded-full h-3" style={{ backgroundColor: item.bgColor }}>
                       <div 
                         className="h-3 rounded-full transition-all duration-500"
                         style={{ 
-                          width: `${progressPercentage}%`,
+                          width: `${item.progress}%`,
                           backgroundColor: item.color,
                           boxShadow: `0 1px 2px ${item.color}33`
                         }}
                       ></div>
                     </div>
                     
-                    <div className="flex justify-between text-xs font-light" style={{ color: jonyColors.textSecondary }}>
-                      <span>Verbraucht: {formatCurrency(item.actual)}</span>
-                      <span>Verbleibend: {formatCurrency(Math.max(0, item.budget - item.actual))}</span>
-                    </div>
+                    {item.hasBudget && (
+                      <div className="flex justify-between text-xs font-light" style={{ color: jonyColors.textSecondary }}>
+                        <span>
+                          {item.actual > item.budget 
+                            ? `Überschreitung: ${formatCurrency(item.actual - item.budget)}`
+                            : `Verbleibend: ${formatCurrency(item.budget - item.actual)}`
+                          }
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
