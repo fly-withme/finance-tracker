@@ -18,6 +18,19 @@ import { db } from '../utils/db';
 import { jonyColors } from '../theme';
 
 const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
+  // Smart savings detection keywords
+  const SAVINGS_KEYWORDS = [
+    'sparen', 'savings', 'investieren', 'investment', 'etf', 'aktien', 'stocks',
+    'notgroschen', 'emergency fund', 'rücklagen', 'reserves', 'depot',
+    'anlegen', 'invest', 'sparplan', 'saving plan', 'vermögensaufbau',
+    'wealth building', 'altersvorsorge', 'retirement', 'pension'
+  ];
+
+  const detectSavings = (category, description, recipient) => {
+    const text = `${category || ''} ${description || ''} ${recipient || ''}`.toLowerCase();
+    return SAVINGS_KEYWORDS.some(keyword => text.includes(keyword));
+  };
+
   // State for subscriptions
   const [subscriptions, setSubscriptions] = useState([
     { id: 1, name: 'Netflix', amount: 12.99, isActive: true, color: '#ff4757' },
@@ -163,27 +176,32 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     else return 'F';
   };
   
-  // Calculate monthly income/expenses from recent transactions
+  // Calculate monthly income/expenses from selected month
   const calculateMonthlyMetrics = () => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    const selectedDate = currentMonth || new Date();
+    const selectedMonthIndex = selectedDate.getMonth();
+    const selectedYear = selectedDate.getFullYear();
     
-    const currentMonthTransactions = transactions.filter(t => {
+    const selectedMonthTransactions = transactions.filter(t => {
       const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === currentMonth && 
-             transactionDate.getFullYear() === currentYear;
+      return transactionDate.getMonth() === selectedMonthIndex && 
+             transactionDate.getFullYear() === selectedYear;
     });
     
-    const income = currentMonthTransactions
+    const income = selectedMonthTransactions
       .filter(t => t.amount > 0)
       .reduce((sum, t) => sum + t.amount, 0);
       
-    const expenses = Math.abs(currentMonthTransactions
+    const expenses = Math.abs(selectedMonthTransactions
       .filter(t => t.amount < 0)
       .reduce((sum, t) => sum + t.amount, 0));
+
+    // Calculate actual savings (negative amounts that are savings-related)
+    const savings = Math.abs(selectedMonthTransactions
+      .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
+      .reduce((sum, t) => sum + t.amount, 0));
     
-    return { income, expenses };
+    return { income, expenses, savings };
   };
   
   // Calculate years to FI (Financial Independence)
@@ -197,11 +215,40 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     return Math.ceil(yearsToFI);
   };
   
-  // Real calculations
+  // Calculate annual metrics (for the top dashboard cards)
+  const calculateAnnualMetrics = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    
+    const yearTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getFullYear() === currentYear;
+    });
+    
+    const annualIncome = yearTransactions
+      .filter(t => t.amount > 0)
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    const annualSavings = Math.abs(yearTransactions
+      .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
+      .reduce((sum, t) => sum + t.amount, 0));
+    
+    return { annualIncome, annualSavings };
+  };
+
+  // Real calculations with memoization for selected month
   const netWorth = calculateNetWorth();
-  const { income: monthlyIncome, expenses: monthlyExpense } = calculateMonthlyMetrics();
+  const monthlyMetrics = useMemo(() => calculateMonthlyMetrics(), [transactions, currentMonth]);
+  const { income: monthlyIncome, expenses: monthlyExpense, savings: monthlySavings } = monthlyMetrics;
+  const { annualIncome, annualSavings } = calculateAnnualMetrics();
   const fiScore = calculateFinancialScore(netWorth);
   const yearsToFI = calculateYearsToFI(monthlyIncome, monthlyExpense, netWorth);
+  
+  // Calculate annual savings rate in percentage (for top dashboard card)
+  const annualSavingsRate = annualIncome > 0 ? (annualSavings / annualIncome * 100) : 0;
+  
+  // Calculate selected month savings rate in percentage (for monthly section)
+  const currentMonthlySavingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome * 100) : 0;
   
   const dashboardMetrics = {
     netWorth,
@@ -234,12 +281,13 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       const income = monthlyTransactions
         .filter(t => t.amount > 0)
         .reduce((sum, t) => sum + t.amount, 0);
-        
-      const expenses = Math.abs(monthlyTransactions
-        .filter(t => t.amount < 0)
+      
+      // Calculate actual savings (negative amounts that are savings-related)
+      const savingsAmount = Math.abs(monthlyTransactions
+        .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
         .reduce((sum, t) => sum + t.amount, 0));
       
-      const savingsRate = income > 0 ? ((income - expenses) / income * 100) : 0;
+      const savingsRate = income > 0 ? (savingsAmount / income * 100) : 0;
       
       data.push({
         month: monthNames[month],
@@ -362,12 +410,13 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       const income = monthlyTransactions
         .filter(t => t.amount > 0)
         .reduce((sum, t) => sum + t.amount, 0);
-        
-      const expense = Math.abs(monthlyTransactions
-        .filter(t => t.amount < 0)
+      
+      // Calculate actual savings (negative amounts that are savings-related)
+      const savingsAmount = Math.abs(monthlyTransactions
+        .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
         .reduce((sum, t) => sum + t.amount, 0));
       
-      const savingsRate = income > 0 ? ((income - expense) / income * 100) : 0;
+      const savingsRate = income > 0 ? (savingsAmount / income * 100) : 0;
       
       oneYearData.push({
         month: `${year}`,
@@ -561,21 +610,21 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               </div>
             </div>
 
-            {/* Average Savings Rate */}
+            {/* Annual Savings Rate */}
             <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
               }}
-              title="Wieviel Prozent deines Einkommens du durchschnittlich sparst. 20%+ ist sehr gut, 10-20% ist solide, unter 10% sollte verbessert werden. Deutsche sparen im Schnitt 11%.">
+              title="Wieviel Prozent deines Jahreseinkommens du sparst. Berechnet aus allen Sparbeträgen (Sparen, Investieren, ETF, etc.) des aktuellen Jahres geteilt durch das Jahreseinkommen. 20%+ ist sehr gut, 10-20% ist solide, unter 10% sollte verbessert werden.">
               <div>
                 <div className="text-5xl font-bold mb-2" style={{ 
                   color: jonyColors.accent1
                 }}>
-                  {averageSavingsRate}%
+                  {Math.round(annualSavingsRate * 10) / 10}%
                 </div>
                 <div className="text-sm font-semibold" style={{ color: jonyColors.textPrimary }}>
-                  Ø Sparquote
+                  Sparquote
                 </div>
               </div>
             </div>
@@ -1126,7 +1175,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               </div>
             </div>
 
-            {/* Monatliche Sparrate */}
+            {/* Monatliche Sparquote */}
             <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
               style={{
                 backgroundColor: jonyColors.surface,
@@ -1136,10 +1185,10 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                 <div className="text-4xl font-bold mb-2" style={{ 
                   color: jonyColors.accent1
                 }}>
-                  {formatCurrencyNoDecimals(monthlyIncome - monthlyExpense)}
+                  {Math.round(currentMonthlySavingsRate * 10) / 10}%
                 </div>
                 <div className="text-sm font-semibold" style={{ color: jonyColors.textPrimary }}>
-                  Monatliche Sparrate
+                  Monatliche Sparquote
                 </div>
               </div>
             </div>

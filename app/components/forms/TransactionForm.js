@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Tag, Euro, Calendar, Building, FileText, X, Plus } from 'lucide-react';
+import { Tag, Euro, Calendar, FileText, X, Plus } from 'lucide-react';
 import AutocompleteCategorySelector from '../AutocompleteCategorySelector';
 import { db } from '../../utils/db';
 import { jonyColors } from '../../theme';
@@ -45,9 +45,45 @@ const SplitStatus = ({ remaining, userShare, currency = '€' }) => {
 
 const INCOME_CATEGORY_NAME = 'Income'; // Oder 'Einnahme', je nachdem was in Ihrer DB steht
 
+// Smart income detection keywords
+const INCOME_KEYWORDS = [
+  'einkommen', 'gehalt', 'lohn', 'salary', 'rückzahlung', 'rückerstattung', 'refund',
+  'geschenk', 'gift', 'unterhalt', 'alimente', 'kindergeld', 'kinderzuschlag',
+  'bafög', 'stipendium', 'bonus', 'prämie', 'zinsen', 'dividende', 'rente',
+  'pension', 'arbeitslosengeld', 'krankengeld', 'urlaubsgeld', 'weihnachtsgeld',
+  'trinkgeld', 'provision', 'honorar', 'nebenjob', 'verkauf', 'erstattung',
+  'gutschrift', 'überweisung erhalten', 'geld bekommen', 'zahlung erhalten'
+];
+
+// Categories that are always considered income
+const INCOME_CATEGORY_NAMES = [
+  'gehalt', 'einkommen', 'rückzahlung', 'geschenk', 'elterngeld', 'kindergeld',
+  'staatliche unterstützung', 'arbeitslosengeld', 'krankengeld', 'rente',
+  'pension', 'bafög', 'stipendium', 'bonus', 'prämie', 'zinsen', 'dividende',
+  'unterhalt', 'urlaubsgeld', 'weihnachtsgeld', 'trinkgeld', 'provision',
+  'honorar', 'nebenjob', 'erstattung', 'gutschrift', 'income', 'salary',
+  'refund', 'gift', 'allowance', 'benefit', 'grant', 'pension'
+];
+
+const detectIncome = (recipient, description, category) => {
+  const text = `${recipient || ''} ${description || ''}`.toLowerCase();
+  const categoryLower = (category || '').toLowerCase();
+  
+  // Check if category name itself indicates income
+  const isCategoryIncome = INCOME_CATEGORY_NAMES.some(incomeCat => 
+    categoryLower.includes(incomeCat) || incomeCat.includes(categoryLower)
+  );
+  
+  // Check if text contains income keywords
+  const isKeywordIncome = INCOME_KEYWORDS.some(keyword => text.includes(keyword));
+  
+  return isCategoryIncome || isKeywordIncome;
+};
+
 const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }) => {
   const [formData, setFormData] = useState({
     description: transaction?.description || '',
+    recipient: transaction?.recipient || '',
     amount: transaction ? Math.abs(transaction.amount) : '',
     date: transaction?.date || new Date().toISOString().slice(0, 10),
     category: transaction?.category || categories.find(c => c.name !== INCOME_CATEGORY_NAME)?.name || '',
@@ -61,7 +97,7 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
     customAmounts: transaction?.splitDetails || {},
   });
   
-  const isIncome = formData.category === INCOME_CATEGORY_NAME;
+  const isIncome = detectIncome(formData.recipient, formData.description, formData.category);
 
   const { userShare, participantShares, remainingAmount } = useMemo(() => {
     const totalAmount = parseFloat(formData.amount) || 0;
@@ -90,8 +126,37 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
     return { userShare: currentUserShare, participantShares: otherParticipantShares, remainingAmount: totalAmount - totalAssigned };
   }, [formData.amount, splitConfig]);
 
-  const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  const handleCategorySelect = (name) => setFormData(prev => ({ ...prev, category: name }));
+  const handleChange = (e) => {
+    const newData = { ...formData, [e.target.name]: e.target.value };
+    
+    // Smart income detection when recipient or description changes
+    if (e.target.name === 'recipient' || e.target.name === 'description') {
+      const isIncomeDetected = detectIncome(newData.recipient, newData.description, newData.category);
+      if (isIncomeDetected && newData.category !== INCOME_CATEGORY_NAME) {
+        // Find or create income category
+        const incomeCategory = categories.find(c => c.name === INCOME_CATEGORY_NAME || c.name.toLowerCase().includes('income') || c.name.toLowerCase().includes('einnahme'));
+        if (incomeCategory) {
+          newData.category = incomeCategory.name;
+        }
+      }
+    }
+    
+    setFormData(newData);
+  };
+  const handleCategorySelect = (name) => {
+    const newData = { ...formData, category: name };
+    
+    // Smart income detection when category changes
+    const isIncomeDetected = detectIncome(newData.recipient, newData.description, newData.category);
+    if (isIncomeDetected && name !== INCOME_CATEGORY_NAME) {
+      const incomeCategory = categories.find(c => c.name === INCOME_CATEGORY_NAME || c.name.toLowerCase().includes('income') || c.name.toLowerCase().includes('einnahme'));
+      if (incomeCategory) {
+        newData.category = incomeCategory.name;
+      }
+    }
+    
+    setFormData(newData);
+  };
   
   const toggleSplit = () => {
     setSplitConfig(prev => {
@@ -182,15 +247,23 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
     <div className="flex flex-col gap-6 p-4 md:p-6" style={{ color: jonyColors.textPrimary }}>
       <form onSubmit={handleSubmit} className="space-y-6">
         
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="md:col-span-3">
-            <label className="block text-2xs font-medium mb-1.5" style={{ color: jonyColors.textSecondary }}>Beschreibung</label>
+        <div>
+          <label className="block text-2xs font-medium mb-1.5" style={{ color: jonyColors.textSecondary }}>Empfänger/Beschreibung</label>
+          <div className="relative">
+            <IconWrapper><FileText className="w-4 h-4" style={{ color: jonyColors.textSecondary }} /></IconWrapper>
+            <input type="text" name="recipient" placeholder="Wer hat das Geld erhalten?" value={formData.recipient} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl text-base focus:outline-none focus:ring-2 transition-all" style={{ backgroundColor: jonyColors.cardBackground, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary, '--tw-ring-color': jonyColors.accent1 }} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-2xs font-medium mb-1.5" style={{ color: jonyColors.textSecondary }}>Beschreibung (optional)</label>
             <div className="relative">
               <IconWrapper><FileText className="w-4 h-4" style={{ color: jonyColors.textSecondary }} /></IconWrapper>
-              <input type="text" name="description" placeholder="Wofür war das Geld?" value={formData.description} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl text-base focus:outline-none focus:ring-2 transition-all" style={{ backgroundColor: jonyColors.cardBackground, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary, '--tw-ring-color': jonyColors.accent1 }} />
+              <input type="text" name="description" placeholder="Zusätzliche Details..." value={formData.description} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl text-base focus:outline-none focus:ring-2 transition-all" style={{ backgroundColor: jonyColors.cardBackground, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary, '--tw-ring-color': jonyColors.accent1 }} />
             </div>
           </div>
-          <div className="md:col-span-2">
+          <div>
             <label className="block text-2xs font-medium mb-1.5" style={{ color: jonyColors.textSecondary }}>Betrag</label>
             <div className="relative">
               <IconWrapper><Euro className="w-4 h-4" style={{ color: jonyColors.textSecondary }} /></IconWrapper>
@@ -207,22 +280,11 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-2xs font-medium mb-1.5" style={{ color: jonyColors.textSecondary }}>Datum</label>
-            <div className="relative">
-              <IconWrapper><Calendar className="w-4 h-4" style={{ color: jonyColors.textSecondary }} /></IconWrapper>
-              <input type="date" name="date" value={formData.date} onChange={handleChange} required className="w-full pl-10 pr-4 py-3 rounded-xl text-base focus:outline-none focus:ring-2 transition-all" style={{ backgroundColor: jonyColors.cardBackground, border: `1px solid ${jonyColors.cardBorder}`, color: 'white', colorScheme: 'dark', '--tw-ring-color': jonyColors.accent1 }} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-2xs font-medium mb-1.5" style={{ color: jonyColors.textSecondary }}>Konto</label>
-            <div className="relative">
-              <IconWrapper><Building className="w-4 h-4" style={{ color: jonyColors.textSecondary }} /></IconWrapper>
-              <select name="account" value={formData.account} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl text-base focus:outline-none focus:ring-2 transition-all appearance-none" style={{ backgroundColor: jonyColors.cardBackground, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary, '--tw-ring-color': jonyColors.accent1 }}>
-                {accounts.map(a => (<option key={a.id} value={a.name}>{a.name}</option>))}
-              </select>
-            </div>
+        <div>
+          <label className="block text-2xs font-medium mb-1.5" style={{ color: jonyColors.textSecondary }}>Datum</label>
+          <div className="relative">
+            <IconWrapper><Calendar className="w-4 h-4" style={{ color: jonyColors.textSecondary }} /></IconWrapper>
+            <input type="date" name="date" value={formData.date} onChange={handleChange} required className="w-full pl-10 pr-4 py-3 rounded-xl text-base focus:outline-none focus:ring-2 transition-all" style={{ backgroundColor: jonyColors.cardBackground, border: `1px solid ${jonyColors.cardBorder}`, color: 'white', colorScheme: 'dark', '--tw-ring-color': jonyColors.accent1 }} />
           </div>
         </div>
 

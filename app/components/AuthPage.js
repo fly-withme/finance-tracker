@@ -1,24 +1,48 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Shield, Eye, EyeOff, Key, AlertCircle, CheckCircle2, RotateCcw, Trash2, PiggyBank } from 'lucide-react';
-import Card from './ui/Card';
-import { db } from '../utils/db';
-import { jonyColors } from '../theme';
+import React, { useState, useEffect, useRef } from 'react';
+import { Shield, Key, AlertCircle, RotateCcw, PiggyBank } from 'lucide-react';
+
+// Inlined theme colors to resolve import error
+const jonyColors = {
+  background: '#000000',
+  cardBackground: '#121212',
+  cardBorder: '#282828',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#A0A0A0',
+  accent1: '#00ff41', // Changed from blue to neon green
+  accent1Alpha: 'rgba(0, 255, 65, 0.1)', // Changed to match neon green
+  magenta: '#FF0080',
+  magentaAlpha: 'rgba(255, 0, 128, 0.1)',
+  red: '#FF453A',
+  green: '#30D158'
+};
 
 const AuthPage = ({ onAuthSuccess }) => {
   const [mode, setMode] = useState('login'); // 'login', 'setup', 'reset'
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resetCode, setResetCode] = useState('');
-  const [resetStep, setResetStep] = useState(1); // 1: enter code, 2: new password
-  const [showCompleteReset, setShowCompleteReset] = useState(false);
   const [showCodeForgotten, setShowCodeForgotten] = useState(false);
-  const [completeResetConfirmation, setCompleteResetConfirmation] = useState('');
   const [codeStatus, setCodeStatus] = useState(''); // '', 'correct', 'incorrect'
+  
+  // New states for visual feedback on input focus
+  const [isPasswordActive, setIsPasswordActive] = useState(false);
+  const [isConfirmPasswordActive, setIsConfirmPasswordActive] = useState(false);
+
+  // Dynamically load Dexie.js to avoid build issues
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/dexie@3.2.4/dist/dexie.min.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      // Clean up script tag on component unmount
+      document.body.removeChild(script);
+    }
+  }, []);
 
   // Auto-setup when both codes match in setup mode
   useEffect(() => {
@@ -77,12 +101,10 @@ const AuthPage = ({ onAuthSuccess }) => {
       const hashedPassword = await hashPassword(password);
       const resetCode = generateResetCode();
       
-      // Store password hash and reset code
       localStorage.setItem('finance_password_hash', hashedPassword);
       localStorage.setItem('finance_reset_code', resetCode);
       localStorage.setItem('finance_password_setup_date', new Date().toISOString());
       
-      // Show reset code to user
       alert(`Passwort erfolgreich eingerichtet!\n\nNotiere dir diesen Reset-Code sicher:\n${resetCode}\n\nDu benötigst ihn, um dein Passwort zurückzusetzen.`);
       
       onAuthSuccess();
@@ -95,7 +117,6 @@ const AuthPage = ({ onAuthSuccess }) => {
 
   const handleLogin = async () => {
     if (!password) {
-      setError('Bitte gib dein Passwort ein');
       return;
     }
 
@@ -109,19 +130,16 @@ const AuthPage = ({ onAuthSuccess }) => {
       
       if (hashedPassword === storedHash) {
         setCodeStatus('correct');
-        // Small delay to show green effect, then authenticate
         setTimeout(() => {
           sessionStorage.setItem('finance_authenticated', 'true');
           onAuthSuccess();
         }, 500);
       } else {
         setCodeStatus('incorrect');
-        setError('Ungültiger Code');
         setTimeout(() => {
           setCodeStatus('');
-          setError('');
           setPassword('');
-        }, 2000); // Reset after 2 seconds
+        }, 2000);
       }
     } catch (error) {
       setCodeStatus('incorrect');
@@ -131,106 +149,39 @@ const AuthPage = ({ onAuthSuccess }) => {
     }
   };
 
-  const handleResetPassword = async () => {
-    if (resetStep === 1) {
-      const storedResetCode = localStorage.getItem('finance_reset_code');
-      if (resetCode.toUpperCase() === storedResetCode) {
-        setResetStep(2);
-        setError('');
-      } else {
-        setError('Ungültiger Reset-Code');
-      }
-    } else {
-      if (password.length !== 6) {
-        setError('Der neue Code muss genau 6 Stellen haben');
-        return;
-      }
-      
-      if (!/^\d{6}$/.test(password)) {
-        setError('Der neue Code darf nur Zahlen enthalten');
-        return;
-      }
-      
-      if (password !== confirmPassword) {
-        setError('Die Codes stimmen nicht überein');
-        return;
-      }
-
-      setLoading(true);
-      setError('');
-
-      try {
-        const hashedPassword = await hashPassword(password);
-        const newResetCode = generateResetCode();
-        
-        localStorage.setItem('finance_password_hash', hashedPassword);
-        localStorage.setItem('finance_reset_code', newResetCode);
-        localStorage.setItem('finance_password_reset_date', new Date().toISOString());
-        
-        alert(`Passwort erfolgreich zurückgesetzt!\n\nNeuer Reset-Code:\n${newResetCode}\n\nNotiere ihn dir sicher.`);
-        
-        setMode('login');
-        setResetStep(1);
-        setPassword('');
-        setConfirmPassword('');
-        setResetCode('');
-      } catch (error) {
-        setError('Fehler beim Zurücksetzen des Passworts');
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
   const handleCompleteReset = async () => {
+    if (typeof window.Dexie === 'undefined') {
+        console.error("Dexie library not loaded yet.");
+        setError("Ein Fehler ist aufgetreten. Bitte laden Sie die Seite neu.");
+        return;
+    }
+      
     setLoading(true);
     setError('');
 
     try {
-      // Clear all localStorage items
+      // Initialize DB connection - open existing database without version specification
+      const db = new window.Dexie('ZenithFinanceDB');
+      await db.open();
+        
       localStorage.removeItem('finance_password_hash');
       localStorage.removeItem('finance_reset_code');
       localStorage.removeItem('finance_password_setup_date');
       localStorage.removeItem('finance_password_reset_date');
       
-      // Clear sessionStorage
       sessionStorage.removeItem('finance_authenticated');
       
-      // Clear all database tables
-      await db.transaction('rw', [
-        db.transactions, 
-        db.categories, 
-        db.accounts, 
-        db.settings, 
-        db.inbox, 
-        db.budgets, 
-        db.contacts, 
-        db.sharedExpenses, 
-        db.savingsGoals, 
-        db.subscriptions, 
-        db.debts
-      ], async () => {
-        await db.transactions.clear();
-        await db.categories.clear();
-        await db.accounts.clear();
-        await db.settings.clear();
-        await db.inbox.clear();
-        await db.budgets.clear();
-        await db.contacts.clear();
-        await db.sharedExpenses.clear();
-        await db.savingsGoals.clear();
-        await db.subscriptions.clear();
-        await db.debts.clear();
+      // Dexie's `db.tables` is an array of Table objects
+      await db.transaction('rw', db.tables, async () => {
+          for (const table of db.tables) {
+              await table.clear();
+          }
       });
 
-      // Reset all state
       setMode('setup');
       setPassword('');
       setConfirmPassword('');
-      setResetCode('');
-      setResetStep(1);
-      setShowCompleteReset(false);
-      setCompleteResetConfirmation('');
+      setShowCodeForgotten(false);
       setError('');
       
       alert('Die App wurde komplett zurückgesetzt. Du kannst nun ein neues Passwort einrichten.');
@@ -266,8 +217,8 @@ const AuthPage = ({ onAuthSuccess }) => {
               if (isComplete) {
                 borderColor = '#00ff41'; // Neon Green
                 boxShadow = '0 0 10px rgba(0, 255, 65, 0.3)';
-              } else if (password[index]) {
-                borderColor = '#ffffff'; // White
+              } else if (password[index] || (isPasswordActive && !password[index])) {
+                borderColor = '#ffffff'; // White if filled, or active and empty
               }
               
               return (
@@ -292,6 +243,8 @@ const AuthPage = ({ onAuthSuccess }) => {
             id="hidden-input-setup"
             type="text"
             value={password}
+            onFocus={() => setIsPasswordActive(true)}
+            onBlur={() => { if (password.length === 0) setIsPasswordActive(false) }}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
               setPassword(value);
@@ -317,7 +270,7 @@ const AuthPage = ({ onAuthSuccess }) => {
               if (isComplete) {
                 borderColor = '#00ff41'; // Neon Green
                 boxShadow = '0 0 10px rgba(0, 255, 65, 0.3)';
-              } else if (confirmPassword[index]) {
+              } else if (confirmPassword[index] || (isConfirmPasswordActive && !confirmPassword[index])) {
                 borderColor = '#ffffff'; // White
               }
               
@@ -343,6 +296,8 @@ const AuthPage = ({ onAuthSuccess }) => {
             id="hidden-input-confirm"
             type="text"
             value={confirmPassword}
+            onFocus={() => setIsConfirmPasswordActive(true)}
+            onBlur={() => { if (confirmPassword.length === 0) setIsConfirmPasswordActive(false) }}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
               setConfirmPassword(value);
@@ -408,8 +363,8 @@ const AuthPage = ({ onAuthSuccess }) => {
               } else if (codeStatus === 'incorrect') {
                 borderColor = '#ff0080'; // Neon Pink
                 boxShadow = '0 0 10px rgba(255, 0, 128, 0.3)';
-              } else if (password[index]) {
-                borderColor = '#ffffff'; // White
+              } else if (password[index] || (isPasswordActive && !password[index])) {
+                borderColor = '#ffffff'; // White if filled, or active and empty
               }
               
               return (
@@ -434,13 +389,14 @@ const AuthPage = ({ onAuthSuccess }) => {
             id="hidden-input"
             type="text"
             value={password}
+            onFocus={() => setIsPasswordActive(true)}
+            onBlur={() => { if (password.length === 0) setIsPasswordActive(false) }}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
               setPassword(value);
               setError('');
               setCodeStatus('');
               
-              // Auto-check when 6 digits are entered
               if (value.length === 6) {
                 setTimeout(() => handleLogin(), 100);
               }
@@ -459,19 +415,6 @@ const AuthPage = ({ onAuthSuccess }) => {
             {error}
           </div>
         )}
-
-        <button
-          onClick={handleLogin}
-          disabled={loading || !password}
-          className="w-full font-semibold py-4 px-4 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80"
-          style={{
-            backgroundColor: '#000000',
-            color: jonyColors.accent1,
-            border: `1px solid ${jonyColors.accent1}`
-          }}
-        >
-          {loading ? 'Anmelden...' : 'Anmelden'}
-        </button>
 
         <div className="flex flex-col gap-2">
           <button
@@ -503,7 +446,6 @@ const AuthPage = ({ onAuthSuccess }) => {
   const renderResetMode = () => (
     <div className="space-y-6">
       {!showCodeForgotten ? (
-        // First step: Show "Code vergessen?" option
         <>
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6" style={{ backgroundColor: jonyColors.magentaAlpha }}>
@@ -534,14 +476,7 @@ const AuthPage = ({ onAuthSuccess }) => {
             <button
               onClick={() => {
                 setMode('login');
-                setResetStep(1);
-                setResetCode('');
-                setPassword('');
-                setConfirmPassword('');
-                setError('');
                 setShowCodeForgotten(false);
-                setShowCompleteReset(false);
-                setCompleteResetConfirmation('');
               }}
               className="w-full text-sm transition-colors hover:opacity-80"
               style={{ color: jonyColors.textSecondary }}
@@ -551,7 +486,6 @@ const AuthPage = ({ onAuthSuccess }) => {
           </div>
         </>
       ) : (
-        // Second step: Show final reset confirmation
         <>
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6" style={{ backgroundColor: jonyColors.magentaAlpha }}>
@@ -610,3 +544,4 @@ const AuthPage = ({ onAuthSuccess }) => {
 };
 
 export default AuthPage;
+

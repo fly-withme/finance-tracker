@@ -43,8 +43,8 @@ const TransactionsPage = () => {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedAccount, setSelectedAccount] = useState('');
-  const [amountFilter, setAmountFilter] = useState('all');
+  const [selectedRecipient, setSelectedRecipient] = useState('');
+  const [dateRangeFilter, setDateRangeFilter] = useState('all'); // 'all', 'week', 'month', '3months', '6months', 'year'
   const [showFilters, setShowFilters] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [deleteTransaction, setDeleteTransaction] = useState(null);
@@ -59,22 +59,56 @@ const TransactionsPage = () => {
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
       const txDate = new Date(tx.date);
-      if (txDate.getMonth() !== selectedDate.getMonth() || txDate.getFullYear() !== selectedDate.getFullYear()) return false;
+      const now = new Date();
+      
+      // Check if any filters are active (excluding search)
+      const hasNonSearchFilters = selectedCategory || selectedRecipient || dateRangeFilter !== 'all';
+      
+      // Date range filter
+      if (dateRangeFilter !== 'all') {
+        let cutoffDate = new Date();
+        switch (dateRangeFilter) {
+          case 'week':
+            cutoffDate.setDate(now.getDate() - 7);
+            break;
+          case 'month':
+            cutoffDate.setMonth(now.getMonth() - 1);
+            break;
+          case '3months':
+            cutoffDate.setMonth(now.getMonth() - 3);
+            break;
+          case '6months':
+            cutoffDate.setMonth(now.getMonth() - 6);
+            break;
+          case 'year':
+            cutoffDate.setFullYear(now.getFullYear() - 1);
+            break;
+        }
+        if (txDate < cutoffDate) return false;
+      }
+      
+      // Month filter only applies when no search query and no other filters are active
+      if (!searchQuery && !hasNonSearchFilters) {
+        if (txDate.getMonth() !== selectedDate.getMonth() || txDate.getFullYear() !== selectedDate.getFullYear()) return false;
+      }
+      
+      // Search query filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        const searchFields = [tx.recipient, tx.description, tx.category, tx.account];
+        const searchFields = [tx.recipient, tx.description, tx.category];
         if (!searchFields.some(field => field?.toLowerCase().includes(query))) return false;
       }
+      
+      // Category and recipient filters
       if (selectedCategory && tx.category !== selectedCategory) return false;
-      if (selectedAccount && tx.account !== selectedAccount) return false;
-      if (amountFilter === 'income' && tx.amount <= 0) return false;
-      if (amountFilter === 'expense' && tx.amount >= 0) return false;
+      if (selectedRecipient && tx.recipient !== selectedRecipient) return false;
+      
       return true;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [transactions, selectedDate, searchQuery, selectedCategory, selectedAccount, amountFilter]);
+  }, [transactions, selectedDate, searchQuery, selectedCategory, selectedRecipient, dateRangeFilter]);
 
 
-  const hasActiveFilters = searchQuery || selectedCategory || selectedAccount || amountFilter !== 'all';
+  const hasActiveFilters = searchQuery || selectedCategory || selectedRecipient || dateRangeFilter !== 'all';
 
   // --- Group transactions by date for the feed view ---
   const groupedTransactions = useMemo(() => {
@@ -135,8 +169,8 @@ const TransactionsPage = () => {
   const clearAllFilters = () => {
     setSearchQuery('');
     setSelectedCategory('');
-    setSelectedAccount('');
-    setAmountFilter('all');
+    setSelectedRecipient('');
+    setDateRangeFilter('all');
   };
   const formatCurrency = (amount) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 
@@ -229,6 +263,17 @@ const TransactionsPage = () => {
                   <div className="pt-4 mt-4 border-t" style={{ borderColor: jonyColors.border }}>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
+                              <label className="text-xs font-medium mb-1 block pl-4" style={{color: jonyColors.textSecondary}}>Zeitraum</label>
+                              <select value={dateRangeFilter} onChange={(e) => setDateRangeFilter(e.target.value)} className="w-full px-3 py-3 rounded-full text-sm focus:outline-none appearance-none text-center" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary }}>
+                                  <option value="all">Aktueller Monat</option>
+                                  <option value="week">Letzte 7 Tage</option>
+                                  <option value="month">Letzter Monat</option>
+                                  <option value="3months">Letzte 3 Monate</option>
+                                  <option value="6months">Letzte 6 Monate</option>
+                                  <option value="year">Letztes Jahr</option>
+                              </select>
+                          </div>
+                          <div>
                               <label className="text-xs font-medium mb-1 block pl-4" style={{color: jonyColors.textSecondary}}>Kategorie</label>
                               <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full px-3 py-3 rounded-full text-sm focus:outline-none appearance-none text-center" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary }}>
                                   <option value="">Alle</option>
@@ -236,18 +281,10 @@ const TransactionsPage = () => {
                               </select>
                           </div>
                           <div>
-                              <label className="text-xs font-medium mb-1 block pl-4" style={{color: jonyColors.textSecondary}}>Konto</label>
-                              <select value={selectedAccount} onChange={(e) => setSelectedAccount(e.target.value)} className="w-full px-3 py-3 rounded-full text-sm focus:outline-none appearance-none text-center" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary }}>
+                              <label className="text-xs font-medium mb-1 block pl-4" style={{color: jonyColors.textSecondary}}>Empfänger</label>
+                              <select value={selectedRecipient} onChange={(e) => setSelectedRecipient(e.target.value)} className="w-full px-3 py-3 rounded-full text-sm focus:outline-none appearance-none text-center" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary }}>
                                   <option value="">Alle</option>
-                                  {accounts.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
-                              </select>
-                          </div>
-                          <div>
-                              <label className="text-xs font-medium mb-1 block pl-4" style={{color: jonyColors.textSecondary}}>Typ</label>
-                              <select value={amountFilter} onChange={(e) => setAmountFilter(e.target.value)} className="w-full px-3 py-3 rounded-full text-sm focus:outline-none appearance-none text-center" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}`, color: jonyColors.textPrimary }}>
-                                  <option value="all">Alle</option>
-                                  <option value="income">Nur Einnahmen</option>
-                                  <option value="expense">Nur Ausgaben</option>
+                                  {[...new Set(transactions.map(t => t.recipient).filter(Boolean))].sort().map(recipient => <option key={recipient} value={recipient}>{recipient}</option>)}
                               </select>
                           </div>
                       </div>
@@ -265,14 +302,14 @@ const TransactionsPage = () => {
                             <h2 className="font-semibold mb-3 pl-2 text-sm" style={{color: jonyColors.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em'}}>{formatDateGroup(date)}</h2>
                             <div className="space-y-1">
                                 {groupedTransactions[date].map((tx) => {
-                                    const { Icon } = getTransactionTheme(tx.category);
                                     const isIncome = tx.amount > 0;
                                     const bgColor = isIncome ? jonyColors.accent1Alpha : jonyColors.magentaAlpha;
-                                    const iconColor = isIncome ? jonyColors.accent1 : jonyColors.magenta;
+                                    const textColor = isIncome ? jonyColors.accent1 : jonyColors.magenta;
+                                    const categoryInitial = tx.category ? tx.category[0].toUpperCase() : '?';
                                     return (
                                         <div key={tx.id} className="group flex items-center p-3 rounded-xl transition-colors hover:bg-[#1E1E1E] cursor-pointer" onClick={() => handleEdit(tx)}>
                                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: bgColor }}><Icon className="w-5 h-5" style={{ color: iconColor }} /></div>
+                                                <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm" style={{ backgroundColor: bgColor, color: textColor }}>{categoryInitial}</div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-semibold truncate">{tx.recipient || 'Unbekannt'}</p>
                                                     <p className="text-xs truncate" style={{ color: jonyColors.textSecondary }}>{tx.category}</p>
