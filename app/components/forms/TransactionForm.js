@@ -226,6 +226,11 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
     
     let transactionData = { ...formData, amount: finalAmount };
     
+    // Preserve the ID if this is an edit operation
+    if (transaction && transaction.id) {
+      transactionData.id = transaction.id;
+    }
+    
     if (!isIncome && splitConfig.isSplitting && Math.abs(remainingAmount) < 0.01) {
       transactionData = {
         ...transactionData,

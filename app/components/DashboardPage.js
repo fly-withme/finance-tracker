@@ -192,13 +192,14 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       .filter(t => t.amount > 0)
       .reduce((sum, t) => sum + t.amount, 0);
       
-    const expenses = Math.abs(selectedMonthTransactions
-      .filter(t => t.amount < 0)
-      .reduce((sum, t) => sum + t.amount, 0));
-
     // Calculate actual savings (negative amounts that are savings-related)
     const savings = Math.abs(selectedMonthTransactions
       .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
+      .reduce((sum, t) => sum + t.amount, 0));
+
+    // Only regular expenses (excluding savings) for display
+    const expenses = Math.abs(selectedMonthTransactions
+      .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
       .reduce((sum, t) => sum + t.amount, 0));
     
     return { income, expenses, savings };
@@ -250,10 +251,14 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   // Calculate selected month savings rate in percentage (for monthly section)
   const currentMonthlySavingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome * 100) : 0;
   
+  // Calculate realistic net cashflow for monthly display (already calculated in chart data)
+  const totalMonthlyOutflow = monthlyExpense + monthlySavings;
+  const monthlyNetCashflow = monthlyIncome - totalMonthlyOutflow;
+  
   const dashboardMetrics = {
     netWorth,
     netWorthChange: 0, // Could be calculated by comparing with last month
-    cashflowPositive: monthlyIncome > monthlyExpense
+    cashflowPositive: monthlyNetCashflow > 0
   };
   
   const fiMetrics = {
@@ -539,16 +544,18 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       const regularExpenses = Math.abs(monthlyTransactions
         .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
         .reduce((sum, t) => sum + t.amount, 0));
-        
-      const totalExpense = savings + regularExpenses;
+      
+      // For cashflow chart: only show regular expenses (excluding savings)
+      // Net calculation: income - regular expenses only (savings are separate positive activity)
+      const netValue = Math.round(income - regularExpenses);
       
       oneYearData.push({
         month: monthNames[month],
         income: Math.round(income),
-        expense: Math.round(totalExpense),
+        expense: Math.round(regularExpenses),
         savings: Math.round(savings),
         regularExpenses: Math.round(regularExpenses),
-        net: Math.round(income - totalExpense)
+        net: netValue
       });
     }
     
@@ -574,16 +581,17 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       const regularExpenses = Math.abs(yearTransactions
         .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
         .reduce((sum, t) => sum + t.amount, 0));
-        
-      const totalExpense = savings + regularExpenses;
+      
+      // For cashflow chart: only show regular expenses (excluding savings)
+      // Net calculation: income - regular expenses only (savings are separate positive activity)
       
       fiveYearsData.push({
         month: year.toString(),
         income: Math.round(income),
-        expense: Math.round(totalExpense),
+        expense: Math.round(regularExpenses), // Only regular expenses shown in chart
         savings: Math.round(savings),
         regularExpenses: Math.round(regularExpenses),
-        net: Math.round(income - totalExpense)
+        net: Math.round(income - regularExpenses) // Net cashflow excluding savings
       });
     }
     
@@ -607,16 +615,17 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       const regularExpenses = Math.abs(yearTransactions
         .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
         .reduce((sum, t) => sum + t.amount, 0));
-        
-      const totalExpense = savings + regularExpenses;
+      
+      // For cashflow chart: only show regular expenses (excluding savings)
+      // Net calculation: income - regular expenses only (savings are separate positive activity)
       
       return {
         month: year.toString(),
         income: Math.round(income),
-        expense: Math.round(totalExpense),
+        expense: Math.round(regularExpenses), // Only regular expenses shown in chart
         savings: Math.round(savings),
         regularExpenses: Math.round(regularExpenses),
-        net: Math.round(income - totalExpense)
+        net: Math.round(income - regularExpenses) // Net cashflow excluding savings
       };
     });
     
@@ -628,6 +637,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   };
   
   const cashflowData = calculateCashflowData();
+  
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
@@ -848,7 +858,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                     fontSize={11}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(value) => (value / 1000).toFixed(0) + 'K'}
+                    tickFormatter={(value) => formatCurrencyNoDecimals(value)}
                     fontWeight={400}
                   />
                   <Tooltip 
