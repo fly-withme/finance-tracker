@@ -210,20 +210,6 @@ const SavingsGoalsPage = () => {
               </h1>
             </div>
 
-            <button
-              onClick={handleCreate}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-base"
-              style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = jonyColors.greenDark;
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = jonyColors.accent1;
-              }}
-            >
-              <Plus className="w-5 h-5" />
-              Neues Ziel
-            </button>
           </div>
         </div>
       </div>
@@ -231,14 +217,61 @@ const SavingsGoalsPage = () => {
       <div className="px-6 mb-12">
         <div className="max-w-7xl mx-auto">
 
-          {/* Emergency Fund Section */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2" style={{ color: jonyColors.textPrimary }}>
-              <PiggyBank className="w-5 h-5" style={{ color: jonyColors.magenta }} />
-              Notgroschen
-            </h2>
-        
-        {emergencyFund ? (
+          {/* Savings Goals Overview */}
+          {(emergencyFund || regularGoals.length > 0) && (
+            <div className="p-8 rounded-2xl border mb-8" style={{
+              backgroundColor: jonyColors.surface,
+              border: `1px solid ${jonyColors.border}`
+            }}>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-1" style={{ color: jonyColors.accent1 }}>
+                    {formatCurrency((emergencyFund?.currentAmount || 0) + regularGoals.reduce((sum, goal) => sum + goal.currentAmount, 0))}
+                  </div>
+                  <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                    Gespart
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-1" style={{ color: jonyColors.textPrimary }}>
+                    {formatCurrency((emergencyFund?.targetAmount || 0) + regularGoals.reduce((sum, goal) => sum + goal.targetAmount, 0))}
+                  </div>
+                  <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                    Sparziel
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-1" style={{ color: jonyColors.magenta }}>
+                    {formatCurrency((emergencyFund?.monthlyAmount || 0) + regularGoals.reduce((sum, goal) => sum + goal.monthlyAmount, 0))}
+                  </div>
+                  <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                    Monatlich
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-1" style={{ color: jonyColors.textPrimary }}>
+                    {(emergencyFund ? 1 : 0) + regularGoals.length}
+                  </div>
+                  <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                    Aktive Ziele
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Emergency Fund Section - only show if fund exists or regular goals exist */}
+          {(emergencyFund || regularGoals.length > 0) && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2" style={{ color: jonyColors.textPrimary }}>
+                <PiggyBank className="w-5 h-5" style={{ color: jonyColors.magenta }} />
+                Notgroschen
+              </h2>
+          
+          {emergencyFund ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               {flippedCards.has(emergencyFund.id) ? (
@@ -447,13 +480,15 @@ const SavingsGoalsPage = () => {
           </div>
         )}
       </div>
+          )}
 
-          {/* Regular Savings Goals */}
-          <div>
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2" style={{ color: jonyColors.textPrimary }}>
-              <Target className="w-5 h-5" style={{ color: jonyColors.accent1 }} />
-              Sparziele
-            </h2>
+          {/* Regular Savings Goals - only show if goals exist or emergency fund exists */}
+          {(regularGoals.length > 0 || emergencyFund) && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2" style={{ color: jonyColors.textPrimary }}>
+                <Target className="w-5 h-5" style={{ color: jonyColors.accent1 }} />
+                Sparziele
+              </h2>
 
             {isCreating && !editForm.isEmergencyFund && (
               <div className="p-6 mb-6 rounded-2xl border" style={{
@@ -831,33 +866,41 @@ const SavingsGoalsPage = () => {
             </div>
 
             {regularGoals.length === 0 && !isCreating && (
-              <div className="p-6 border-dashed rounded-2xl border" style={{ borderColor: jonyColors.border }}>
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{
-                    backgroundColor: jonyColors.accent1Alpha
+              <div className="flex items-center justify-center py-16">
+                <div className="text-center p-12 rounded-3xl border-2" style={{
+                  backgroundColor: jonyColors.surface,
+                  border: `2px solid ${jonyColors.border}`,
+                  width: '400px',
+                  minHeight: '300px'
+                }}>
+                  <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center shadow-xl" style={{
+                    backgroundColor: jonyColors.accent1
                   }}>
-                    <Target className="w-8 h-8" style={{ color: jonyColors.accent1 }} />
+                    <Target className="w-12 h-12" style={{ color: jonyColors.background }} />
                   </div>
-                  <p className="mb-6 font-medium" style={{ color: jonyColors.textSecondary }}>Keine Sparziele vorhanden</p>
-                  <button
-                    onClick={handleCreate}
-                    className="px-6 py-3 rounded-lg font-medium transition-colors"
-                    style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
-                    onMouseEnter={(e) => {
-                      e.target.style.backgroundColor = jonyColors.greenDark;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.backgroundColor = jonyColors.accent1;
-                    }}
-                  >
-                    Erstes Sparziel erstellen
-                  </button>
+                  <h2 className="text-3xl font-black mb-4" style={{ color: jonyColors.textPrimary }}>
+                    Zeit zu sparen!
+                  </h2>
+                  <p className="text-lg leading-relaxed" style={{ color: jonyColors.textSecondary }}>
+                    Erstelle dein erstes Sparziel und starte in eine finanziell sichere Zukunft.
+                  </p>
                 </div>
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
+
+      {/* Fixed Floating Action Button */}
+      <button
+        onClick={handleCreate}
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl hover:shadow-3xl hover:scale-110 z-50"
+        style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+        title="Neues Sparziel"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
     </div>
   );
 };

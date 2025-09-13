@@ -211,29 +211,15 @@ const DebtPage = () => {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.red }}></div>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.magenta }}></div>
               <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
                 Schulden
               </h1>
-              <div className="px-3 py-1 rounded-full font-semibold text-sm" style={{ backgroundColor: jonyColors.redAlpha, color: jonyColors.red }}>
+              <div className="px-3 py-1 rounded-full font-semibold text-sm" style={{ backgroundColor: jonyColors.magentaAlpha, color: jonyColors.magenta }}>
                 {summary.debtCount}
               </div>
             </div>
 
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-base"
-              style={{ backgroundColor: jonyColors.red, color: jonyColors.background }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = jonyColors.redDark;
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = jonyColors.red;
-              }}
-            >
-              <Plus className="w-5 h-5" />
-              <span className="hidden sm:inline">Neue Schulden</span>
-            </button>
           </div>
         </div>
       </div>
@@ -249,7 +235,7 @@ const DebtPage = () => {
               }}>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="text-center">
-                    <div className="text-2xl font-bold mb-1" style={{ color: jonyColors.red }}>
+                    <div className="text-2xl font-bold mb-1" style={{ color: jonyColors.magenta }}>
                       {formatCurrency(summary.totalDebt)}
                     </div>
                     <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
@@ -302,19 +288,18 @@ const DebtPage = () => {
             </div>
           )}
 
-          {/* Debts Overview */}
-          <div className="p-8 rounded-2xl border" style={{
-            backgroundColor: jonyColors.surface,
-            border: `1px solid ${jonyColors.border}`
-          }}>
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-2xl font-bold mb-1" style={{ color: jonyColors.textPrimary }}>Schulden Übersicht</h3>
-                <p className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>Deine Kredite und Schulden im Überblick</p>
+          {debtData.length > 0 ? (
+            <div className="p-8 rounded-2xl border" style={{
+              backgroundColor: jonyColors.surface,
+              border: `1px solid ${jonyColors.border}`
+            }}>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-bold mb-1" style={{ color: jonyColors.textPrimary }}>Schulden Übersicht</h3>
+                  <p className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>Deine Kredite und Schulden im Überblick</p>
+                </div>
               </div>
-            </div>
 
-            {debtData.length > 0 ? (
               <div className="space-y-6">
                 {debtData.map((debt) => {
                   const TypeIcon = getDebtTypeIcon(debt.type);
@@ -328,7 +313,7 @@ const DebtPage = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg" style={{
-                              background: `linear-gradient(to bottom right, ${jonyColors.red}, ${jonyColors.redDark})`
+                              background: `linear-gradient(to bottom right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
                             }}>
                               <TypeIcon className="w-5 h-5 text-white" />
                             </div>
@@ -345,7 +330,7 @@ const DebtPage = () => {
                                   </>
                                 )}
                                 <span>•</span>
-                                <span className="font-semibold" style={{ color: jonyColors.red }}>
+                                <span className="font-semibold" style={{ color: jonyColors.magenta }}>
                                   {formatCurrency(debt.remainingAmount)} verbleibt
                                 </span>
                               </div>
@@ -373,14 +358,14 @@ const DebtPage = () => {
                           <button
                             onClick={() => handleDeleteDebt(debt.id)}
                             className="p-2 rounded-xl transition-all duration-200 hover:scale-105"
-                            style={{ backgroundColor: jonyColors.redAlpha, color: jonyColors.red }}
+                            style={{ backgroundColor: jonyColors.magentaAlpha, color: jonyColors.magenta }}
                             onMouseEnter={(e) => {
-                              e.target.style.backgroundColor = jonyColors.red;
+                              e.target.style.backgroundColor = jonyColors.magenta;
                               e.target.style.color = jonyColors.background;
                             }}
                             onMouseLeave={(e) => {
-                              e.target.style.backgroundColor = jonyColors.redAlpha;
-                              e.target.style.color = jonyColors.red;
+                              e.target.style.backgroundColor = jonyColors.magentaAlpha;
+                              e.target.style.color = jonyColors.magenta;
                             }}
                             title="Löschen"
                           >
@@ -402,7 +387,7 @@ const DebtPage = () => {
                             <div className="text-sm mb-1" style={{ color: jonyColors.textSecondary }}>Laufzeit verbleibt:</div>
                             <div className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>
                               {debt.isNeverEnding ? (
-                                <span style={{ color: jonyColors.red }}>Rate zu niedrig</span>
+                                <span style={{ color: jonyColors.magenta }}>Rate zu niedrig</span>
                               ) : debt.yearsRemaining > 0 ? (
                                 `${debt.yearsRemaining} Jahre ${debt.monthsRemainingDisplay} Monate`
                               ) : (
@@ -414,7 +399,7 @@ const DebtPage = () => {
                             <div className="text-sm mb-1" style={{ color: jonyColors.textSecondary }}>Abbezahlt bis:</div>
                             <div className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>
                               {debt.isNeverEnding ? (
-                                <span style={{ color: jonyColors.red }}>-</span>
+                                <span style={{ color: jonyColors.magenta }}>-</span>
                               ) : (
                                 debt.payoffDate.toLocaleDateString('de-DE', { month: 'short', year: 'numeric' })
                               )}
@@ -448,41 +433,29 @@ const DebtPage = () => {
                   );
                 })}
               </div>
-            ) : (
-              <div className="flex items-center justify-center py-16">
-                <div className="backdrop-blur-sm rounded-3xl border p-12 shadow-lg text-center" style={{
-                  backgroundColor: jonyColors.surfaceAlpha,
-                  border: `1px solid ${jonyColors.border}`
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center p-12 rounded-3xl border-2" style={{
+                backgroundColor: jonyColors.surface,
+                border: `2px solid ${jonyColors.border}`,
+                width: '400px',
+                minHeight: '300px'
+              }}>
+                <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center shadow-xl" style={{
+                  backgroundColor: jonyColors.accent1
                 }}>
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg" style={{
-                    background: `linear-gradient(to bottom right, ${jonyColors.red}, ${jonyColors.redDark})`
-                  }}>
-                    <CreditCard className="w-8 h-8 text-white" />
-                  </div>
-                  <h4 className="text-xl font-bold mb-3" style={{ color: jonyColors.textPrimary }}>Keine Schulden</h4>
-                  <p className="font-medium mb-6 max-w-sm" style={{ color: jonyColors.textSecondary }}>
-                    Du hast keine Schulden eingetragen. Füge deine Kredite und Schulden hinzu, um sie zu verwalten.
-                  </p>
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
-                    style={{
-                      background: `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})`,
-                      color: jonyColors.background
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = 'scale(1.02)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = 'scale(1)';
-                    }}
-                  >
-                    Erste Schulden hinzufügen
-                  </button>
+                  <CreditCard className="w-12 h-12" style={{ color: jonyColors.background }} />
                 </div>
+                <h2 className="text-3xl font-black mb-4" style={{ color: jonyColors.textPrimary }}>
+                  Schuldenfrei!
+                </h2>
+                <p className="text-lg leading-relaxed" style={{ color: jonyColors.textSecondary }}>
+                  Du hast keine Schulden eingetragen. Das ist großartig!
+                </p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Create Debt Modal */}
           {showCreateModal && (
@@ -506,7 +479,7 @@ const DebtPage = () => {
                           backgroundColor: jonyColors.cardBackground,
                           color: jonyColors.textPrimary,
                           borderColor: jonyColors.border,
-                          '--tw-ring-color': jonyColors.red
+                          '--tw-ring-color': jonyColors.magenta
                         }}
                       />
                     </div>
@@ -523,7 +496,7 @@ const DebtPage = () => {
                           backgroundColor: jonyColors.cardBackground,
                           color: jonyColors.textPrimary,
                           borderColor: jonyColors.border,
-                          '--tw-ring-color': jonyColors.red
+                          '--tw-ring-color': jonyColors.magenta
                         }}
                       >
                         <option value="loan">Kredit</option>
@@ -549,7 +522,7 @@ const DebtPage = () => {
                           backgroundColor: jonyColors.cardBackground,
                           color: jonyColors.textPrimary,
                           borderColor: jonyColors.border,
-                          '--tw-ring-color': jonyColors.red
+                          '--tw-ring-color': jonyColors.magenta
                         }}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: jonyColors.textTertiary }}>€</span>
@@ -667,15 +640,15 @@ const DebtPage = () => {
                   onClick={handleCreateDebt}
                   disabled={!newDebt.name || !newDebt.totalAmount}
                   className="flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: jonyColors.red, color: jonyColors.background }}
+                  style={{ backgroundColor: jonyColors.magenta, color: jonyColors.background }}
                   onMouseEnter={(e) => {
                     if (!e.target.disabled) {
-                      e.target.style.backgroundColor = jonyColors.redDark;
+                      e.target.style.backgroundColor = jonyColors.magentaDark;
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!e.target.disabled) {
-                      e.target.style.backgroundColor = jonyColors.red;
+                      e.target.style.backgroundColor = jonyColors.magenta;
                     }
                   }}
                 >
@@ -695,7 +668,7 @@ const DebtPage = () => {
               }}>
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg" style={{
-                    background: `linear-gradient(to bottom right, ${jonyColors.red}, ${jonyColors.redDark})`
+                    background: `linear-gradient(to bottom right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
                   }}>
                     <Edit className="w-6 h-6 text-white" />
                   </div>
@@ -812,7 +785,7 @@ const DebtPage = () => {
                   onClick={() => handleEditDebt(editingDebt)}
                   className="flex-1 px-6 py-3 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
                   style={{
-                    background: `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})`
+                    background: `linear-gradient(to right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
                   }}
                   onMouseEnter={(e) => {
                     e.target.style.transform = 'scale(1.02)';
@@ -829,6 +802,16 @@ const DebtPage = () => {
         )}
         </div>
       </div>
+
+      {/* Fixed Floating Action Button */}
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl hover:shadow-3xl hover:scale-110 z-50"
+        style={{ backgroundColor: jonyColors.magenta, color: jonyColors.background }}
+        title="Neue Schulden"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
     </div>
   );
 };

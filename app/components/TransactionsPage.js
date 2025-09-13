@@ -4,7 +4,7 @@ import { db } from '../utils/db';
 import { jonyColors } from '../theme';
 
 // Import more icons for categories
-import { Plus, Trash2, Search, Filter, ChevronLeft, ChevronRight, Users, X, List, Utensils, ShoppingCart, Home, Gift, Fuel, Film, PiggyBank, Briefcase } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, ChevronLeft, ChevronRight, Users, X, Repeat, Utensils, ShoppingCart, Home, Gift, Fuel, Film, PiggyBank, Briefcase } from 'lucide-react';
 
 // UI Components
 import Modal from './ui/Modal';
@@ -176,11 +176,11 @@ const TransactionsPage = () => {
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
-      <div className="px-6 py-8 mb-8">
+      <div className="px-6 py-8 mb-2">
         <div className="max-w-7xl mx-auto">
         
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
               <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
@@ -194,53 +194,56 @@ const TransactionsPage = () => {
               </div>
             </div>
 
-            {/* Month Navigation */}
+            {/* Month Navigation - moved to top right */}
             <div className="flex items-center gap-3">
               <button
                 onClick={goToPreviousMonth}
-                className="p-3 rounded-full transition-all duration-200"
+                className="p-3 rounded-full transition-all duration-200 hover:scale-105 focus:outline-none"
                 style={{ backgroundColor: jonyColors.cardBackground, color: jonyColors.textSecondary }}
                 onMouseEnter={(e) => {
                   e.target.style.backgroundColor = jonyColors.accent1Alpha;
                   e.target.style.color = jonyColors.accent1;
+                  // Also style the icon inside
+                  const icon = e.target.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.accent1;
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.backgroundColor = jonyColors.cardBackground;
                   e.target.style.color = jonyColors.textSecondary;
+                  // Reset icon color
+                  const icon = e.target.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.textSecondary;
                 }}
                 title="Vorheriger Monat"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-5 h-5 pointer-events-none transition-colors duration-200" style={{ color: jonyColors.textSecondary }} />
               </button>
               <div className="font-semibold text-center" style={{ color: jonyColors.textPrimary, minWidth: '200px', fontSize: '20px' }}>
                 {selectedDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}
               </div>
               <button
                 onClick={goToNextMonth}
-                className="p-3 rounded-full transition-all duration-200"
+                className="p-3 rounded-full transition-all duration-200 hover:scale-105 focus:outline-none"
                 style={{ backgroundColor: jonyColors.cardBackground, color: jonyColors.textSecondary }}
                 onMouseEnter={(e) => {
                   e.target.style.backgroundColor = jonyColors.accent1Alpha;
                   e.target.style.color = jonyColors.accent1;
+                  // Also style the icon inside
+                  const icon = e.target.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.accent1;
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.backgroundColor = jonyColors.cardBackground;
                   e.target.style.color = jonyColors.textSecondary;
+                  // Reset icon color
+                  const icon = e.target.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.textSecondary;
                 }}
                 title="Nächster Monat"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5 pointer-events-none transition-colors duration-200" style={{ color: jonyColors.textSecondary }} />
               </button>
             </div>
-
-            <button
-              onClick={() => { setEditingTransaction(null); setModalOpen(true); }}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-base hover:scale-105 hover:opacity-90"
-              style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
-            >
-              <Plus className="w-5 h-5" />
-              <span className="hidden sm:inline">Neue Transaktion</span>
-            </button>
           </div>
         </div>
       </div>
@@ -249,9 +252,24 @@ const TransactionsPage = () => {
         <div className="max-w-7xl mx-auto">
           <section className="mb-8">
               <div className="flex flex-col md:flex-row gap-4">
-                  <div className="relative flex-grow">
+                  {/* UPDATE HIER: Tooltip-Logik für die Suchleiste */}
+                  <div className="relative flex-grow group">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: jonyColors.textSecondary }} />
-                      <input type="text" placeholder="Suchen nach Empfänger, Kategorie..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-full focus:outline-none" style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}` }} />
+                      <input 
+                          type="text" 
+                          placeholder="Suchen nach Empfänger, Kategorie..." 
+                          value={searchQuery} 
+                          onChange={(e) => setSearchQuery(e.target.value)} 
+                          className="w-full pl-12 pr-4 py-3 rounded-full focus:outline-none" 
+                          style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}` }} 
+                      />
+                      {/* Tooltip für die Suchleiste */}
+                      <div 
+                          className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50"
+                          style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}
+                      >
+                          Suchen nach Empfänger oder Kategorie
+                      </div>
                   </div>
                   <button onClick={() => setShowFilters(!showFilters)} className="flex items-center justify-center gap-2 px-4 py-3 rounded-full font-normal transition-colors" style={{ backgroundColor: jonyColors.background, color: jonyColors.textSecondary, border: `1px solid ${jonyColors.cardBorder}` }}>
                       <Filter className="w-5 h-5" strokeWidth={1.5} />
@@ -330,10 +348,15 @@ const TransactionsPage = () => {
                     ))}
                 </div>
             ) : (
-                <div className="flex items-center justify-center" style={{ minHeight: '500px' }}>
-                    <div className="text-center p-12 rounded-3xl border-2 max-w-md" style={{ backgroundColor: jonyColors.surface, border: `2px solid ${jonyColors.border}` }}>
+                <div className="flex items-center justify-center py-16">
+                    <div className="text-center p-12 rounded-3xl border-2" style={{ 
+                      backgroundColor: jonyColors.surface, 
+                      border: `2px solid ${jonyColors.border}`,
+                      width: '400px',
+                      minHeight: '300px'
+                    }}>
                         <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center shadow-xl" style={{ backgroundColor: jonyColors.accent1 }}>
-                            <List className="w-12 h-12" style={{ color: jonyColors.background }} />
+                            <Repeat className="w-12 h-12" style={{ color: jonyColors.background }} />
                         </div>
                         <h2 className="text-3xl font-black mb-4" style={{ color: jonyColors.textPrimary }}>Keine Transaktionen</h2>
                         <p className="text-lg leading-relaxed" style={{ color: jonyColors.textSecondary }}>Für die aktuelle Auswahl wurden keine Ergebnisse gefunden.</p>
@@ -349,6 +372,16 @@ const TransactionsPage = () => {
       </Modal>
 
       <ConfirmationModal isOpen={showDeleteConfirm} onClose={() => { setShowDeleteConfirm(false); setDeleteTransaction(null); }} onConfirm={confirmDelete} title="Transaktion löschen" message={`Sind Sie sicher, dass Sie die Transaktion mit "${deleteTransaction?.recipient || 'Unbekannt'}" löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.`} />
+      
+      {/* Fixed Floating Action Button */}
+      <button
+        onClick={() => { setEditingTransaction(null); setModalOpen(true); }}
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl hover:shadow-3xl hover:scale-110 z-50"
+        style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+        title="Neue Transaktion"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
     </div>
   );
 };

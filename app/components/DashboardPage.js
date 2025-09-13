@@ -146,12 +146,35 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     '65+': 232000
   };
   
-  // Calculate net worth from real data
+  // Calculate comprehensive net worth from real data
   const calculateNetWorth = () => {
+    // 1. Sparvermögen: Alle Sparziele (inkl. Notgroschen)
     const totalSavings = savingsGoals.reduce((sum, goal) => sum + (goal.currentAmount || 0), 0);
+    
+    // 2. Schulden: Alle aktuellen Schulden
     const totalDebt = debts.reduce((sum, debt) => sum + (debt.currentAmount || 0), 0);
-    // You can extend this to include account balances if stored
-    return totalSavings - totalDebt;
+    
+    // 3. Laufendes Vermögen: Kumulierter Cashflow (alle Einnahmen minus alle Ausgaben)
+    const totalIncome = transactions
+      .filter(t => t.amount > 0)
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    const totalExpenses = Math.abs(transactions
+      .filter(t => t.amount < 0)
+      .reduce((sum, t) => sum + t.amount, 0));
+    
+    // Bereits in Sparziele eingezahltes Geld nicht doppelt zählen
+    const totalSavingsContributions = Math.abs(transactions
+      .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
+      .reduce((sum, t) => sum + t.amount, 0));
+    
+    const currentCashFlow = totalIncome - totalExpenses + totalSavingsContributions;
+    
+    // 4. Investment-Vermögen (placeholder - später aus investments Tabelle)
+    const totalInvestments = 0; // TODO: Implement when investments table is ready
+    
+    // Gesamtvermögen = Sparen + Investments + laufendes Geld - Schulden
+    return totalSavings + totalInvestments + Math.max(0, currentCashFlow) - totalDebt;
   };
   
   // Calculate B Score based on German averages (assuming user is 25-34 for now)
@@ -1091,15 +1114,10 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8" style={{ color: jonyColors.textSecondary }}>
-                  <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{
-                    background: `linear-gradient(135deg, ${jonyColors.accent1}, ${jonyColors.greenDark})`
-                  }}>
-                    <div className="w-6 h-6 rounded-full border-2 border-black flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-black"></div>
-                    </div>
+                <div className="text-center py-8">
+                  <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                    Keine Sparziele definiert
                   </div>
-                  <div className="text-sm">Keine Sparziele definiert</div>
                 </div>
               )}
             </div>
@@ -1154,15 +1172,10 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8" style={{ color: jonyColors.textSecondary }}>
-                  <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{
-                    background: `linear-gradient(135deg, ${jonyColors.accent1}, ${jonyColors.greenDark})`
-                  }}>
-                    <div className="w-6 h-6 flex items-center justify-center">
-                      <div className="w-3 h-1 bg-black rounded-full"></div>
-                    </div>
+                <div className="text-center py-8">
+                  <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                    Schuldenfrei
                   </div>
-                  <div className="text-sm">Schuldenfrei!</div>
                 </div>
               )}
             </div>
@@ -1176,80 +1189,77 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
             }}
           >
-            <div className="flex items-center gap-4 mb-6">
-              <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.magentaAlpha }}>
-                <PieChartIcon className="w-5 h-5" style={{ color: jonyColors.magenta, strokeWidth: 1.5 }} />
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.magentaAlpha }}>
+                  <PieChartIcon className="w-5 h-5" style={{ color: jonyColors.magenta, strokeWidth: 1.5 }} />
+                </div>
+                <h3 className="text-lg font-light tracking-tight" style={{ color: jonyColors.textPrimary }}>
+                  Deine Abos
+                </h3>
               </div>
-              <h3 className="text-lg font-light tracking-tight" style={{ color: jonyColors.textPrimary }}>
-                Deine Abos
-              </h3>
+              <span className="text-lg font-light tracking-tight" style={{ color: jonyColors.magenta }}>
+                {subscriptions
+                  .filter(sub => sub.isActive)
+                  .reduce((total, sub) => total + sub.amount, 0)
+                  .toFixed(2)}€/Monat
+              </span>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {subscriptions.map((subscription) => (
                 <div 
-                  key={subscription.id} 
-                  className={`p-6 rounded-2xl border flex flex-col items-center justify-center text-center h-40 transition-all duration-300 ${subscription.isActive ? '' : 'opacity-60'}`}
+                  key={subscription.id}
+                  className={`p-6 rounded-2xl text-center transition-all duration-300 relative group ${
+                    subscription.isActive ? '' : 'opacity-60'
+                  }`}
                   style={{
                     backgroundColor: jonyColors.surface,
-                    border: `2px solid ${jonyColors.border}`
+                    border: `1px solid ${jonyColors.cardBorder}`,
+                    minHeight: '140px'
                   }}
                 >
-                  <div className="flex items-center justify-between w-full mb-2">
-                    <span className="text-sm font-semibold" style={{ 
-                      color: subscription.isActive ? jonyColors.magenta : jonyColors.textSecondary 
-                    }}>
-                      {subscription.name}
-                    </span>
-                    <button
-                      onClick={() => toggleSubscription(subscription.id)}
-                      className={`w-8 h-4 rounded-full transition-all duration-300 flex items-center ${
-                        subscription.isActive ? 'justify-end' : 'justify-start'
-                      }`}
+                  {/* Toggle Switch - positioned in top right */}
+                  <button
+                    onClick={() => toggleSubscription(subscription.id)}
+                    className={`absolute top-4 right-4 w-8 h-4 rounded-full transition-all duration-300 flex items-center ${
+                      subscription.isActive ? 'justify-end' : 'justify-start'
+                    }`}
+                    style={{
+                      backgroundColor: subscription.isActive ? jonyColors.magenta : jonyColors.cardBorder
+                    }}
+                    title={subscription.isActive ? 'Deaktivieren' : 'Aktivieren'}
+                  >
+                    <div 
+                      className="w-3 h-3 rounded-full transition-all duration-300"
                       style={{
-                        backgroundColor: subscription.isActive ? jonyColors.magenta : jonyColors.cardBorder
+                        backgroundColor: jonyColors.background,
+                        margin: '2px'
                       }}
-                      title={subscription.isActive ? 'Deaktivieren' : 'Aktivieren'}
+                    />
+                  </button>
+
+                  {/* Main content - centered like monthly metrics */}
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <div 
+                      className="text-4xl font-bold mb-2"
+                      style={{ 
+                        color: subscription.isActive ? jonyColors.magenta : jonyColors.textSecondary
+                      }}
                     >
-                      <div 
-                        className="w-3 h-3 rounded-full transition-all duration-300"
-                        style={{
-                          backgroundColor: subscription.isActive ? jonyColors.background : jonyColors.textSecondary,
-                          margin: '2px'
-                        }}
-                      />
-                    </button>
-                  </div>
-                  
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold mb-1" style={{ 
-                        color: subscription.isActive ? jonyColors.textPrimary : jonyColors.textSecondary,
-                        lineHeight: '1.2'
-                      }}>
-                        {subscription.amount.toFixed(2)}€
-                      </div>
-                      <div className="text-xs font-light" style={{ color: jonyColors.textTertiary }}>
-                        pro Monat
-                      </div>
+                      {subscription.amount.toFixed(2)}€
+                    </div>
+                    <div 
+                      className="text-sm font-semibold"
+                      style={{ 
+                        color: jonyColors.textPrimary
+                      }}
+                    >
+                      {subscription.name}
                     </div>
                   </div>
                 </div>
               ))}
-            </div>
-            
-            <div className="mt-8 pt-6 border-t" style={{ borderColor: jonyColors.cardBorder }}>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium tracking-tight" style={{ color: jonyColors.textPrimary }}>
-                  Aktive Abos gesamt:
-                </span>
-                <span className="text-lg font-light" style={{ color: jonyColors.textPrimary }}>
-                  {subscriptions
-                    .filter(sub => sub.isActive)
-                    .reduce((total, sub) => total + sub.amount, 0)
-                    .toFixed(2)}€/Monat
-                </span>
-              </div>
             </div>
           </div>
 
@@ -1385,68 +1395,76 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               </h3>
             </div>
             
-            <div className="space-y-6">
-              {budgetVsActualData.map((item, index) => {
-                return (
-                  <div key={index} className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium tracking-tight" style={{ color: jonyColors.textPrimary }}>
-                          {item.name}
-                        </span>
-                        <div 
-                          className="px-2 py-1 rounded-md text-xs font-medium"
-                          style={{ 
-                            backgroundColor: item.bgColor,
-                            color: item.color
-                          }}
-                        >
-                          {item.progress}%
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium" style={{ 
-                          color: jonyColors.textPrimary 
-                        }}>
-                          {item.hasBudget 
-                            ? `${formatCurrencyNoDecimals(item.actual)} / ${formatCurrencyNoDecimals(item.budget)}`
-                            : formatCurrency(item.actual)
-                          }
-                        </div>
-                        {item.hasBudget && (
-                          <div className="text-xs font-light" style={{ color: jonyColors.textSecondary }}>
-                            Budget
+            {budgetVsActualData.length > 0 ? (
+              <div className="space-y-6">
+                {budgetVsActualData.map((item, index) => {
+                  return (
+                    <div key={index} className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium tracking-tight" style={{ color: jonyColors.textPrimary }}>
+                            {item.name}
+                          </span>
+                          <div 
+                            className="px-2 py-1 rounded-md text-xs font-medium"
+                            style={{ 
+                              backgroundColor: item.bgColor,
+                              color: item.color
+                            }}
+                          >
+                            {item.progress}%
                           </div>
-                        )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium" style={{ 
+                            color: jonyColors.textPrimary 
+                          }}>
+                            {item.hasBudget 
+                              ? `${formatCurrencyNoDecimals(item.actual)} / ${formatCurrencyNoDecimals(item.budget)}`
+                              : formatCurrency(item.actual)
+                            }
+                          </div>
+                          {item.hasBudget && (
+                            <div className="text-xs font-light" style={{ color: jonyColors.textSecondary }}>
+                              Budget
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    
-                    {/* Progress Bar - shows percentage of total monthly expenses */}
-                    <div className="w-full rounded-full h-3" style={{ backgroundColor: item.bgColor }}>
-                      <div 
-                        className="h-3 rounded-full transition-all duration-500"
-                        style={{ 
-                          width: `${item.progress}%`,
-                          backgroundColor: item.color,
-                          boxShadow: `0 1px 2px ${item.color}33`
-                        }}
-                      ></div>
-                    </div>
-                    
-                    {item.hasBudget && (
-                      <div className="flex justify-between text-xs font-light" style={{ color: jonyColors.textSecondary }}>
-                        <span>
-                          {item.actual > item.budget 
-                            ? `Überschreitung: ${formatCurrency(item.actual - item.budget)}`
-                            : `Verbleibend: ${formatCurrency(item.budget - item.actual)}`
-                          }
-                        </span>
+                      
+                      {/* Progress Bar - shows percentage of total monthly expenses */}
+                      <div className="w-full rounded-full h-3" style={{ backgroundColor: item.bgColor }}>
+                        <div 
+                          className="h-3 rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${item.progress}%`,
+                            backgroundColor: item.color,
+                            boxShadow: `0 1px 2px ${item.color}33`
+                          }}
+                        ></div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      
+                      {item.hasBudget && (
+                        <div className="flex justify-between text-xs font-light" style={{ color: jonyColors.textSecondary }}>
+                          <span>
+                            {item.actual > item.budget 
+                              ? `Überschreitung: ${formatCurrency(item.actual - item.budget)}`
+                              : `Verbleibend: ${formatCurrency(item.budget - item.actual)}`
+                            }
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                  Keine Daten verfügbar
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Daily Spending Behavior - Full Width */}

@@ -330,10 +330,10 @@ const SharedExpensesPage = () => {
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
-      <div className="px-6 py-8 mb-8">
+      <div className="px-6 py-8 mb-2">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
               <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
@@ -350,60 +350,55 @@ const SharedExpensesPage = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={goToPreviousMonth}
-                className="p-3 rounded-full transition-all duration-200"
+                className="p-3 rounded-full transition-all duration-200 hover:scale-105 focus:outline-none"
                 style={{ backgroundColor: jonyColors.cardBackground, color: jonyColors.textSecondary }}
                 onMouseEnter={(e) => {
                   e.target.style.backgroundColor = jonyColors.accent1Alpha;
                   e.target.style.color = jonyColors.accent1;
+                  // Also style the icon inside
+                  const icon = e.target.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.accent1;
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.backgroundColor = jonyColors.cardBackground;
                   e.target.style.color = jonyColors.textSecondary;
+                  // Reset icon color
+                  const icon = e.target.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.textSecondary;
                 }}
                 title="Vorheriger Monat"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-5 h-5 pointer-events-none transition-colors duration-200" style={{ color: jonyColors.textSecondary }} />
               </button>
-              <div className="px-4 py-2 min-w-[180px] text-center w-48">
-                <span className="font-bold text-xl" style={{ color: jonyColors.textPrimary }}>
-                  {currentDate.toLocaleDateString('de-DE', {
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </span>
+              <div className="font-semibold text-center" style={{ color: jonyColors.textPrimary, minWidth: '200px', fontSize: '20px' }}>
+                {currentDate.toLocaleDateString('de-DE', {
+                  month: 'long',
+                  year: 'numeric',
+                })}
               </div>
               <button
                 onClick={goToNextMonth}
-                className="p-3 rounded-full transition-all duration-200"
+                className="p-3 rounded-full transition-all duration-200 hover:scale-105 focus:outline-none"
                 style={{ backgroundColor: jonyColors.cardBackground, color: jonyColors.textSecondary }}
                 onMouseEnter={(e) => {
                   e.target.style.backgroundColor = jonyColors.accent1Alpha;
                   e.target.style.color = jonyColors.accent1;
+                  // Also style the icon inside
+                  const icon = e.target.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.accent1;
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.backgroundColor = jonyColors.cardBackground;
                   e.target.style.color = jonyColors.textSecondary;
+                  // Reset icon color
+                  const icon = e.target.querySelector('svg');
+                  if (icon) icon.style.color = jonyColors.textSecondary;
                 }}
                 title="Nächster Monat"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5 pointer-events-none transition-colors duration-200" style={{ color: jonyColors.textSecondary }} />
               </button>
             </div>
-
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-base"
-              style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = jonyColors.greenDark;
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = jonyColors.accent1;
-              }}
-            >
-              <Plus className="w-5 h-5" />
-              <span className="hidden sm:inline">Neue Ausgabe</span>
-            </button>
           </div>
         </div>
       </div>
@@ -412,10 +407,12 @@ const SharedExpensesPage = () => {
         <div className="max-w-7xl mx-auto">
 
           {sharedExpenses.length === 0 ? (
-            <div className="flex items-center justify-center" style={{ minHeight: '500px' }}>
-              <div className="text-center p-12 rounded-3xl border-2 max-w-md" style={{
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center p-12 rounded-3xl border-2" style={{
                 backgroundColor: jonyColors.surface,
-                border: `2px solid ${jonyColors.border}`
+                border: `2px solid ${jonyColors.border}`,
+                width: '400px',
+                minHeight: '300px'
               }}>
                 <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center shadow-xl" style={{
                   backgroundColor: jonyColors.accent1
@@ -425,22 +422,9 @@ const SharedExpensesPage = () => {
                 <h2 className="text-3xl font-black mb-4" style={{ color: jonyColors.textPrimary }}>
                   Keine geteilten Ausgaben
                 </h2>
-                <p className="text-lg leading-relaxed mb-6" style={{ color: jonyColors.textSecondary }}>
+                <p className="text-lg leading-relaxed" style={{ color: jonyColors.textSecondary }}>
                   Erstelle deine erste geteilte Ausgabe, um den Überblick zu behalten, wer dir was schuldet.
                 </p>
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
-                  style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = jonyColors.greenDark;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = jonyColors.accent1;
-                  }}
-                >
-                  Erste Ausgabe erstellen
-                </button>
               </div>
             </div>
           ) : (
@@ -654,6 +638,16 @@ const SharedExpensesPage = () => {
             </div>
           )}
       </div>
+
+      {/* Fixed Floating Action Button */}
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl hover:shadow-3xl hover:scale-110 z-50"
+        style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+        title="Neue Ausgabe"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
 
         {/* Create Modal */}
         {showCreateModal && (

@@ -66,11 +66,22 @@ const AuthPage = ({ onAuthSuccess }) => {
 
   // Simple hash function for password storage
   const hashPassword = async (password) => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password + 'finance_app_salt_2024');
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    try {
+      const encoder = new TextEncoder();
+      const saltedPassword = password + 'finance_app_salt_2024';
+      console.log('🔐 Hashing input:', saltedPassword);
+      
+      const data = encoder.encode(saltedPassword);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      console.log('🔐 Generated hash:', hash);
+      return hash;
+    } catch (error) {
+      console.error('❌ Hashing error:', error);
+      throw error;
+    }
   };
 
   // Generate random reset code
@@ -101,22 +112,31 @@ const AuthPage = ({ onAuthSuccess }) => {
       const hashedPassword = await hashPassword(password);
       const resetCode = generateResetCode();
       
+      console.log('🔧 SETUP DEBUG:');
+      console.log('Password to hash:', password);
+      console.log('Generated hash:', hashedPassword);
+      
       localStorage.setItem('finance_password_hash', hashedPassword);
       localStorage.setItem('finance_reset_code', resetCode);
       localStorage.setItem('finance_password_setup_date', new Date().toISOString());
       
-      alert(`Passwort erfolgreich eingerichtet!\n\nNotiere dir diesen Reset-Code sicher:\n${resetCode}\n\nDu benötigst ihn, um dein Passwort zurückzusetzen.`);
+      const storedHash = localStorage.getItem('finance_password_hash');
+      console.log('Stored hash verification:', storedHash);
+      console.log('Storage successful:', storedHash === hashedPassword);
+      
+      alert(`✅ Passwort erfolgreich eingerichtet!\n\n📝 Dein Code: ${password}\n🔑 Reset-Code: ${resetCode}\n\n⚠️ Notiere dir beide Codes sicher!`);
       
       onAuthSuccess();
     } catch (error) {
+      console.log('❌ SETUP ERROR:', error);
       setError('Fehler beim Einrichten des Passworts');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogin = async () => {
-    if (!password) {
+  const handleLogin = async (codeToVerify) => {
+    if (!codeToVerify || codeToVerify.length !== 6) {
       return;
     }
 
@@ -125,23 +145,30 @@ const AuthPage = ({ onAuthSuccess }) => {
     setCodeStatus('');
 
     try {
-      const hashedPassword = await hashPassword(password);
+      const hashedPassword = await hashPassword(codeToVerify);
       const storedHash = localStorage.getItem('finance_password_hash');
+      
+      console.log('🔍 AUTH DEBUG:');
+      console.log('Password entered:', codeToVerify);
+      console.log('Generated hash:', hashedPassword);
+      console.log('Stored hash:', storedHash);
+      console.log('Hashes match:', hashedPassword === storedHash);
       
       if (hashedPassword === storedHash) {
         setCodeStatus('correct');
         setTimeout(() => {
-          sessionStorage.setItem('finance_authenticated', 'true');
           onAuthSuccess();
         }, 500);
       } else {
         setCodeStatus('incorrect');
+        console.log('❌ LOGIN FAILED: Hash mismatch');
         setTimeout(() => {
           setCodeStatus('');
           setPassword('');
         }, 2000);
       }
     } catch (error) {
+      console.log('❌ LOGIN ERROR:', error);
       setCodeStatus('incorrect');
       setTimeout(() => setCodeStatus(''), 2000);
     } finally {
@@ -160,7 +187,6 @@ const AuthPage = ({ onAuthSuccess }) => {
     setError('');
 
     try {
-      // Initialize DB connection - open existing database without version specification
       const db = new window.Dexie('ZenithFinanceDB');
       await db.open();
         
@@ -168,10 +194,11 @@ const AuthPage = ({ onAuthSuccess }) => {
       localStorage.removeItem('finance_reset_code');
       localStorage.removeItem('finance_password_setup_date');
       localStorage.removeItem('finance_password_reset_date');
+      localStorage.removeItem('finance_authenticated_persistent');
+      localStorage.removeItem('finance_auth_timestamp');
       
       sessionStorage.removeItem('finance_authenticated');
       
-      // Dexie's `db.tables` is an array of Table objects
       await db.transaction('rw', db.tables, async () => {
           for (const table of db.tables) {
               await table.clear();
@@ -218,7 +245,7 @@ const AuthPage = ({ onAuthSuccess }) => {
                 borderColor = '#00ff41'; // Neon Green
                 boxShadow = '0 0 10px rgba(0, 255, 65, 0.3)';
               } else if (password[index] || (isPasswordActive && !password[index])) {
-                borderColor = '#ffffff'; // White if filled, or active and empty
+                borderColor = '#ffffff';
               }
               
               return (
@@ -271,7 +298,7 @@ const AuthPage = ({ onAuthSuccess }) => {
                 borderColor = '#00ff41'; // Neon Green
                 boxShadow = '0 0 10px rgba(0, 255, 65, 0.3)';
               } else if (confirmPassword[index] || (isConfirmPasswordActive && !confirmPassword[index])) {
-                borderColor = '#ffffff'; // White
+                borderColor = '#ffffff';
               }
               
               return (
@@ -326,7 +353,6 @@ const AuthPage = ({ onAuthSuccess }) => {
           </button>
         </div>
       </div>
-
     </div>
   );
 
@@ -339,107 +365,82 @@ const AuthPage = ({ onAuthSuccess }) => {
   );
 
   const renderLoginMode = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
+    <div className="text-center">
+      <div className="mb-16">
         <ZenithLogo />
-        <h1 className="text-2xl font-bold mb-2" style={{ color: jonyColors.textPrimary }}>
-          Anmeldung
+        <h1 className="text-6xl font-light" style={{ color: jonyColors.textPrimary }}>
+          Anmelden
         </h1>
-        <p style={{ color: jonyColors.textSecondary }}>
-          Gib deinen Code ein, um fortzufahren
-        </p>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <div className="flex justify-center gap-3 mb-4">
-            {Array.from({ length: 6 }, (_, index) => {
-              let borderColor = jonyColors.cardBorder;
-              let boxShadow = 'none';
-              
-              if (codeStatus === 'correct') {
-                borderColor = '#00ff41'; // Neon Green
-                boxShadow = '0 0 10px rgba(0, 255, 65, 0.3)';
-              } else if (codeStatus === 'incorrect') {
-                borderColor = '#ff0080'; // Neon Pink
-                boxShadow = '0 0 10px rgba(255, 0, 128, 0.3)';
-              } else if (password[index] || (isPasswordActive && !password[index])) {
-                borderColor = '#ffffff'; // White if filled, or active and empty
-              }
-              
-              return (
-                <div
-                  key={index}
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold cursor-pointer transition-all duration-200"
-                  style={{
-                    backgroundColor: jonyColors.cardBackground,
-                    color: jonyColors.textPrimary,
-                    border: `2px solid ${borderColor}`,
-                    transform: password[index] ? 'scale(1.05)' : 'scale(1)',
-                    boxShadow
-                  }}
-                  onClick={() => document.getElementById('hidden-input')?.focus()}
-                >
-                  {password[index] ? '●' : ''}
-                </div>
-              );
-            })}
-          </div>
-          <input
-            id="hidden-input"
-            type="text"
-            value={password}
-            onFocus={() => setIsPasswordActive(true)}
-            onBlur={() => { if (password.length === 0) setIsPasswordActive(false) }}
-            onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
-              setPassword(value);
-              setError('');
-              setCodeStatus('');
-              
-              if (value.length === 6) {
-                setTimeout(() => handleLogin(), 100);
-              }
-            }}
-            className="opacity-0 absolute -z-10"
-            maxLength="6"
-            inputMode="numeric"
-            autoComplete="off"
-            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-          />
-        </div>
+      <div className="flex justify-center gap-6 mb-16">
+        {Array.from({ length: 6 }, (_, index) => {
+          let borderColor = jonyColors.cardBorder;
+          let boxShadow = 'none';
+          
+          if (codeStatus === 'correct') {
+            borderColor = '#00ff41';
+            boxShadow = '0 0 20px rgba(0, 255, 65, 0.4)';
+          } else if (codeStatus === 'incorrect') {
+            borderColor = '#ff0080';
+            boxShadow = '0 0 20px rgba(255, 0, 128, 0.4)';
+          } else if (password[index] || (isPasswordActive && !password[index])) {
+            borderColor = '#ffffff';
+          }
+          
+          return (
+            <div
+              key={index}
+              className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-bold cursor-pointer transition-all duration-200"
+              style={{
+                backgroundColor: jonyColors.cardBackground,
+                color: jonyColors.textPrimary,
+                border: `3px solid ${borderColor}`,
+                transform: password[index] ? 'scale(1.05)' : 'scale(1)',
+                boxShadow
+              }}
+              onClick={() => document.getElementById('hidden-input')?.focus()}
+            >
+              {password[index] ? '●' : ''}
+            </div>
+          );
+        })}
+      </div>
 
-        {error && (
-          <div className="flex items-center gap-2 text-sm" style={{ color: jonyColors.red }}>
-            <AlertCircle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
+      <input
+        id="hidden-input"
+        type="text"
+        value={password}
+        onFocus={() => setIsPasswordActive(true)}
+        onBlur={() => { if (password.length === 0) setIsPasswordActive(false) }}
+        onChange={(e) => {
+          const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+          setPassword(value);
+          setError('');
+          setCodeStatus('');
+          
+          if (value.length === 6) {
+            setTimeout(() => handleLogin(value), 100);
+          }
+        }}
+        className="opacity-0 absolute -z-10"
+        maxLength="6"
+        inputMode="numeric"
+        autoComplete="off"
+        onKeyDown={(e) => e.key === 'Enter' && handleLogin(password)}
+      />
 
-        <div className="flex flex-col gap-2">
+      {(error || codeStatus === 'incorrect') && (
+        <div className="mb-8">
           <button
             onClick={() => setMode('reset')}
-            className="w-full text-sm transition-colors hover:opacity-80"
+            className="text-lg transition-colors hover:opacity-80"
             style={{ color: jonyColors.textSecondary }}
           >
             Code vergessen?
           </button>
-          
-          <div className="flex items-center gap-3 my-2">
-            <div className="flex-1 h-px" style={{ backgroundColor: jonyColors.cardBorder }}></div>
-            <span className="text-xs" style={{ color: jonyColors.textSecondary }}>oder</span>
-            <div className="flex-1 h-px" style={{ backgroundColor: jonyColors.cardBorder }}></div>
-          </div>
-          
-          <button
-            onClick={() => setMode('setup')}
-            className="w-full text-sm transition-colors hover:opacity-80"
-            style={{ color: jonyColors.textSecondary }}
-          >
-            Neuen Code erstellen
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 
@@ -528,20 +529,14 @@ const AuthPage = ({ onAuthSuccess }) => {
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: jonyColors.background }}>
-      <div className="w-full max-w-md rounded-2xl shadow-xl overflow-hidden" style={{ 
-        backgroundColor: jonyColors.cardBackground,
-        border: `1px solid ${mode === 'reset' ? jonyColors.magenta : jonyColors.accent1}`
-      }}>
-        <div className="p-8">
-          {mode === 'setup' && renderSetupMode()}
-          {mode === 'login' && renderLoginMode()}
-          {mode === 'reset' && renderResetMode()}
-        </div>
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: jonyColors.background }}>
+      <div className="w-full max-w-none px-8">
+        {mode === 'setup' && renderSetupMode()}
+        {mode === 'login' && renderLoginMode()}
+        {mode === 'reset' && renderResetMode()}
       </div>
     </div>
   );
 };
 
 export default AuthPage;
-

@@ -5,6 +5,71 @@ import { db } from '../utils/db';
 import { useAuth } from './hooks/useAuth';
 import { jonyColors } from '../theme';
 
+// Tooltip-Komponente ausgelagert, um Redundanz zu vermeiden
+const SidebarTooltip = ({ label, count }) => (
+  <div
+    className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50"
+    style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}
+  >
+    {label}
+    {count > 0 && ` (${count})`}
+  </div>
+);
+
+// Sidebar-Item-Komponente für sauberen Code
+const SidebarItem = ({ item, isActive, setPage }) => {
+  const Icon = item.icon;
+  
+  return (
+    <button
+      key={item.id}
+      onClick={() => setPage(item.id)}
+      className={`w-12 h-12 flex items-center justify-center rounded-xl group relative transition-all duration-200 ${
+        isActive ? '' : 'hover:bg-opacity-80'
+      }`}
+      style={{
+        backgroundColor: isActive ? jonyColors.accent1Alpha : jonyColors.cardBackground,
+        border: `1px solid ${isActive ? jonyColors.accent1 : jonyColors.cardBorder}`
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.backgroundColor = jonyColors.surface;
+          e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
+          const icon = e.currentTarget.querySelector('svg');
+          if (icon) icon.style.color = jonyColors.textPrimary;
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
+          e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
+          const icon = e.currentTarget.querySelector('svg');
+          if (icon) icon.style.color = jonyColors.textSecondary;
+        }
+      }}
+      title={item.label}
+    >
+      <div className="relative">
+        <Icon
+          className="w-5 h-5"
+          strokeWidth={1.5}
+          style={{
+            color: isActive ? jonyColors.accent1 : jonyColors.textSecondary,
+            transition: 'color 0.2s ease'
+          }}
+        />
+        {item.count > 0 && (
+          <span className="absolute -top-2 -right-2 w-4 h-4 text-xs font-medium rounded-full flex items-center justify-center"
+            style={{ backgroundColor: jonyColors.red, color: jonyColors.background }}>
+            {item.count > 9 ? '9+' : item.count}
+          </span>
+        )}
+      </div>
+      <SidebarTooltip label={item.label} count={item.count} />
+    </button>
+  );
+};
+
 const Sidebar = ({ currentPage, setPage }) => {
   const { logout } = useAuth();
   const userSettings = useLiveQuery(() => db.settings.get('userProfile'), []) || {};
@@ -21,12 +86,8 @@ const Sidebar = ({ currentPage, setPage }) => {
     { id: 'savings-goals', label: 'Sparziele', icon: Target },
   ];
   
-  // Filter visible nav items based on settings
   const visibilitySettings = pageVisibilitySettings?.value || {};
-  const navItems = allNavItems.filter(item => {
-    // Check visibility settings (default to true if not set)
-    return visibilitySettings[item.id] !== false;
-  });
+  const navItems = allNavItems.filter(item => visibilitySettings[item.id] !== false);
   
   const bottomItems = [
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -43,10 +104,10 @@ const Sidebar = ({ currentPage, setPage }) => {
     <aside className="w-20 p-4 flex-shrink-0 hidden md:flex flex-col h-screen sticky top-0" style={{ backgroundColor: jonyColors.background, borderRight: `1px solid ${jonyColors.border}` }}>
       {/* Logo */}
       <div className="flex justify-center mb-12 mt-4">
-        <button 
+        <button
           onClick={() => setPage('dashboard')}
-          className="w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-200" 
-          style={{ 
+          className="w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-200"
+          style={{
             background: `linear-gradient(135deg, ${jonyColors.accent1}, ${jonyColors.greenDark})`,
             border: 'none',
             boxShadow: '0 4px 16px rgba(34, 197, 94, 0.2)'
@@ -64,132 +125,28 @@ const Sidebar = ({ currentPage, setPage }) => {
           <PiggyBank className="w-6 h-6 text-black" strokeWidth={1.5} />
         </button>
       </div>
-      
+
       {/* Navigation */}
       <nav className="flex-1 flex flex-col items-center space-y-4">
-        {navItems.map(item => {
-          const isActive = currentPage === item.id;
-          
-          return (
-            <button
-              key={item.id}
-              onClick={() => setPage(item.id)}
-              className={`w-12 h-12 flex items-center justify-center rounded-xl group relative transition-all duration-200 ${
-                isActive 
-                  ? '' 
-                  : 'hover:bg-opacity-80'
-              }`}
-              style={{
-                backgroundColor: isActive ? jonyColors.accent1Alpha : jonyColors.cardBackground,
-                border: `1px solid ${isActive ? jonyColors.accent1 : jonyColors.cardBorder}`
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = jonyColors.surface;
-                  e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
-                  const icon = e.currentTarget.querySelector('svg');
-                  if (icon) icon.style.color = jonyColors.textPrimary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
-                  e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
-                  const icon = e.currentTarget.querySelector('svg');
-                  if (icon) icon.style.color = jonyColors.textSecondary;
-                }
-              }}
-              title={item.label}
-            >
-              <div className="relative">
-                <item.icon 
-                  className="w-5 h-5" 
-                  strokeWidth={1.5} 
-                  style={{ 
-                    color: isActive ? jonyColors.accent1 : jonyColors.textSecondary,
-                    transition: 'color 0.2s ease'
-                  }}
-                />
-                {/* Badge for inbox count */}
-                {item.count > 0 && (
-                  <span className="absolute -top-2 -right-2 w-4 h-4 text-xs font-medium rounded-full flex items-center justify-center" 
-                        style={{ backgroundColor: jonyColors.red, color: jonyColors.background }}>
-                    {item.count > 9 ? '9+' : item.count}
-                  </span>
-                )}
-              </div>
-              {/* Tooltip */}
-              <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
-                   style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>
-                {item.label}
-                {item.count > 0 && ` (${item.count})`}
-              </div>
-            </button>
-          );
-        })}
+        {navItems.map(item => (
+          <SidebarItem key={item.id} item={item} isActive={currentPage === item.id} setPage={setPage} />
+        ))}
       </nav>
-      
+
       {/* Bottom Items */}
       <div className="pt-4 flex flex-col items-center space-y-6" style={{ borderTop: `1px solid ${jonyColors.border}` }}>
-        {bottomItems.map(item => {
-          const isActive = currentPage === item.id;
-          
-          return (
-            <button
-              key={item.id}
-              onClick={() => setPage(item.id)}
-              className={`w-12 h-12 flex items-center justify-center rounded-xl group relative transition-all duration-200 ${
-                isActive 
-                  ? '' 
-                  : 'hover:bg-opacity-80'
-              }`}
-              style={{
-                backgroundColor: isActive ? jonyColors.accent1Alpha : jonyColors.cardBackground,
-                border: `1px solid ${isActive ? jonyColors.accent1 : jonyColors.cardBorder}`
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = jonyColors.surface;
-                  e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
-                  const icon = e.currentTarget.querySelector('svg');
-                  if (icon) icon.style.color = jonyColors.textPrimary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
-                  e.currentTarget.style.border = `1px solid ${jonyColors.cardBorder}`;
-                  const icon = e.currentTarget.querySelector('svg');
-                  if (icon) icon.style.color = jonyColors.textSecondary;
-                }
-              }}
-              title={item.label}
-            >
-              <item.icon 
-                className="w-5 h-5" 
-                strokeWidth={1.5} 
-                style={{ 
-                  color: isActive ? jonyColors.accent1 : jonyColors.textSecondary,
-                  transition: 'color 0.2s ease'
-                }}
-              />
-              {/* Tooltip */}
-              <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
-                   style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>
-                {item.label}
-              </div>
-            </button>
-          );
-        })}
+        {bottomItems.map(item => (
+          <SidebarItem key={item.id} item={item} isActive={currentPage === item.id} setPage={setPage} />
+        ))}
         
         {/* Logout Button */}
         <button
           onClick={handleLogout}
           className="w-12 h-12 flex items-center justify-center rounded-xl transition-colors duration-200 group relative"
-          style={{ 
-            color: jonyColors.red, 
-            backgroundColor: jonyColors.cardBackground, 
-            border: `1px solid ${jonyColors.cardBorder}` 
+          style={{
+            color: jonyColors.red,
+            backgroundColor: jonyColors.cardBackground,
+            border: `1px solid ${jonyColors.cardBorder}`
           }}
           onMouseEnter={(e) => {
             e.target.style.backgroundColor = jonyColors.redAlpha;
@@ -202,8 +159,8 @@ const Sidebar = ({ currentPage, setPage }) => {
           title="Abmelden"
         >
           <LogOut className="w-5 h-5" strokeWidth={1.5} />
-          {/* Tooltip */}
-          <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" 
+          {/* Tooltip for Logout */}
+          <div className="absolute left-full ml-3 px-3 py-2 text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50"
                style={{ backgroundColor: jonyColors.surface, color: jonyColors.textPrimary, border: `1px solid ${jonyColors.cardBorder}` }}>
             Abmelden
           </div>
