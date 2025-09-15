@@ -5,6 +5,8 @@ import {
   DollarSign, 
   PieChart, 
   BarChart3, 
+  Target, 
+  AlertCircle, 
   Plus,
   Edit,
   Trash2,
@@ -12,8 +14,9 @@ import {
   Globe,
   RefreshCw,
   Loader,
+  Activity,
   MapPin,
-  FileText
+  Wallet
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
 import WorldMap from 'react-svg-worldmap';
@@ -33,7 +36,7 @@ const InvestmentsPage = () => {
   const [investmentFilter, setInvestmentFilter] = useState('all');
   const [performanceFilter, setPerformanceFilter] = useState('all'); // 'all', 'positive', 'negative'
   const [sortBy, setSortBy] = useState('name'); // 'name', 'value', 'performance', 'date'
-  const [expandedInvestment, setExpandedInvestment] = useState(null);
+  const [expandedInvestment, setExpandedInvestment] = useState(null); // Track expanded detail view
   
   // Form state for new investment
   const [newInvestment, setNewInvestment] = useState({
@@ -93,14 +96,84 @@ const InvestmentsPage = () => {
   };
 
   // Calculate individual investment performance
-  const getInvestmentPerformance = (investment) => {
+  const getInvestmentPerformance = (investment, totalPortfolioValue = null) => {
     const purchaseValue = (parseFloat(investment.purchasePrice) || 0) * (parseFloat(investment.quantity) || 0);
     const currentValue = (parseFloat(investment.currentPrice) || 0) * (parseFloat(investment.quantity) || 0);
     const change = currentValue - purchaseValue;
     const changePercent = purchaseValue > 0 ? (change / purchaseValue) * 100 : 0;
     
-    return { purchaseValue, currentValue, change, changePercent };
+    // Calculate portfolio percentage (use provided total or calculate from investments array)
+    const portfolioTotal = totalPortfolioValue || investments.reduce((sum, inv) => {
+      return sum + (parseFloat(inv.currentPrice) || 0) * (parseFloat(inv.quantity) || 0);
+    }, 0);
+    const portfolioPercentage = portfolioTotal > 0 ? (currentValue / portfolioTotal) * 100 : 0;
+    
+    return { 
+      purchaseValue, 
+      currentValue, 
+      change, 
+      changePercent,
+      portfolioPercentage
+    };
   };
+
+  // Calculate investment overview statistics efficiently
+  const investmentOverviewStats = useMemo(() => {
+    if (investments.length === 0) {
+      return {
+        bestPerformer: { name: 'Keine Daten', changePercent: 0 },
+        worstPerformer: { name: 'Keine Daten', changePercent: 0 },
+        biggestWinner: { name: 'Keine Daten', change: 0 },
+        biggestLoser: { name: 'Keine Daten', change: 0 }
+      };
+    }
+
+    let bestPerformer = investments[0];
+    let worstPerformer = investments[0];
+    let biggestWinner = investments[0];
+    let biggestLoser = investments[0];
+
+    let bestPerformance = getInvestmentPerformance(bestPerformer);
+    let worstPerformance = getInvestmentPerformance(worstPerformer);
+    let biggestWinnerPerformance = getInvestmentPerformance(biggestWinner);
+    let biggestLoserPerformance = getInvestmentPerformance(biggestLoser);
+
+    // Single pass through investments for efficiency
+    investments.forEach(inv => {
+      const performance = getInvestmentPerformance(inv);
+
+      // Best performer by percentage
+      if (performance.changePercent > bestPerformance.changePercent) {
+        bestPerformer = inv;
+        bestPerformance = performance;
+      }
+
+      // Worst performer by percentage
+      if (performance.changePercent < worstPerformance.changePercent) {
+        worstPerformer = inv;
+        worstPerformance = performance;
+      }
+
+      // Biggest winner by absolute change
+      if (performance.change > biggestWinnerPerformance.change) {
+        biggestWinner = inv;
+        biggestWinnerPerformance = performance;
+      }
+
+      // Biggest loser by absolute change
+      if (performance.change < biggestLoserPerformance.change) {
+        biggestLoser = inv;
+        biggestLoserPerformance = performance;
+      }
+    });
+
+    return {
+      bestPerformer: { name: bestPerformer.name, changePercent: bestPerformance.changePercent },
+      worstPerformer: { name: worstPerformer.name, changePercent: worstPerformance.changePercent },
+      biggestWinner: { name: biggestWinner.name, change: biggestWinnerPerformance.change },
+      biggestLoser: { name: biggestLoser.name, change: biggestLoserPerformance.change }
+    };
+  }, [investments]);
 
   // Calculate investment metrics
   const investmentMetrics = useMemo(() => {
@@ -464,45 +537,40 @@ const InvestmentsPage = () => {
     return categories;
   }, [geographicDistribution]);
 
-  // Map region data to country codes for react-svg-worldmap
+  // Map region data to country codes for react-svg-worldmap  
   const worldMapData = useMemo(() => {
-    // Return empty if no investments
-    if (investments.length === 0) return [];
-    
     const data = [];
     
     // Erweiterte Länder-Mapping für bessere Visualisierung
     const categoryCountryMapping = {
       'Nordamerika': ['us', 'ca', 'mx'],
       'Europa': ['de', 'fr', 'it', 'es', 'gb', 'nl', 'ch', 'at', 'be', 'se', 'no', 'dk', 'fi', 'pt', 'ie', 'lu', 'pl', 'cz', 'hu', 'sk', 'si', 'hr', 'bg', 'ro', 'lt', 'lv', 'ee', 'gr', 'cy', 'mt'],
-      'Asien': ['cn', 'jp', 'kr', 'in', 'tw', 'hk', 'sg', 'th', 'my', 'id', 'ph', 'vn', 'bd', 'pk', 'lk', 'mm', 'kh', 'la', 'mn', 'kz', 'uz', 'kg', 'tj', 'tm', 'bn', 'bt', 'np', 'af'],
+      'Asien': ['cn', 'jp', 'kr', 'in', 'tw', 'hk', 'sg', 'th', 'my', 'id', 'ph', 'vn', 'bd', 'pk', 'lk', 'mm', 'kh', 'la', 'mn', 'kz', 'uz', 'kg', 'tj', 'tm', 'bn', 'bt', 'np', 'af', 'ru'],
       'Australien & Ozeanien': ['au', 'nz', 'pg', 'fj', 'nc', 'sb', 'vu', 'ws', 'to', 'tv', 'ki', 'nr', 'pw', 'mh', 'fm'],
       'Lateinamerika': ['br', 'ar', 'cl', 'co', 'pe', 've', 'ec', 'uy', 'py', 'bo', 'sr', 'gy', 'gf', 'cr', 'pa', 'ni', 'hn', 'gt', 'bz', 'sv', 'do', 'ht', 'cu', 'jm', 'tt', 'bb', 'gd', 'lc', 'vc', 'ag', 'dm', 'kn'],
       'Afrika & Naher Osten': ['za', 'eg', 'sa', 'ae', 'kw', 'qa', 'bh', 'om', 'ye', 'jo', 'lb', 'sy', 'iq', 'ir', 'tr', 'il', 'ng', 'ke', 'ma', 'et', 'gh', 'tz', 'ug', 'mz', 'mg', 'ao', 'zm', 'zw', 'bw', 'na', 'sz', 'ls', 'mw', 'dz', 'tn', 'ly', 'sd', 'ss', 'er', 'dj', 'so', 'rw', 'bi', 'td', 'cf', 'cm', 'gq', 'ga', 'cg', 'cd', 'st', 'cv', 'gm', 'gn', 'gw', 'lr', 'sl', 'ci', 'bf', 'ml', 'ne', 'sn', 'mr', 'ps']
     };
     
-    // Create mapping based on riskCategories
-    riskCategories.forEach(category => {
-      const percentage = parseFloat(category.percentage);
+    // Always show all regions, regardless of whether they have investments
+    Object.entries(categoryCountryMapping).forEach(([regionName, countryCodes]) => {
+      // Find the percentage for this region from riskCategories
+      const category = riskCategories.find(cat => cat.name === regionName);
+      const percentage = category ? parseFloat(category.percentage) : 0;
       
-      // Only map categories that have investments (percentage > 0)
-      if (percentage > 0) {
-        const countryCodes = categoryCountryMapping[category.name] || [];
-        
-        // Add each country with the percentage value
-        countryCodes.forEach(code => {
-          data.push({
-            country: code,
-            value: percentage, // Use the actual percentage value
-            categoryName: category.name,
-            percentage: percentage
-          });
+      // Add each country with the percentage value (0 if no investments)
+      countryCodes.forEach(code => {
+        data.push({
+          country: code,
+          value: percentage, // Use the actual percentage value or 0
+          categoryName: regionName,
+          percentage: percentage
         });
-      }
+      });
     });
     
     return data;
-  }, [riskCategories, investments.length]);
+  }, [riskCategories]);
+
 
   // CRUD operations
   const handleCreateInvestment = async () => {
@@ -1063,7 +1131,7 @@ const InvestmentsPage = () => {
               
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent2Alpha }}>
-                  <DollarSign className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
+                  <Activity className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
                 </div>
                 <h3 className="text-lg font-light tracking-tight" style={{ color: jonyColors.textPrimary }}>
                   Investment Übersicht
@@ -1071,131 +1139,64 @@ const InvestmentsPage = () => {
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                {/* Beste Position (% Performance) */}
+                {/* Top Performer */}
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-medium leading-tight mb-1" style={{ color: jonyColors.textSecondary }}>
                       Beste Position
                     </div>
                     <div className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
-                      {investments.length > 0 
-                        ? investments.reduce((best, inv) => {
-                            const perf = getInvestmentPerformance(inv);
-                            const bestPerf = getInvestmentPerformance(best);
-                            return perf.changePercent > bestPerf.changePercent ? inv : best;
-                          }).name
-                        : 'Keine Daten'
-                      }
+                      {investmentOverviewStats.bestPerformer.name}
                     </div>
                   </div>
-                  {investments.length > 0 && (
-                    <div className="text-lg font-bold" style={{ color: jonyColors.accent1 }}>
-                      {formatPercentage(investments.reduce((best, inv) => {
-                        const perf = getInvestmentPerformance(inv);
-                        const bestPerf = getInvestmentPerformance(best);
-                        return perf.changePercent > bestPerf.changePercent ? inv : best;
-                      }, investments[0] || {}) ? getInvestmentPerformance(investments.reduce((best, inv) => {
-                        const perf = getInvestmentPerformance(inv);
-                        const bestPerf = getInvestmentPerformance(best);
-                        return perf.changePercent > bestPerf.changePercent ? inv : best;
-                      }, investments[0])).changePercent : 0)}
-                    </div>
-                  )}
+                  <div className="text-lg font-bold" style={{ color: jonyColors.accent1 }}>
+                    {formatPercentage(investmentOverviewStats.bestPerformer.changePercent)}
+                  </div>
                 </div>
 
-                {/* Schlechteste Position (% Performance) */}
+                {/* Worst Performer */}
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-medium leading-tight mb-1" style={{ color: jonyColors.textSecondary }}>
                       Schlechteste Position
                     </div>
                     <div className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
-                      {investments.length > 0 
-                        ? investments.reduce((worst, inv) => {
-                            const perf = getInvestmentPerformance(inv);
-                            const worstPerf = getInvestmentPerformance(worst);
-                            return perf.changePercent < worstPerf.changePercent ? inv : worst;
-                          }).name
-                        : 'Keine Daten'
-                      }
+                      {investmentOverviewStats.worstPerformer.name}
                     </div>
                   </div>
-                  {investments.length > 0 && (
-                    <div className="text-lg font-bold" style={{ color: jonyColors.magenta }}>
-                      {formatPercentage(investments.reduce((worst, inv) => {
-                        const perf = getInvestmentPerformance(inv);
-                        const worstPerf = getInvestmentPerformance(worst);
-                        return perf.changePercent < worstPerf.changePercent ? inv : worst;
-                      }, investments[0] || {}) ? getInvestmentPerformance(investments.reduce((worst, inv) => {
-                        const perf = getInvestmentPerformance(inv);
-                        const worstPerf = getInvestmentPerformance(worst);
-                        return perf.changePercent < worstPerf.changePercent ? inv : worst;
-                      }, investments[0])).changePercent : 0)}
-                    </div>
-                  )}
+                  <div className="text-lg font-bold" style={{ color: jonyColors.magenta }}>
+                    {formatPercentage(investmentOverviewStats.worstPerformer.changePercent)}
+                  </div>
                 </div>
 
-                {/* Größter Gewinnbringer (Absolute € Impact) */}
+                {/* Biggest Winner by Absolute Gain */}
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-medium leading-tight mb-1" style={{ color: jonyColors.textSecondary }}>
                       Größter Gewinnbringer
                     </div>
                     <div className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
-                      {investments.length > 0 
-                        ? investments.reduce((bestGainer, inv) => {
-                            const perf = getInvestmentPerformance(inv);
-                            const bestGainerPerf = getInvestmentPerformance(bestGainer);
-                            return perf.change > bestGainerPerf.change ? inv : bestGainer;
-                          }).name
-                        : 'Keine Daten'
-                      }
+                      {investmentOverviewStats.biggestWinner.name}
                     </div>
                   </div>
-                  {investments.length > 0 && (
-                    <div className="text-lg font-bold" style={{ color: jonyColors.accent1 }}>
-                      {(() => {
-                        const bestGainer = investments.reduce((bestGainer, inv) => {
-                          const perf = getInvestmentPerformance(inv);
-                          const bestGainerPerf = getInvestmentPerformance(bestGainer);
-                          return perf.change > bestGainerPerf.change ? inv : bestGainer;
-                        }, investments[0] || {});
-                        const change = getInvestmentPerformance(bestGainer).change;
-                        return change > 0 ? `+${formatCurrency(change)}` : formatCurrency(change);
-                      })()}
-                    </div>
-                  )}
+                  <div className="text-lg font-bold" style={{ color: jonyColors.accent1 }}>
+                    {formatCurrency(investmentOverviewStats.biggestWinner.change)}
+                  </div>
                 </div>
 
-                {/* Größter Verlustbringer (Absolute € Impact) */}
+                {/* Biggest Loser by Absolute Loss */}
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-medium leading-tight mb-1" style={{ color: jonyColors.textSecondary }}>
                       Größter Verlustbringer
                     </div>
                     <div className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
-                      {investments.length > 0 
-                        ? investments.reduce((worstLoser, inv) => {
-                            const perf = getInvestmentPerformance(inv);
-                            const worstLoserPerf = getInvestmentPerformance(worstLoser);
-                            return perf.change < worstLoserPerf.change ? inv : worstLoser;
-                          }).name
-                        : 'Keine Daten'
-                      }
+                      {investmentOverviewStats.biggestLoser.name}
                     </div>
                   </div>
-                  {investments.length > 0 && (
-                    <div className="text-lg font-bold" style={{ color: jonyColors.magenta }}>
-                      {(() => {
-                        const worstLoser = investments.reduce((worstLoser, inv) => {
-                          const perf = getInvestmentPerformance(inv);
-                          const worstLoserPerf = getInvestmentPerformance(worstLoser);
-                          return perf.change < worstLoserPerf.change ? inv : worstLoser;
-                        }, investments[0] || {});
-                        return formatCurrency(getInvestmentPerformance(worstLoser).change);
-                      })()}
-                    </div>
-                  )}
+                  <div className="text-lg font-bold" style={{ color: jonyColors.magenta }}>
+                    {formatCurrency(investmentOverviewStats.biggestLoser.change)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1213,7 +1214,7 @@ const InvestmentsPage = () => {
                     backgroundColor: jonyColors.surface,
                     border: `1px solid ${jonyColors.border}`
                   }}>
-                  <div className="flex items-center gap-4 mb-6">
+                  <div className="flex items-center gap-4 mb-4">
                     <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent2Alpha }}>
                       <Globe className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
                     </div>
@@ -1222,109 +1223,112 @@ const InvestmentsPage = () => {
                     </h3>
                   </div>
                   
-                  <div className="h-96">
-                    {(worldMapData && worldMapData.length > 0) ? (
-                      <>
-                        <div className="h-80 flex items-center justify-center">
-                          <div style={{ transform: 'scale(1.1)' }}>
-                            <WorldMap
-                            color={jonyColors.accent1}
-                            title=""
-                            value-suffix="%"
-                            size="lg"
-                            data={worldMapData}
-                            backgroundColor="transparent"
-                            strokeColor={jonyColors.border}
-                            tooltipBgColor={jonyColors.surface}
-                            tooltipTextColor={jonyColors.textPrimary}
-                            tooltipFunction={(context) => {
-                              const countryData = worldMapData.find(d => d.country === context.country);
-                              if (countryData && countryData.percentage > 0) {
-                                return `${countryData.categoryName}: ${countryData.percentage.toFixed(1)}% des Portfolios`;
+                  <div className="h-96 -mt-2">
+                    {worldMapData.length > 0 ? (
+                      <div className="h-full flex items-center justify-center">
+                        <div style={{ transform: 'scale(1.1)' }}>
+                          <WorldMap
+                          color={jonyColors.accent2}
+                          title=""
+                          value-suffix="%"
+                          size="lg"
+                          data={worldMapData}
+                          backgroundColor="transparent"
+                          strokeColor={jonyColors.border}
+                          tooltipBgColor={jonyColors.surface}
+                          tooltipTextColor={jonyColors.textPrimary}
+                          tooltipFunction={(context) => {
+                            // Define region mappings
+                            const regionMappings = {
+                              'Nordamerika': ['US', 'USA', 'CA', 'United States', 'Canada', 'MX', 'Mexico'],
+                              'Europa': ['DE', 'FR', 'GB', 'IT', 'ES', 'NL', 'BE', 'AT', 'CH', 'SE', 'NO', 'DK', 'FI', 'PL', 'CZ', 'PT', 'IE', 'GR', 'HU', 'RO', 'BG', 'HR', 'SI', 'SK', 'LT', 'LV', 'EE', 'LU', 'MT', 'CY',
+                                        'Germany', 'France', 'United Kingdom', 'Italy', 'Spain', 'Netherlands', 'Belgium', 'Austria', 'Switzerland', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Czech Republic', 'Portugal', 'Ireland', 'Greece', 'Hungary', 'Romania', 'Bulgaria', 'Croatia', 'Slovenia', 'Slovakia', 'Lithuania', 'Latvia', 'Estonia', 'Luxembourg', 'Malta', 'Cyprus'],
+                              'Lateinamerika': ['BR', 'AR', 'CL', 'CO', 'PE', 'VE', 'EC', 'UY', 'PY', 'BO', 'SR', 'GY', 'GF', 'CR', 'PA', 'NI', 'HN', 'GT', 'BZ', 'SV', 'DO', 'HT', 'CU', 'JM', 'TT', 'BB', 'GD', 'LC', 'VC', 'AG', 'DM', 'KN',
+                                              'Brazil', 'Argentina', 'Chile', 'Colombia', 'Peru', 'Venezuela', 'Ecuador', 'Uruguay', 'Paraguay', 'Bolivia', 'Suriname', 'Guyana', 'Costa Rica', 'Panama', 'Nicaragua', 'Honduras', 'Guatemala', 'Belize', 'El Salvador', 'Dominican Republic', 'Haiti', 'Cuba', 'Jamaica', 'Trinidad and Tobago'],
+                              'Asien': ['CN', 'JP', 'KR', 'IN', 'TH', 'SG', 'MY', 'ID', 'PH', 'VN', 'TW', 'HK', 'MO', 'RU', 'BD', 'PK', 'LK', 'MM', 'KH', 'LA', 'MN', 'KZ', 'UZ', 'KG', 'TJ', 'TM', 'BN', 'BT', 'NP', 'AF',
+                                       'China', 'Japan', 'South Korea', 'India', 'Thailand', 'Singapore', 'Malaysia', 'Indonesia', 'Philippines', 'Vietnam', 'Taiwan', 'Hong Kong', 'Macau', 'Russia', 'Bangladesh', 'Pakistan', 'Sri Lanka', 'Myanmar', 'Cambodia', 'Laos', 'Mongolia', 'Kazakhstan', 'Uzbekistan', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Brunei', 'Bhutan', 'Nepal', 'Afghanistan'],
+                              'Australien & Ozeanien': ['AU', 'NZ', 'PG', 'FJ', 'NC', 'SB', 'VU', 'WS', 'TO', 'TV', 'KI', 'NR', 'PW', 'MH', 'FM',
+                                         'Australia', 'New Zealand', 'Papua New Guinea', 'Fiji', 'New Caledonia', 'Solomon Islands', 'Vanuatu', 'Samoa', 'Tonga', 'Tuvalu', 'Kiribati', 'Nauru', 'Palau', 'Marshall Islands', 'Micronesia'],
+                              'Afrika & Naher Osten': ['ZA', 'EG', 'SA', 'AE', 'KW', 'QA', 'BH', 'OM', 'YE', 'JO', 'LB', 'SY', 'IQ', 'IR', 'TR', 'IL', 'NG', 'KE', 'MA', 'ET', 'GH', 'TZ', 'UG', 'MZ', 'MG', 'AO', 'ZM', 'ZW', 'BW', 'NA', 'SZ', 'LS', 'MW', 'DZ', 'TN', 'LY', 'SD', 'SS', 'ER', 'DJ', 'SO', 'RW', 'BI', 'TD', 'CF', 'CM', 'GQ', 'GA', 'CG', 'CD', 'ST', 'CV', 'GM', 'GN', 'GW', 'LR', 'SL', 'CI', 'BF', 'ML', 'NE', 'SN', 'MR', 'PS',
+                                       'South Africa', 'Egypt', 'Saudi Arabia', 'UAE', 'Kuwait', 'Qatar', 'Bahrain', 'Oman', 'Yemen', 'Jordan', 'Lebanon', 'Syria', 'Iraq', 'Iran', 'Turkey', 'Israel', 'Nigeria', 'Kenya', 'Morocco', 'Ethiopia', 'Ghana', 'Tanzania', 'Uganda', 'Mozambique', 'Madagascar', 'Angola', 'Zambia', 'Zimbabwe', 'Botswana', 'Namibia', 'Swaziland', 'Lesotho', 'Malawi', 'Algeria', 'Tunisia', 'Libya', 'Sudan', 'South Sudan', 'Eritrea', 'Djibouti', 'Somalia', 'Rwanda', 'Burundi', 'Chad', 'Central African Republic', 'Cameroon', 'Equatorial Guinea', 'Gabon', 'Congo', 'Democratic Republic of Congo', 'Sao Tome and Principe', 'Cape Verde', 'Gambia', 'Guinea', 'Guinea-Bissau', 'Liberia', 'Sierra Leone', 'Ivory Coast', 'Burkina Faso', 'Mali', 'Niger', 'Senegal', 'Mauritania', 'Palestine']
+                            };
+                            
+                            // Find which region this country belongs to and return region name only
+                            for (const [regionName, countries] of Object.entries(regionMappings)) {
+                              if (countries.includes(context.countryCode) || countries.includes(context.country)) {
+                                return regionName;
                               }
-                              return '';
-                            }}
-                            styleFunction={(context) => {
-                              const countryData = worldMapData.find(d => d.country === context.country);
+                            }
+                            
+                            // Return country name if not in any region
+                            return context.country || context.countryCode || '';
+                          }}
+                          styleFunction={(context) => {
+                            const countryData = worldMapData.find(d => d.country === context.country);
+                            
+                            // Define country mappings for regions
+                            const regionMappings = {
+                              'Nordamerika': ['US', 'USA', 'CA', 'United States', 'Canada', 'MX', 'Mexico'],
+                              'Europa': ['DE', 'FR', 'GB', 'IT', 'ES', 'NL', 'BE', 'AT', 'CH', 'SE', 'NO', 'DK', 'FI', 'PL', 'CZ', 'PT', 'IE', 'GR', 'HU', 'RO', 'BG', 'HR', 'SI', 'SK', 'LT', 'LV', 'EE', 'LU', 'MT', 'CY',
+                                        'Germany', 'France', 'United Kingdom', 'Italy', 'Spain', 'Netherlands', 'Belgium', 'Austria', 'Switzerland', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Czech Republic', 'Portugal', 'Ireland', 'Greece', 'Hungary', 'Romania', 'Bulgaria', 'Croatia', 'Slovenia', 'Slovakia', 'Lithuania', 'Latvia', 'Estonia', 'Luxembourg', 'Malta', 'Cyprus'],
+                              'Lateinamerika': ['BR', 'AR', 'CL', 'CO', 'PE', 'VE', 'EC', 'UY', 'PY', 'BO', 'SR', 'GY', 'GF', 'CR', 'PA', 'NI', 'HN', 'GT', 'BZ', 'SV', 'DO', 'HT', 'CU', 'JM', 'TT', 'BB', 'GD', 'LC', 'VC', 'AG', 'DM', 'KN',
+                                              'Brazil', 'Argentina', 'Chile', 'Colombia', 'Peru', 'Venezuela', 'Ecuador', 'Uruguay', 'Paraguay', 'Bolivia', 'Suriname', 'Guyana', 'Costa Rica', 'Panama', 'Nicaragua', 'Honduras', 'Guatemala', 'Belize', 'El Salvador', 'Dominican Republic', 'Haiti', 'Cuba', 'Jamaica', 'Trinidad and Tobago'],
+                              'Asien': ['CN', 'JP', 'KR', 'IN', 'TH', 'SG', 'MY', 'ID', 'PH', 'VN', 'TW', 'HK', 'MO', 'RU', 'BD', 'PK', 'LK', 'MM', 'KH', 'LA', 'MN', 'KZ', 'UZ', 'KG', 'TJ', 'TM', 'BN', 'BT', 'NP', 'AF',
+                                       'China', 'Japan', 'South Korea', 'India', 'Thailand', 'Singapore', 'Malaysia', 'Indonesia', 'Philippines', 'Vietnam', 'Taiwan', 'Hong Kong', 'Macau', 'Russia', 'Bangladesh', 'Pakistan', 'Sri Lanka', 'Myanmar', 'Cambodia', 'Laos', 'Mongolia', 'Kazakhstan', 'Uzbekistan', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Brunei', 'Bhutan', 'Nepal', 'Afghanistan'],
+                              'Australien & Ozeanien': ['AU', 'NZ', 'PG', 'FJ', 'NC', 'SB', 'VU', 'WS', 'TO', 'TV', 'KI', 'NR', 'PW', 'MH', 'FM',
+                                         'Australia', 'New Zealand', 'Papua New Guinea', 'Fiji', 'New Caledonia', 'Solomon Islands', 'Vanuatu', 'Samoa', 'Tonga', 'Tuvalu', 'Kiribati', 'Nauru', 'Palau', 'Marshall Islands', 'Micronesia'],
+                              'Afrika & Naher Osten': ['ZA', 'EG', 'SA', 'AE', 'KW', 'QA', 'BH', 'OM', 'YE', 'JO', 'LB', 'SY', 'IQ', 'IR', 'TR', 'IL', 'NG', 'KE', 'MA', 'ET', 'GH', 'TZ', 'UG', 'MZ', 'MG', 'AO', 'ZM', 'ZW', 'BW', 'NA', 'SZ', 'LS', 'MW', 'DZ', 'TN', 'LY', 'SD', 'SS', 'ER', 'DJ', 'SO', 'RW', 'BI', 'TD', 'CF', 'CM', 'GQ', 'GA', 'CG', 'CD', 'ST', 'CV', 'GM', 'GN', 'GW', 'LR', 'SL', 'CI', 'BF', 'ML', 'NE', 'SN', 'MR', 'PS',
+                                       'South Africa', 'Egypt', 'Saudi Arabia', 'UAE', 'Kuwait', 'Qatar', 'Bahrain', 'Oman', 'Yemen', 'Jordan', 'Lebanon', 'Syria', 'Iraq', 'Iran', 'Turkey', 'Israel', 'Nigeria', 'Kenya', 'Morocco', 'Ethiopia', 'Ghana', 'Tanzania', 'Uganda', 'Mozambique', 'Madagascar', 'Angola', 'Zambia', 'Zimbabwe', 'Botswana', 'Namibia', 'Swaziland', 'Lesotho', 'Malawi', 'Algeria', 'Tunisia', 'Libya', 'Sudan', 'South Sudan', 'Eritrea', 'Djibouti', 'Somalia', 'Rwanda', 'Burundi', 'Chad', 'Central African Republic', 'Cameroon', 'Equatorial Guinea', 'Gabon', 'Congo', 'Democratic Republic of Congo', 'Sao Tome and Principe', 'Cape Verde', 'Gambia', 'Guinea', 'Guinea-Bissau', 'Liberia', 'Sierra Leone', 'Ivory Coast', 'Burkina Faso', 'Mali', 'Niger', 'Senegal', 'Mauritania', 'Palestine']
+                            };
+                            
+                            // Find which region this country belongs to
+                            let countryRegion = null;
+                            for (const [regionName, countries] of Object.entries(regionMappings)) {
+                              if (countries.includes(context.countryCode) || countries.includes(context.country)) {
+                                countryRegion = regionName;
+                                break;
+                              }
+                            }
+                            
+                            // For countries in mapped regions but without investments - light blue
+                            if (countryRegion) {
+                              const category = riskCategories.find(cat => cat.name === countryRegion);
+                              const percentage = category ? parseFloat(category.percentage) : 0;
                               
-                              if (countryData && countryData.percentage > 0) {
-                                const percentage = countryData.percentage;
-                                
-                                // Dynamische Farbwahl basierend auf Prozentsatz
-                                // Grün für unter 50%, Blau für über 50%
-                                let fillColor;
-                                if (percentage >= 50) {
-                                  fillColor = jonyColors.accent2; // Blau für über 50%
-                                } else {
-                                  fillColor = jonyColors.accent1; // Grün für unter 50%
-                                }
-                                
-                                // Opacity basierend auf Prozentsatz skalieren
-                                let fillOpacity = Math.max(0.6, Math.min(1.0, percentage / 25)); // Scale 0-25% zu 0.6-1.0 opacity
-                                
-                                // Höhere Sichtbarkeit für wichtige Regionen
-                                if (percentage >= 30) {
-                                  fillOpacity = 1.0;
-                                }
+                              if (percentage > 0) {
+                                // Use blue color for investments - more opacity for higher percentages
+                                let fillOpacity = Math.max(0.4, Math.min(1.0, percentage / 25)); // Scale 0-25% zu 0.4-1.0 opacity
                                 
                                 return {
-                                  fill: fillColor,
+                                  fill: jonyColors.accent2,
                                   fillOpacity: fillOpacity,
                                   stroke: jonyColors.textSecondary,
-                                  strokeWidth: 1.2,
-                                  cursor: "pointer",
-                                  transition: "all 0.3s ease"
+                                  strokeWidth: 1.5,
+                                  cursor: "pointer"
+                                };
+                              } else {
+                                // Light blue for regions without investments
+                                return {
+                                  fill: jonyColors.accent2,
+                                  fillOpacity: 0.15,
+                                  stroke: jonyColors.textSecondary,
+                                  strokeWidth: 0.8,
+                                  cursor: "pointer"
                                 };
                               }
-                              
-                              // No investment - very subtle gray
-                              return {
-                                fill: jonyColors.textTertiary,
-                                fillOpacity: 0.03,
-                                stroke: jonyColors.border,
-                                strokeWidth: 0.2
-                              };
-                            }}
-                          />
-                          </div>
-                        </div>
-                        
-                        {/* Map Legend */}
-                        <div className="mt-4 flex flex-wrap gap-3 justify-center">
-                          {riskCategories && riskCategories.filter(cat => parseFloat(cat.percentage) > 0).map((category) => {
-                            const percentage = parseFloat(category.percentage);
-                            const legendColor = percentage >= 50 ? jonyColors.accent2 : jonyColors.accent1;
+                            }
                             
-                            return (
-                              <div key={category.name} className="flex items-center gap-2">
-                                <div 
-                                  className="w-3 h-3 rounded-full" 
-                                  style={{ backgroundColor: legendColor }}
-                                ></div>
-                                <span className="text-xs" style={{ color: jonyColors.textSecondary }}>
-                                  {category.name} ({category.percentage}%)
-                                </span>
-                              </div>
-                            );
-                          })}
-                          
-                          {/* Color Legend */}
-                          {riskCategories && riskCategories.some(cat => parseFloat(cat.percentage) > 0) && (
-                            <div className="w-full flex justify-center mt-2 pt-2 border-t" style={{ borderColor: jonyColors.border }}>
-                              <div className="flex items-center gap-4 text-xs" style={{ color: jonyColors.textTertiary }}>
-                                <div className="flex items-center gap-1">
-                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
-                                  <span>&lt; 50%</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.accent2 }}></div>
-                                  <span>≥ 50%</span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                            // Hide all other countries that are not in our investment regions
+                            return {
+                              fill: "transparent",
+                              fillOpacity: 0,
+                              stroke: "transparent",
+                              strokeWidth: 0
+                            };
+                          }}
+                        />
                         </div>
-                      </>
+                      </div>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <div className="text-center">
@@ -1335,57 +1339,81 @@ const InvestmentsPage = () => {
                         </div>
                       </div>
                     )}
-                  </div>
                 </div>
               </div>
 
               {/* Geographic Categories Card - 1/3 width */}
               <div className="col-span-1">
                 <div 
-                  className="p-6 rounded-2xl border h-[28rem]"
+                  className="p-6 rounded-xl border h-full"
                   style={{
-                    backgroundColor: jonyColors.surface,
-                    border: `1px solid ${jonyColors.border}`
-                  }}>
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent2Alpha }}>
-                      <MapPin className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
+                    backgroundColor: jonyColors.cardBackground,
+                    border: `1px solid ${jonyColors.cardBorder}`
+                  }}
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <div 
+                      className="p-2 rounded-lg"
+                      style={{ backgroundColor: jonyColors.accent2Alpha }}
+                    >
+                      <Globe className="w-5 h-5" style={{ color: jonyColors.accent2 }} />
                     </div>
-                    <h3 className="text-lg font-light tracking-tight" style={{ color: jonyColors.textPrimary }}>
+                    <h3 className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
                       Regionale Aufteilung
                     </h3>
                   </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    {riskCategories && riskCategories.map((category) => (
-                      <div key={category.name} className="flex items-center justify-between">
-                        <span className="text-sm font-medium leading-tight" style={{ color: jonyColors.textPrimary }}>
-                          {category.name}
-                        </span>
-                        <div className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
-                          {category.percentage}%
+                  <div className="space-y-3">
+                    {riskCategories.map((region) => {
+                      const percentage = parseFloat(region.percentage);
+                      const hasInvestments = percentage > 0;
+                      
+                      return (
+                        <div key={region.name} className="flex justify-between items-center py-2">
+                          <span className="text-sm font-medium" style={{ color: jonyColors.textPrimary }}>
+                            {region.name}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <div className="w-20 h-2 rounded-full" style={{ backgroundColor: jonyColors.border }}>
+                              <div
+                                className="h-full rounded-full transition-all duration-300"
+                                style={{
+                                  backgroundColor: jonyColors.accent2,
+                                  width: `${Math.max(percentage, 2)}%`
+                                }}
+                              />
+                            </div>
+                            <span 
+                              className="text-sm font-semibold min-w-12 text-right"
+                              style={{ color: hasInvestments ? jonyColors.textPrimary : jonyColors.textSecondary }}
+                            >
+                              {percentage.toFixed(1)}%
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             </div>
           )}
+        </div>
+      </div>
 
-          {/* Individual Investments */}
+      {/* Individual Investments Section */}
+      <div className="px-6 mb-8">
+        <div className="max-w-7xl mx-auto">
           <div 
-            className="p-8 rounded-3xl transition-all duration-300 hover:bg-opacity-90"
+            className="p-6 rounded-2xl border"
             style={{
               backgroundColor: jonyColors.surface,
-              border: `1px solid ${jonyColors.border}`,
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
+              border: `1px solid ${jonyColors.border}`
             }}
           >
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent2Alpha }}>
-                  <FileText className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
+                  <Wallet className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
                 </div>
                 <h3 className="text-lg font-light tracking-tight" style={{ color: jonyColors.textPrimary }}>
                   Einzelne Investments
@@ -1399,64 +1427,38 @@ const InvestmentsPage = () => {
                     <select
                       value={investmentFilter}
                       onChange={(e) => setInvestmentFilter(e.target.value)}
-                      className="px-3 py-2 pr-8 rounded-lg text-sm font-medium cursor-pointer appearance-none transition-all duration-200 hover:shadow-sm"
+                      className="appearance-none bg-transparent border rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-opacity-20"
                       style={{
-                        backgroundColor: investmentFilter !== 'all' ? jonyColors.accent2Alpha : jonyColors.surface,
-                        color: investmentFilter !== 'all' ? jonyColors.accent2 : jonyColors.textPrimary,
-                        border: `1px solid ${investmentFilter !== 'all' ? jonyColors.accent2 : jonyColors.border}`,
-                        outline: 'none'
+                        borderColor: jonyColors.border,
+                        color: jonyColors.textPrimary,
+                        backgroundColor: jonyColors.cardBackground,
+                        focusRingColor: jonyColors.accent2
                       }}
                     >
-                      <option value="all">Alle Assets</option>
+                      <option value="">Alle Typen</option>
                       {availableTypes.map(type => (
-                        <option key={type} value={type}>
-                          {getTypeDisplayName(type)}
-                        </option>
+                        <option key={type} value={type}>{getTypeDisplayName(type)}</option>
                       ))}
                     </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
                   </div>
                 )}
-                
-                {/* Performance Filter */}
-                <div className="relative">
-                  <select
-                    value={performanceFilter}
-                    onChange={(e) => setPerformanceFilter(e.target.value)}
-                    className="px-3 py-2 pr-8 rounded-lg text-sm font-medium cursor-pointer appearance-none transition-all duration-200 hover:shadow-sm"
-                    style={{
-                      backgroundColor: performanceFilter !== 'all' ? jonyColors.accent2Alpha : jonyColors.surface,
-                      color: performanceFilter !== 'all' ? jonyColors.accent2 : jonyColors.textPrimary,
-                      border: `1px solid ${performanceFilter !== 'all' ? jonyColors.accent2 : jonyColors.border}`,
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="all">Alle Performance</option>
-                    <option value="positive">Nur Gewinner</option>
-                    <option value="negative">Nur Verlierer</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
 
-                {/* Sort Filter */}
+                {/* Sort By Filter */}
                 <div className="relative">
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="px-3 py-2 pr-8 rounded-lg text-sm font-medium cursor-pointer appearance-none transition-all duration-200 hover:shadow-sm"
+                    className="appearance-none bg-transparent border rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-opacity-20"
                     style={{
-                      backgroundColor: sortBy !== 'name' ? jonyColors.accent2Alpha : jonyColors.surface,
-                      color: sortBy !== 'name' ? jonyColors.accent2 : jonyColors.textPrimary,
-                      border: `1px solid ${sortBy !== 'name' ? jonyColors.accent2 : jonyColors.border}`,
-                      outline: 'none'
+                      borderColor: jonyColors.border,
+                      color: jonyColors.textPrimary,
+                      backgroundColor: jonyColors.cardBackground,
+                      focusRingColor: jonyColors.accent2
                     }}
                   >
                     <option value="name">Nach Name</option>
@@ -1464,7 +1466,7 @@ const InvestmentsPage = () => {
                     <option value="performance">Nach Performance</option>
                     <option value="date">Nach Kaufdatum</option>
                   </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
@@ -1475,204 +1477,172 @@ const InvestmentsPage = () => {
             </div>
             
             {filteredInvestments.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {filteredInvestments.map((investment, index) => {
                   const performance = getInvestmentPerformance(investment);
                   const isPositive = performance.change >= 0;
                   const changeColor = isPositive ? jonyColors.accent1 : jonyColors.magenta;
                   const isExpanded = expandedInvestment === investment.id;
                   
-                  // Calculate portfolio percentage
-                  const portfolioPercentage = investmentMetrics.totalValue > 0 
-                    ? ((performance.currentValue / investmentMetrics.totalValue) * 100) 
-                    : 0;
-                  
                   return (
-                    <div key={investment.id || index}>
-                      {/* Investment Preview - Name, Money In, Performance */}
+                    <div key={investment.id || index} className="group">
+                      {/* Simple List Entry - Matches Investment Übersicht Style */}
                       <div 
-                        className="group flex items-center justify-between py-4 px-4 cursor-pointer transition-all duration-200 hover:bg-opacity-50 rounded-lg"
-                        style={{
-                          backgroundColor: isExpanded ? jonyColors.accent2Alpha : 'transparent'
-                        }}
+                        className="flex items-center justify-between cursor-pointer"
                         onClick={() => setExpandedInvestment(isExpanded ? null : investment.id)}
                       >
-                        {/* Investment Name */}
-                        <div className="flex-1">
-                          <div className="text-base font-medium" style={{ color: jonyColors.textPrimary }}>
-                            {investment.name}
+                        <div>
+                          <div className="flex items-center gap-3 mb-1">
+                            <span className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
+                              {investment.name}
+                            </span>
+                            <span className="px-2 py-1 rounded-md text-xs font-medium" style={{
+                              backgroundColor: jonyColors.accent2Alpha,
+                              color: jonyColors.accent2
+                            }}>
+                              {getTypeDisplayName(investment.type)}
+                            </span>
+                          </div>
+                          <div className="text-sm font-medium leading-tight" style={{ color: jonyColors.textSecondary }}>
+                            {investment.symbol} • {investment.quantity} Anteile • {performance.portfolioPercentage.toFixed(1)}% Portfolio
                           </div>
                         </div>
+                        
+                        <div className="text-right flex items-center gap-6">
+                          <div>
+                            <div className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>
+                              {formatCurrency(performance.currentValue)}
+                            </div>
+                            <div className="text-sm font-medium" style={{ color: changeColor }}>
+                              {isPositive ? '+' : ''}{formatCurrency(performance.change)} ({formatPercentage(performance.changePercent)})
+                            </div>
+                          </div>
 
-                        {/* How much money you have in it (current value) */}
-                        <div className="text-right mr-8">
-                          <div className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
-                            {formatCurrency(performance.currentValue)}
-                          </div>
-                          <div className="text-xs" style={{ color: jonyColors.textSecondary }}>
-                            aktueller Wert
-                          </div>
-                        </div>
-
-                        {/* Performance */}
-                        <div className="text-right min-w-[100px]">
-                          <div className="text-base font-medium" style={{ color: changeColor }}>
-                            {formatPercentage(performance.changePercent)}
-                          </div>
-                          <div className="text-xs font-medium" style={{ color: changeColor }}>
-                            {isPositive ? '+' : ''}{formatCurrency(performance.change)}
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingInvestment(investment);
+                              }}
+                              className="p-2 rounded-lg transition-colors duration-200"
+                              style={{ color: jonyColors.textSecondary }}
+                              onMouseEnter={(e) => { e.target.style.color = jonyColors.accent2; }}
+                              onMouseLeave={(e) => { e.target.style.color = jonyColors.textSecondary; }}
+                              title="Bearbeiten"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteInvestment(investment.id);
+                              }}
+                              className="p-2 rounded-lg transition-colors duration-200"
+                              style={{ color: jonyColors.textSecondary }}
+                              onMouseEnter={(e) => { e.target.style.color = jonyColors.magenta; }}
+                              onMouseLeave={(e) => { e.target.style.color = jonyColors.textSecondary; }}
+                              title="Löschen"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       </div>
 
-                      {/* Detail View - Focus on Key Investment Information */}
+                      {/* Expandable Detail View */}
                       {isExpanded && (
-                        <div className="mt-2 p-6 rounded-lg border" style={{
-                          backgroundColor: jonyColors.cardBackground,
-                          border: `1px solid ${jonyColors.cardBorder}`,
-                          marginLeft: '16px'
-                        }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                            
-                            {/* Header with Actions */}
-                            <div className="flex items-center justify-between pb-4 border-b" style={{ borderColor: jonyColors.border }}>
-                              <div>
-                                <div className="text-lg font-semibold" style={{ color: jonyColors.textPrimary }}>
-                                  {investment.name}
-                                </div>
-                                <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
-                                  WKN: {investment.wkn || 'Nicht verfügbar'}
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingInvestment(investment);
-                                  }}
-                                  className="px-3 py-1.5 rounded transition-colors text-sm"
-                                  style={{ 
-                                    backgroundColor: jonyColors.accent2Alpha, 
-                                    color: jonyColors.accent2
-                                  }}
-                                >
-                                  Bearbeiten
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteInvestment(investment.id);
-                                  }}
-                                  className="px-3 py-1.5 rounded transition-colors text-sm"
-                                  style={{ 
-                                    backgroundColor: jonyColors.magentaAlpha, 
-                                    color: jonyColors.magenta
-                                  }}
-                                >
-                                  Löschen
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Purchase Information */}
+                        <div 
+                          className="mt-4 p-6 rounded-xl border"
+                          style={{
+                            backgroundColor: jonyColors.cardBackground,
+                            border: `1px solid ${jonyColors.cardBorder}`
+                          }}
+                        >
+                          <div className="grid grid-cols-2 gap-8">
+                            {/* Performance Column */}
                             <div>
-                              <h4 className="text-base font-semibold mb-4" style={{ color: jonyColors.textPrimary }}>
-                                Kauf-Information
+                              <h4 className="text-lg font-semibold mb-4" style={{ color: jonyColors.textPrimary }}>
+                                Performance
                               </h4>
-                              <div className="grid grid-cols-3 gap-6">
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
-                                    Kaufdatum
-                                  </div>
-                                  <div className="text-base font-semibold" style={{ color: jonyColors.textPrimary }}>
-                                    {new Date(investment.purchaseDate).toLocaleDateString('de-DE')}
-                                  </div>
+                              
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
+                                    Gesamtperformance
+                                  </span>
+                                  <span className="text-sm font-bold" style={{ color: changeColor }}>
+                                    {isPositive ? '+' : ''}{formatCurrency(performance.change)} ({formatPercentage(performance.changePercent)})
+                                  </span>
                                 </div>
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
-                                    Investiertes Kapital
-                                  </div>
-                                  <div className="text-base font-semibold" style={{ color: jonyColors.textPrimary }}>
-                                    {formatCurrency(performance.purchaseValue)}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
-                                    Ø Kaufkurs
-                                  </div>
-                                  <div className="text-base font-semibold" style={{ color: jonyColors.textPrimary }}>
-                                    {formatCurrency(parseFloat(investment.purchasePrice) || 0)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Portfolio Context */}
-                            <div>
-                              <h4 className="text-base font-semibold mb-4" style={{ color: jonyColors.textPrimary }}>
-                                Portfolio-Kontext
-                              </h4>
-                              <div className="grid grid-cols-3 gap-6">
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
+                                
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
                                     Anteil am Portfolio
-                                  </div>
-                                  <div className="text-lg font-bold" style={{ color: jonyColors.accent2 }}>
-                                    {portfolioPercentage.toFixed(1)}%
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
-                                    Anzahl Anteile
-                                  </div>
-                                  <div className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>
-                                    {investment.quantity}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
-                                    Asset-Klasse
-                                  </div>
-                                  <div className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>
-                                    {getTypeDisplayName(investment.type)}
-                                  </div>
+                                  </span>
+                                  <span className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
+                                    {performance.portfolioPercentage.toFixed(1)}%
+                                  </span>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Performance seit Investment */}
+                            {/* Investment Details Column */}
                             <div>
-                              <h4 className="text-base font-semibold mb-4" style={{ color: jonyColors.textPrimary }}>
-                                Performance seit Investment
+                              <h4 className="text-lg font-semibold mb-4" style={{ color: jonyColors.textPrimary }}>
+                                Details
                               </h4>
-                              <div className="grid grid-cols-3 gap-6">
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
-                                    Aktueller Wert
-                                  </div>
-                                  <div className="text-xl font-bold" style={{ color: jonyColors.textPrimary }}>
-                                    {formatCurrency(performance.currentValue)}
-                                  </div>
+                              
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
+                                    Investiertes Kapital
+                                  </span>
+                                  <span className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
+                                    {formatCurrency(performance.purchaseValue)}
+                                  </span>
                                 </div>
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
-                                    Gewinn/Verlust (€)
-                                  </div>
-                                  <div className="text-xl font-bold" style={{ color: changeColor }}>
-                                    {isPositive ? '+' : ''}{formatCurrency(performance.change)}
-                                  </div>
+                                
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
+                                    Ø Kaufkurs
+                                  </span>
+                                  <span className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
+                                    {formatCurrency(parseFloat(investment.purchasePrice) || 0)}
+                                  </span>
                                 </div>
-                                <div>
-                                  <div className="text-sm font-medium mb-1" style={{ color: jonyColors.textSecondary }}>
-                                    Gesamtperformance (%)
-                                  </div>
-                                  <div className="text-xl font-bold" style={{ color: changeColor }}>
-                                    {formatPercentage(performance.changePercent)}
-                                  </div>
+                                
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
+                                    Kaufdatum
+                                  </span>
+                                  <span className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
+                                    {new Date(investment.purchaseDate).toLocaleDateString('de-DE')}
+                                  </span>
                                 </div>
+                                
+                                {investment.wkn && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
+                                      WKN/ISIN
+                                    </span>
+                                    <span className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
+                                      {investment.wkn}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {investment.region && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
+                                      Region
+                                    </span>
+                                    <span className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
+                                      {investment.region}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </div>
-
                           </div>
                         </div>
                       )}
