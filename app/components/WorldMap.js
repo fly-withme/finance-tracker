@@ -75,74 +75,34 @@ const WorldMap = ({ data, backgroundColor = 'transparent', strokeColor = '#D1D5D
       countryCodes.forEach(countryCode => {
         mapData.push({
           country: countryCode,
-          value: investmentPercentage, // value wird für Tooltip und Styling verwendet
+          value: investmentPercentage,
           region: region,
           color: color,
         });
       });
     });
+    
     return mapData;
   }, [data]);
 
-  // Benutzerdefinierte Styling-Funktion nach react-svg-worldmap Spezifikation
-  const styleFunction = ({ country, countryValue, color, minValue, maxValue }) => {
-    // Debug-Ausgabe um die Parameter zu verstehen
-    console.log('StyleFunction called with:', { country, countryValue, color, minValue, maxValue });
-    
-    // Finde die Daten für dieses Land in unserem worldMapData
-    const countryData = worldMapData.find(d => d.country === country);
-
-    if (countryData && countryData.value > 0) {
-      const percentage = countryData.value;
-      
-      // Berechne Deckkraft basierend auf Prozentsatz
-      let fillOpacity = 0.5;
-      if (percentage >= 75) fillOpacity = 1.0;
-      else if (percentage >= 50) fillOpacity = 0.9;
-      else if (percentage >= 25) fillOpacity = 0.7;
-      else if (percentage > 0) fillOpacity = 0.6;
-
-      return {
-        fill: countryData.color, // Verwende unsere berechnete Farbe
-        fillOpacity: fillOpacity,
-        stroke: strokeColor,
-        strokeWidth: 0.8,
-        cursor: 'pointer',
-        transition: 'all 0.3s ease',
-      };
-    }
-
-    // Fallback für Länder ohne Daten oder 0%
-    return {
-      fill: '#F9FAFB',
-      fillOpacity: 0.1,
-      stroke: strokeColor,
-      strokeWidth: 0.3,
-      cursor: 'default',
-    };
-  };
-  
-  // Benutzerdefinierte Tooltip-Funktion beim Hovern.
-  const tooltipFunction = (context) => {
-    const countryCode = context.country;
-    const countryData = worldMapData.find(d => d.country === countryCode);
-    if (countryData && countryData.value > 0) {
-      return `${countryData.region}: ${countryData.value.toFixed(1)}% des Portfolios`;
-    }
-    return ''; // Kein Tooltip für 0%-Regionen
-  };
-
-
   return (
     <div className="w-full h-full flex items-center justify-center">
-      {/* Skalierung, um die Karte etwas größer und zentrierter darzustellen */}
-      <div style={{ width: '100%', height: '100%' }}>
+      {/* Optimale Skalierung für 26rem Container (416px) */}
+      <div style={{ 
+        width: '100%', 
+        height: '100%',
+        transform: 'scale(1.134) translate(16px, -16px)',
+        transformOrigin: 'center center',
+        maxWidth: '100%',
+        maxHeight: '100%'
+      }}>
         <WorldMapSvg
           backgroundColor={backgroundColor}
-          data={worldMapData} // ✅ KORREKT - Echte Daten übergeben
-          styleFunction={styleFunction}
-          tooltipFunction={tooltipFunction}
-          richInteraction
+          data={worldMapData}
+          color="#FF1493"
+          title=""
+          size="xl"
+          borderColor="transparent"
         />
       </div>
     </div>
