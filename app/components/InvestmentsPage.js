@@ -16,11 +16,15 @@ import {
   FileText
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
-import WorldMap from 'react-svg-worldmap';
 import { jonyColors } from '../theme';
 import { db } from '../utils/db';
-import { fetchCurrentPrice, updateAllInvestmentPrices, detectRegionFromSymbol } from '../utils/stockApi';
+import dynamic from 'next/dynamic';
 
+import { fetchCurrentPrice, updateAllInvestmentPrices, detectRegionFromSymbol } from '../utils/stockApi';
+const WorldMap = dynamic(() => import('./WorldMap'), {
+  ssr: false, // Diese Option deaktiviert das Server-Side Rendering
+  loading: () => <div className="h-full w-full flex items-center justify-center"><p>Karte lädt...</p></div>
+});
 const InvestmentsPage = () => {
   // State for modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -395,14 +399,53 @@ const InvestmentsPage = () => {
       ];
     }
     
-    // ✅ ERWEITERTES MAPPING - Umfasst deutsche und englische Regionsnamen
+    // ✅ POLITISCHE REGIONEN-ZUORDNUNG - Nach EU/NATO/politischen Definitionen
     const categoryMapping = {
       'Nordamerika': ['USA', 'United States', 'Kanada', 'Canada', 'Mexiko', 'Mexico', 'Nordamerika', 'North America'],
-      'Europa': ['Deutschland', 'Germany', 'Europa', 'Europe', 'Schweiz', 'Switzerland', 'UK', 'United Kingdom', 'Frankreich', 'France', 'Italien', 'Italy', 'Spanien', 'Spain', 'Niederlande', 'Netherlands', 'Österreich', 'Austria', 'Belgien', 'Belgium', 'Portugal', 'Schweden', 'Sweden', 'Norwegen', 'Norway', 'Dänemark', 'Denmark', 'Finnland', 'Finland'],
-      'Asien': ['Asien', 'Asia', 'China', 'Japan', 'Südkorea', 'South Korea', 'Korea', 'Indien', 'India', 'Taiwan', 'Hong Kong', 'Singapur', 'Singapore', 'Thailand', 'Malaysia', 'Indonesien', 'Indonesia', 'Philippinen', 'Philippines', 'Vietnam'],
-      'Australien & Ozeanien': ['Australien', 'Australia', 'Neuseeland', 'New Zealand', 'Ozeanien', 'Oceania'],
-      'Lateinamerika': ['Lateinamerika', 'Latin America', 'South America', 'Südamerika', 'Brasilien', 'Brazil', 'Argentinien', 'Argentina', 'Chile', 'Kolumbien', 'Colombia', 'Peru', 'Venezuela', 'Ecuador', 'Uruguay', 'Paraguay', 'Bolivien', 'Bolivia'],
-      'Afrika & Naher Osten': ['Afrika', 'Africa', 'Naher Osten', 'Middle East', 'Südafrika', 'South Africa', 'Saudi-Arabien', 'Saudi Arabia', 'Ägypten', 'Egypt', 'Nigeria', 'Kenia', 'Kenya', 'Marokko', 'Morocco', 'Israel', 'Türkei', 'Turkey', 'Iran', 'Irak', 'Iraq', 'Jordanien', 'Jordan', 'Libanon', 'Lebanon', 'Syrien', 'Syria', 'Vereinigte Arabische Emirate', 'UAE', 'Kuwait', 'Katar', 'Qatar', 'Bahrain', 'Oman', 'Jemen', 'Yemen']
+      'Europa': [
+        // EU-Länder + EWR + Schweiz + UK + Balkan (politisches Europa)
+        'Deutschland', 'Germany', 'Europa', 'Europe', 'Schweiz', 'Switzerland', 'UK', 'United Kingdom', 
+        'Frankreich', 'France', 'Italien', 'Italy', 'Spanien', 'Spain', 'Niederlande', 'Netherlands', 
+        'Österreich', 'Austria', 'Belgien', 'Belgium', 'Portugal', 'Schweden', 'Sweden', 'Norwegen', 'Norway', 
+        'Dänemark', 'Denmark', 'Finnland', 'Finland', 'Polen', 'Poland', 'Tschechien', 'Czech Republic', 
+        'Ungarn', 'Hungary', 'Slowakei', 'Slovakia', 'Slowenien', 'Slovenia', 'Kroatien', 'Croatia', 
+        'Rumänien', 'Romania', 'Bulgarien', 'Bulgaria', 'Griechenland', 'Greece', 'Zypern', 'Cyprus',
+        'Irland', 'Ireland', 'Island', 'Iceland', 'Estland', 'Estonia', 'Lettland', 'Latvia', 'Litauen', 'Lithuania',
+        'Malta', 'Luxemburg', 'Luxembourg',
+        // Osteuropäische Länder (politisch Europa)
+        'Ukraine', 'Belarus', 'Weißrussland', 'Moldau', 'Moldova', 'Serbien', 'Serbia', 'Montenegro', 
+        'Bosnien', 'Bosnia', 'Albanien', 'Albania', 'Nordmazedonien', 'North Macedonia', 'Kosovo'
+      ],
+      'Asien': [
+        'Asien', 'Asia', 'China', 'Japan', 'Südkorea', 'South Korea', 'Korea', 'Indien', 'India', 
+        'Taiwan', 'Hong Kong', 'Singapur', 'Singapore', 'Thailand', 'Malaysia', 'Indonesien', 'Indonesia', 
+        'Philippinen', 'Philippines', 'Vietnam', 'Kambodscha', 'Cambodia', 'Laos', 'Myanmar', 'Bangladesch', 'Bangladesh',
+        'Pakistan', 'Afghanistan', 'Kasachstan', 'Kazakhstan', 'Usbekistan', 'Uzbekistan', 'Kirgisistan', 'Kyrgyzstan',
+        'Tadschikistan', 'Tajikistan', 'Turkmenistan', 'Nepal', 'Bhutan', 'Sri Lanka', 'Malediven', 'Maldives',
+        'Mongolei', 'Mongolia', 'Nordkorea', 'North Korea',
+        // Politisch zu Asien gehörend (nicht Europa!)
+        'Türkei', 'Turkey', 'Georgien', 'Georgia', 'Armenien', 'Armenia', 'Aserbaidschan', 'Azerbaijan', 
+        'Russland', 'Russia', 'Russian Federation'
+      ],
+      'Australien & Ozeanien': ['Australien', 'Australia', 'Neuseeland', 'New Zealand', 'Ozeanien', 'Oceania', 'Fiji', 'Papua-Neuguinea', 'Papua New Guinea'],
+      'Lateinamerika': [
+        'Lateinamerika', 'Latin America', 'South America', 'Südamerika', 'Brasilien', 'Brazil', 
+        'Argentinien', 'Argentina', 'Chile', 'Kolumbien', 'Colombia', 'Peru', 'Venezuela', 'Ecuador', 
+        'Uruguay', 'Paraguay', 'Bolivien', 'Bolivia', 'Guyana', 'Suriname', 'Französisch-Guayana',
+        // Mittelamerika und Karibik
+        'Mexiko', 'Mexico', 'Guatemala', 'Belize', 'El Salvador', 'Honduras', 'Nicaragua', 'Costa Rica', 'Panama',
+        'Kuba', 'Cuba', 'Haiti', 'Dominikanische Republik', 'Dominican Republic', 'Puerto Rico', 'Jamaika', 'Jamaica'
+      ],
+      'Afrika & Naher Osten': [
+        // Afrika
+        'Afrika', 'Africa', 'Südafrika', 'South Africa', 'Nigeria', 'Kenia', 'Kenya', 'Marokko', 'Morocco', 
+        'Ägypten', 'Egypt', 'Äthiopien', 'Ethiopia', 'Ghana', 'Algerien', 'Algeria', 'Tunesien', 'Tunisia',
+        'Libyen', 'Libya', 'Sudan', 'Tansania', 'Tanzania', 'Uganda', 'Ruanda', 'Rwanda',
+        // Naher Osten (ohne Türkei, Georgien, etc. - die sind jetzt in Asien)
+        'Naher Osten', 'Middle East', 'Saudi-Arabien', 'Saudi Arabia', 'Israel', 'Iran', 'Irak', 'Iraq', 
+        'Jordanien', 'Jordan', 'Libanon', 'Lebanon', 'Syrien', 'Syria', 'Vereinigte Arabische Emirate', 'UAE', 
+        'Kuwait', 'Katar', 'Qatar', 'Bahrain', 'Oman', 'Jemen', 'Yemen', 'Palästina', 'Palestine'
+      ]
     };
     
     const categoryColors = {
@@ -464,45 +507,6 @@ const InvestmentsPage = () => {
     return categories;
   }, [geographicDistribution]);
 
-  // Map region data to country codes for react-svg-worldmap
-  const worldMapData = useMemo(() => {
-    // Return empty if no investments
-    if (investments.length === 0) return [];
-    
-    const data = [];
-    
-    // Erweiterte Länder-Mapping für bessere Visualisierung
-    const categoryCountryMapping = {
-      'Nordamerika': ['us', 'ca', 'mx'],
-      'Europa': ['de', 'fr', 'it', 'es', 'gb', 'nl', 'ch', 'at', 'be', 'se', 'no', 'dk', 'fi', 'pt', 'ie', 'lu', 'pl', 'cz', 'hu', 'sk', 'si', 'hr', 'bg', 'ro', 'lt', 'lv', 'ee', 'gr', 'cy', 'mt'],
-      'Asien': ['cn', 'jp', 'kr', 'in', 'tw', 'hk', 'sg', 'th', 'my', 'id', 'ph', 'vn', 'bd', 'pk', 'lk', 'mm', 'kh', 'la', 'mn', 'kz', 'uz', 'kg', 'tj', 'tm', 'bn', 'bt', 'np', 'af'],
-      'Australien & Ozeanien': ['au', 'nz', 'pg', 'fj', 'nc', 'sb', 'vu', 'ws', 'to', 'tv', 'ki', 'nr', 'pw', 'mh', 'fm'],
-      'Lateinamerika': ['br', 'ar', 'cl', 'co', 'pe', 've', 'ec', 'uy', 'py', 'bo', 'sr', 'gy', 'gf', 'cr', 'pa', 'ni', 'hn', 'gt', 'bz', 'sv', 'do', 'ht', 'cu', 'jm', 'tt', 'bb', 'gd', 'lc', 'vc', 'ag', 'dm', 'kn'],
-      'Afrika & Naher Osten': ['za', 'eg', 'sa', 'ae', 'kw', 'qa', 'bh', 'om', 'ye', 'jo', 'lb', 'sy', 'iq', 'ir', 'tr', 'il', 'ng', 'ke', 'ma', 'et', 'gh', 'tz', 'ug', 'mz', 'mg', 'ao', 'zm', 'zw', 'bw', 'na', 'sz', 'ls', 'mw', 'dz', 'tn', 'ly', 'sd', 'ss', 'er', 'dj', 'so', 'rw', 'bi', 'td', 'cf', 'cm', 'gq', 'ga', 'cg', 'cd', 'st', 'cv', 'gm', 'gn', 'gw', 'lr', 'sl', 'ci', 'bf', 'ml', 'ne', 'sn', 'mr', 'ps']
-    };
-    
-    // Create mapping based on riskCategories
-    riskCategories.forEach(category => {
-      const percentage = parseFloat(category.percentage);
-      
-      // Only map categories that have investments (percentage > 0)
-      if (percentage > 0) {
-        const countryCodes = categoryCountryMapping[category.name] || [];
-        
-        // Add each country with the percentage value
-        countryCodes.forEach(code => {
-          data.push({
-            country: code,
-            value: percentage, // Use the actual percentage value
-            categoryName: category.name,
-            percentage: percentage
-          });
-        });
-      }
-    });
-    
-    return data;
-  }, [riskCategories, investments.length]);
 
   // CRUD operations
   const handleCreateInvestment = async () => {
@@ -1208,12 +1212,12 @@ const InvestmentsPage = () => {
               {/* World Map Card - 2/3 width */}
               <div className="col-span-2">
                 <div 
-                  className="p-6 rounded-2xl border h-[28rem]"
+                  className="p-8 rounded-2xl border h-[36rem]"
                   style={{
                     backgroundColor: jonyColors.surface,
                     border: `1px solid ${jonyColors.border}`
                   }}>
-                  <div className="flex items-center gap-4 mb-6">
+                  <div className="flex items-center gap-4 mb-8">
                     <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent2Alpha }}>
                       <Globe className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
                     </div>
@@ -1222,119 +1226,29 @@ const InvestmentsPage = () => {
                     </h3>
                   </div>
                   
-                  <div className="h-96">
-                    {(worldMapData && worldMapData.length > 0) ? (
-                      <>
-                        <div className="h-80 flex items-center justify-center">
-                          <div style={{ transform: 'scale(1.1)' }}>
-                            <WorldMap
-                            color={jonyColors.accent1}
-                            title=""
-                            value-suffix="%"
-                            size="lg"
-                            data={worldMapData}
-                            backgroundColor="transparent"
-                            strokeColor={jonyColors.border}
-                            tooltipBgColor={jonyColors.surface}
-                            tooltipTextColor={jonyColors.textPrimary}
-                            tooltipFunction={(context) => {
-                              const countryData = worldMapData.find(d => d.country === context.country);
-                              if (countryData && countryData.percentage > 0) {
-                                return `${countryData.categoryName}: ${countryData.percentage.toFixed(1)}% des Portfolios`;
-                              }
-                              return '';
-                            }}
-                            styleFunction={(context) => {
-                              const countryData = worldMapData.find(d => d.country === context.country);
-                              
-                              if (countryData && countryData.percentage > 0) {
-                                const percentage = countryData.percentage;
-                                
-                                // Dynamische Farbwahl basierend auf Prozentsatz
-                                // Grün für unter 50%, Blau für über 50%
-                                let fillColor;
-                                if (percentage >= 50) {
-                                  fillColor = jonyColors.accent2; // Blau für über 50%
-                                } else {
-                                  fillColor = jonyColors.accent1; // Grün für unter 50%
-                                }
-                                
-                                // Opacity basierend auf Prozentsatz skalieren
-                                let fillOpacity = Math.max(0.6, Math.min(1.0, percentage / 25)); // Scale 0-25% zu 0.6-1.0 opacity
-                                
-                                // Höhere Sichtbarkeit für wichtige Regionen
-                                if (percentage >= 30) {
-                                  fillOpacity = 1.0;
-                                }
-                                
-                                return {
-                                  fill: fillColor,
-                                  fillOpacity: fillOpacity,
-                                  stroke: jonyColors.textSecondary,
-                                  strokeWidth: 1.2,
-                                  cursor: "pointer",
-                                  transition: "all 0.3s ease"
-                                };
-                              }
-                              
-                              // No investment - very subtle gray
-                              return {
-                                fill: jonyColors.textTertiary,
-                                fillOpacity: 0.03,
-                                stroke: jonyColors.border,
-                                strokeWidth: 0.2
-                              };
-                            }}
-                          />
-                          </div>
-                        </div>
-                        
-                        {/* Map Legend */}
-                        <div className="mt-4 flex flex-wrap gap-3 justify-center">
-                          {riskCategories && riskCategories.filter(cat => parseFloat(cat.percentage) > 0).map((category) => {
-                            const percentage = parseFloat(category.percentage);
-                            const legendColor = percentage >= 50 ? jonyColors.accent2 : jonyColors.accent1;
-                            
-                            return (
-                              <div key={category.name} className="flex items-center gap-2">
-                                <div 
-                                  className="w-3 h-3 rounded-full" 
-                                  style={{ backgroundColor: legendColor }}
-                                ></div>
-                                <span className="text-xs" style={{ color: jonyColors.textSecondary }}>
-                                  {category.name} ({category.percentage}%)
-                                </span>
-                              </div>
-                            );
-                          })}
+                  <div className="flex items-center justify-end h-[26rem]">
+                    <div className="w-full h-full pl-8">
+                      <WorldMap
+                        data={riskCategories.map(category => {
+                          // Translate German region names to English for WorldMap component
+                          const regionTranslation = {
+                            'Nordamerika': 'North America',
+                            'Europa': 'Europe', 
+                            'Asien': 'Asia',
+                            'Australien & Ozeanien': 'Australia & Oceania',
+                            'Lateinamerika': 'Latin America',
+                            'Afrika & Naher Osten': 'Africa & Middle East'
+                          };
                           
-                          {/* Color Legend */}
-                          {riskCategories && riskCategories.some(cat => parseFloat(cat.percentage) > 0) && (
-                            <div className="w-full flex justify-center mt-2 pt-2 border-t" style={{ borderColor: jonyColors.border }}>
-                              <div className="flex items-center gap-4 text-xs" style={{ color: jonyColors.textTertiary }}>
-                                <div className="flex items-center gap-1">
-                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
-                                  <span>&lt; 50%</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.accent2 }}></div>
-                                  <span>≥ 50%</span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="text-center">
-                          <div className="text-4xl mb-4">🌍</div>
-                          <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
-                            Keine Investments für Weltkarte vorhanden
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                          return {
+                            region: regionTranslation[category.name] || category.name,
+                            investmentPercentage: parseFloat(category.percentage)
+                          };
+                        })}
+                        backgroundColor="transparent"
+                        strokeColor={jonyColors.border}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1342,7 +1256,7 @@ const InvestmentsPage = () => {
               {/* Geographic Categories Card - 1/3 width */}
               <div className="col-span-1">
                 <div 
-                  className="p-6 rounded-2xl border h-[28rem]"
+                  className="p-6 rounded-2xl border h-[36rem]"
                   style={{
                     backgroundColor: jonyColors.surface,
                     border: `1px solid ${jonyColors.border}`
@@ -1356,17 +1270,44 @@ const InvestmentsPage = () => {
                     </h3>
                   </div>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    {riskCategories && riskCategories.map((category) => (
-                      <div key={category.name} className="flex items-center justify-between">
-                        <span className="text-sm font-medium leading-tight" style={{ color: jonyColors.textPrimary }}>
-                          {category.name}
-                        </span>
-                        <div className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
-                          {category.percentage}%
+                  <div className="flex flex-col justify-between" style={{ height: 'calc(36rem - 6rem)' }}>
+                    {/* Region Percentages */}
+                    <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {riskCategories && riskCategories.map((category) => (
+                          <div key={category.name} className="flex items-center justify-between">
+                            <span className="text-sm font-medium leading-tight" style={{ color: jonyColors.textPrimary }}>
+                              {category.name}
+                            </span>
+                            <div className="text-sm font-bold" style={{ color: jonyColors.textPrimary }}>
+                              {category.percentage}%
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Color Legend - positioned 24px higher from bottom */}
+                    <div className="pt-6 border-t mb-6" style={{ borderColor: jonyColors.border }}>
+                      <div className="flex items-center gap-4 justify-center flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#FFB6C1' }}></div>
+                          <span className="text-xs" style={{ color: jonyColors.textSecondary }}>0-25%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#FF69B4' }}></div>
+                          <span className="text-xs" style={{ color: jonyColors.textSecondary }}>25-50%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#FF1493' }}></div>
+                          <span className="text-xs" style={{ color: jonyColors.textSecondary }}>50-75%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#C71585' }}></div>
+                          <span className="text-xs" style={{ color: jonyColors.textSecondary }}>75-100%</span>
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1786,6 +1727,32 @@ const InvestmentsPage = () => {
                         outline: 'none'
                       }}
                     />
+                  </div>
+
+                  {/* Asset Type */}
+                  <div>
+                    <select
+                      value={newInvestment.type}
+                      onChange={(e) => setNewInvestment(prev => ({ ...prev, type: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
+                      style={{
+                        backgroundColor: jonyColors.cardBackground,
+                        color: jonyColors.textPrimary,
+                        border: `1px solid ${jonyColors.border}`,
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="stock">Aktien</option>
+                      <option value="etf">ETFs</option>
+                      <option value="bond">Anleihen</option>
+                      <option value="crypto">Kryptowährungen</option>
+                      <option value="reit">REITs</option>
+                      <option value="commodity">Rohstoffe</option>
+                      <option value="other">Sonstige</option>
+                    </select>
+                    <div className="text-xs mt-1 ml-1" style={{ color: jonyColors.textTertiary }}>
+                      Wählen Sie die Asset-Klasse für Ihr Investment
+                    </div>
                   </div>
 
                   {/* Region (Optional) */}
