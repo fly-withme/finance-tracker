@@ -891,100 +891,6 @@ const InvestmentsPage = () => {
             </div>
           </div>
 
-          {/* Asset Performance Chart */}
-          {portfolioAllocation.length > 0 && (
-            <div 
-              className="p-6 rounded-2xl border mb-8"
-              style={{
-                backgroundColor: jonyColors.surface,
-                border: `1px solid ${jonyColors.border}`
-              }}>
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent2Alpha }}>
-                  <BarChart3 className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
-                </div>
-                <h3 className="text-lg font-light tracking-tight" style={{ color: jonyColors.textPrimary }}>
-                  Asset Performance
-                </h3>
-              </div>
-              
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={assetPerformanceData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                    <defs>
-                      {portfolioAllocation.map((asset, index) => (
-                        <linearGradient key={`assetGradient-${index}`} id={`assetGradient-${index}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={asset.color} stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor={asset.color} stopOpacity={0.05}/>
-                        </linearGradient>
-                      ))}
-                    </defs>
-                    <CartesianGrid strokeDasharray="1 1" stroke={jonyColors.textTertiary} opacity={0.2} />
-                    <XAxis 
-                      dataKey="date" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      fontSize={11}
-                      stroke={jonyColors.textTertiary}
-                      fontWeight={400}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      fontSize={11}
-                      stroke={jonyColors.textTertiary}
-                      tickFormatter={(value) => formatCurrency(value)}
-                      fontWeight={400}
-                    />
-                    <Tooltip 
-                      content={({ active, payload, label }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div style={{
-                              backgroundColor: jonyColors.surface,
-                              border: `1px solid ${jonyColors.cardBorder}`,
-                              borderRadius: '12px',
-                              padding: '12px 16px',
-                              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6)',
-                              color: jonyColors.textPrimary,
-                              fontSize: '14px',
-                              fontWeight: '500'
-                            }}>
-                              <p style={{ 
-                                color: jonyColors.textPrimary, 
-                                margin: '0 0 8px 0',
-                                fontWeight: '600'
-                              }}>
-                                {label}
-                              </p>
-                              {payload.map((entry, index) => (
-                                <p key={index} style={{ margin: '2px 0', color: entry.color }}>
-                                  {entry.dataKey}: {formatCurrency(entry.value)}
-                                </p>
-                              ))}
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                      cursor={{ fill: jonyColors.accent2Alpha, opacity: 0.1 }}
-                    />
-                    {portfolioAllocation.map((asset, index) => (
-                      <Area 
-                        key={asset.name}
-                        type="monotone" 
-                        dataKey={asset.name} 
-                        stroke={asset.color} 
-                        strokeWidth={2}
-                        fill={`url(#assetGradient-${index})`}
-                        fillOpacity={1}
-                      />
-                    ))}
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -1005,48 +911,66 @@ const InvestmentsPage = () => {
               </div>
               
               {portfolioAllocation.length > 0 ? (
-                <div className="h-80 flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPieChart>
-                      <Pie 
-                        data={portfolioAllocation} 
-                        cx="50%" 
-                        cy="50%" 
-                        innerRadius={60}
-                        outerRadius={120} 
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {portfolioAllocation.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div style={{
-                                backgroundColor: jonyColors.surface,
-                                border: `1px solid ${jonyColors.cardBorder}`,
-                                borderRadius: '12px',
-                                padding: '12px 16px',
-                                boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6)',
-                                color: jonyColors.textPrimary,
-                                fontSize: '14px'
-                              }}>
-                                <p style={{ margin: '0 0 4px 0', fontWeight: '600' }}>{data.name}</p>
-                                <p style={{ margin: '0', color: data.color }}>
-                                  {formatCurrency(data.value)} ({data.percentage}%)
-                                </p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                    </RechartsPieChart>
-                  </ResponsiveContainer>
+                <div className="h-80">
+                  <div className="flex items-center justify-center relative">
+                    <div className="w-80 h-80 relative">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RechartsPieChart>
+                          <Pie 
+                            data={portfolioAllocation} 
+                            cx="50%" 
+                            cy="50%" 
+                            innerRadius={85}
+                            outerRadius={135} 
+                            paddingAngle={2}
+                            dataKey="value"
+                            strokeWidth={0}
+                          >
+                            {portfolioAllocation.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <div style={{
+                                    backgroundColor: jonyColors.surface,
+                                    border: `1px solid ${jonyColors.cardBorder}`,
+                                    borderRadius: '12px',
+                                    padding: '12px 16px',
+                                    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6)',
+                                    color: jonyColors.textPrimary,
+                                    fontSize: '14px'
+                                  }}>
+                                    <p style={{ margin: '0 0 4px 0', fontWeight: '600' }}>{data.name}</p>
+                                    <p style={{ margin: '0', color: data.color }}>
+                                      {formatCurrency(data.value)} ({data.percentage}%)
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                        </RechartsPieChart>
+                      </ResponsiveContainer>
+                      
+                      {/* Center Content */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold mb-1" style={{ color: jonyColors.textPrimary }}>
+                            {formatCurrency(investmentMetrics.totalValue)}
+                          </div>
+                          <div className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
+                            Portfolio Wert
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -1206,6 +1130,101 @@ const InvestmentsPage = () => {
 
           </div>
 
+          {/* Asset Performance Chart - Full Width Below */}
+          {portfolioAllocation.length > 0 && (
+            <div 
+              className="p-6 rounded-2xl border mb-8"
+              style={{
+                backgroundColor: jonyColors.surface,
+                border: `1px solid ${jonyColors.border}`
+              }}>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl" style={{ backgroundColor: jonyColors.accent2Alpha }}>
+                  <BarChart3 className="w-5 h-5" style={{ color: jonyColors.accent2, strokeWidth: 1.5 }} />
+                </div>
+                <h3 className="text-lg font-light tracking-tight" style={{ color: jonyColors.textPrimary }}>
+                  Asset Performance
+                </h3>
+              </div>
+              
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={assetPerformanceData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <defs>
+                      {portfolioAllocation.map((asset, index) => (
+                        <linearGradient key={`assetGradient-${index}`} id={`assetGradient-${index}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={asset.color} stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor={asset.color} stopOpacity={0.05}/>
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid strokeDasharray="1 1" stroke={jonyColors.textTertiary} opacity={0.2} />
+                    <XAxis 
+                      dataKey="date" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      fontSize={11}
+                      stroke={jonyColors.textTertiary}
+                      fontWeight={400}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      fontSize={11}
+                      stroke={jonyColors.textTertiary}
+                      tickFormatter={(value) => formatCurrency(value)}
+                      fontWeight={400}
+                    />
+                    <Tooltip 
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div style={{
+                              backgroundColor: jonyColors.surface,
+                              border: `1px solid ${jonyColors.cardBorder}`,
+                              borderRadius: '12px',
+                              padding: '12px 16px',
+                              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6)',
+                              color: jonyColors.textPrimary,
+                              fontSize: '14px',
+                              fontWeight: '500'
+                            }}>
+                              <p style={{ 
+                                color: jonyColors.textPrimary, 
+                                margin: '0 0 8px 0',
+                                fontWeight: '600'
+                              }}>
+                                {label}
+                              </p>
+                              {payload.map((entry, index) => (
+                                <p key={index} style={{ margin: '2px 0', color: entry.color }}>
+                                  {entry.dataKey}: {formatCurrency(entry.value)}
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                      cursor={{ fill: jonyColors.accent2Alpha, opacity: 0.1 }}
+                    />
+                    {portfolioAllocation.map((asset, index) => (
+                      <Area 
+                        key={asset.name}
+                        type="monotone" 
+                        dataKey={asset.name} 
+                        stroke={asset.color} 
+                        strokeWidth={2}
+                        fill={`url(#assetGradient-${index})`}
+                        fillOpacity={1}
+                      />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
           {/* Geographic Distribution Section */}
           {investments.length > 0 && (
             <div className="grid grid-cols-3 gap-8 mb-8">
@@ -1287,24 +1306,26 @@ const InvestmentsPage = () => {
                       </div>
                     </div>
                     
-                    {/* Color Legend - positioned 24px higher from bottom */}
+                    {/* Gradient Color Legend - positioned 24px higher from bottom */}
                     <div className="pt-6 border-t mb-6" style={{ borderColor: jonyColors.border }}>
-                      <div className="flex items-center gap-4 justify-center flex-wrap">
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#FFB6C1' }}></div>
-                          <span className="text-xs" style={{ color: jonyColors.textSecondary }}>0-25%</span>
+                      <div className="flex flex-col gap-3">
+                        {/* Gradient Bar */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium" style={{ color: jonyColors.textSecondary }}>0%</span>
+                          <div 
+                            className="flex-1 h-3 rounded-full"
+                            style={{ 
+                              background: 'linear-gradient(to right, #00d4ff 0%, #ff41d4 100%)',
+                              border: `1px solid ${jonyColors.border}`
+                            }}
+                          ></div>
+                          <span className="text-xs font-medium" style={{ color: jonyColors.textSecondary }}>100%</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#FF69B4' }}></div>
-                          <span className="text-xs" style={{ color: jonyColors.textSecondary }}>25-50%</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#FF1493' }}></div>
-                          <span className="text-xs" style={{ color: jonyColors.textSecondary }}>50-75%</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#C71585' }}></div>
-                          <span className="text-xs" style={{ color: jonyColors.textSecondary }}>75-100%</span>
+                        {/* Labels */}
+                        <div className="flex justify-between items-center text-xs">
+                          <span style={{ color: '#00d4ff' }}>Niedrig</span>
+                          <span style={{ color: '#8040e9' }}>Moderat</span>
+                          <span style={{ color: '#ff41d4' }}>Hoch</span>
                         </div>
                       </div>
                     </div>
