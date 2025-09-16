@@ -8,10 +8,11 @@ import {
   CheckCircle, Trash2, ArrowLeft, Plus, X, Building, Calendar, 
   Wallet, SkipForward, Tag, Users, Sparkles, Clock, TrendingUp,
   AlertCircle, Search, Brain, Send, Target, Receipt, User, Crown, 
-  Flame, CreditCard, ChevronRight, Zap
+  Flame, CreditCard, ChevronRight, Zap, Upload
 } from 'lucide-react';
 
 import AutocompleteCategorySelector from './AutocompleteCategorySelector';
+import ExcelUpload from './ExcelUpload';
 
 const formatCurrency = (amount) => 
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -26,6 +27,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
   const [selectedCategory, setSelectedCategory] = useState('');
   const [personSearch, setPersonSearch] = useState('');
   const [showPersonSuggestions, setShowPersonSuggestions] = useState(false);
+  const [showExcelUpload, setShowExcelUpload] = useState(false);
 
   // Load contacts
   const allContacts = useLiveQuery(() => 
@@ -282,6 +284,12 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
     setPersonSearch('');
     setShowPersonSuggestions(false);
   };
+
+  const handleExcelUpload = async (transactions) => {
+    // This function is now optional since ExcelUpload handles the DB operations directly
+    // Just close the modal as transactions are already added to the inbox
+    setShowExcelUpload(false);
+  };
   
   const isActionable = selectedCategory.trim() !== '';
 
@@ -332,7 +340,25 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                   </span>
                 </div>
                 
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center space-x-3">
+                  <button
+                    onClick={() => setShowExcelUpload(true)}
+                    className="px-4 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-sm"
+                    style={{
+                      backgroundColor: jonyColors.accent1Alpha,
+                      color: jonyColors.accent1,
+                      border: `1px solid ${jonyColors.accent1}33`
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = jonyColors.accent1 + '22';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                    }}
+                  >
+                    <Upload className="w-4 h-4 inline mr-2" />
+                    Excel Upload
+                  </button>
                   <button
                     onClick={() => setShowClearConfirmation(true)}
                     className="px-4 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-sm"
@@ -375,9 +401,20 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
               <h2 className="text-3xl font-black mb-4" style={{ color: jonyColors.textPrimary }}>
                 Perfekt organisiert!
               </h2>
-              <p className="text-lg leading-relaxed" style={{ color: jonyColors.textSecondary }}>
+              <p className="text-lg leading-relaxed mb-6" style={{ color: jonyColors.textSecondary }}>
                 Alle Transaktionen wurden erfolgreich kategorisiert. Dein Posteingang ist leer!
               </p>
+              <button
+                onClick={() => setShowExcelUpload(true)}
+                className="inline-flex items-center space-x-2 px-6 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl"
+                style={{
+                  backgroundColor: jonyColors.accent1,
+                  color: jonyColors.background
+                }}
+              >
+                <Upload className="w-5 h-5" />
+                <span>Excel hochladen</span>
+              </button>
             </div>
           </div>
         ) : (
@@ -851,6 +888,14 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
             </div>
           </div>
         </div>
+      )}
+
+      {/* Excel Upload Modal */}
+      {showExcelUpload && (
+        <ExcelUpload
+          onTransactionsParsed={handleExcelUpload}
+          onClose={() => setShowExcelUpload(false)}
+        />
       )}
     </div>
   );

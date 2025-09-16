@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { 
   ChevronLeft, 
@@ -16,6 +17,7 @@ import {
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, LineChart, Line, ComposedChart, AreaChart } from 'recharts';
 import { db } from '../utils/db';
 import { jonyColors } from '../theme';
+import * as XLSX from 'xlsx';
 
 const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   // Smart savings detection keywords
@@ -51,53 +53,402 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     );
   };
 
+  // Excel parsing functions (same as ExcelUpload component)
+  const parseExcelTransactions = (data) => {
+    const transactions = [];
+    
+    console.log('=== DEBUGGING EXCEL PARSING ===');
+    console.log('Total rows in Excel:', data.length);
+    console.log('First 10 rows:', data.slice(0, 10));
+    
+    // Find the header row by looking for "Wertstellungsdatum"
+    let headerRowIndex = -1;
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      if (row && row.some(cell => 
+        cell && cell.toString().toLowerCase().includes('wertstellungsdatum')
+      )) {
+        headerRowIndex = i;
+        console.log('Found header row at index:', i, 'Headers:', row);
+        break;
+      }
+    }
+
+    if (headerRowIndex === -1) {
+      // Fallback: look for any date-like header
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        if (row && row.some(cell => 
+          cell && (cell.toString().toLowerCase().includes('datum') || 
+                  cell.toString().toLowerCase().includes('date'))
+        )) {
+          headerRowIndex = i;
+          console.log('Found fallback header row at index:', i, 'Headers:', row);
+          break;
+        }
+      }
+    }
+
+    if (headerRowIndex === -1) {
+      console.warn('No header row found, using first row');
+      headerRowIndex = 0;
+    }
+
+    const headers = data[headerRowIndex];
+    console.log('Using headers:', headers);
+    
+    // Process data starting from the row after headers
+    for (let i = headerRowIndex + 1; i < data.length; i++) {
+      const row = data[i];
+      console.log(`Processing row ${i}:`, row);
+      
+      if (!row || row.length === 0) {
+        console.log(`Skipping row ${i}: empty or null`);
+        continue;
+      }
+
+      // Skip rows that don't have enough data or are empty
+      if (row.every(cell => !cell || cell.toString().trim() === '')) {
+        console.log(`Skipping row ${i}: all cells empty`);
+        continue;
+      }
+
+      const transaction = parseTransactionRow(row, headers);
+      console.log(`Row ${i} parsed result:`, transaction);
+      
+      if (transaction) {
+        transactions.push(transaction);
+        console.log(`Added transaction from row ${i}:`, transaction);
+      } else {
+        console.log(`Failed to parse row ${i}`);
+      }
+    }
+
+    console.log('Final parsed transactions:', transactions);
+    console.log('=== END DEBUGGING ===');
+    return transactions;
+  };
+
+  const parseTransactionRow = (row, headers) => {
+    console.log('=== PARSING TRANSACTION ROW ===');
+    console.log('Row:', row);
+    console.log('Headers:', headers);
+    
+    // German bank statement column patterns based on the provided image
+    const patterns = {
+      date: ['datum', 'date', 'buchungstag', 'wertstellung', 'wertstellungsdatum'],
+      description: ['beschreibung', 'verwendungszweck', 'description', 'zweck', 'details', 'buchungstext'],
+      recipient: ['empfänger', 'begünstigter', 'recipient', 'zahlungsempfänger', 'auftraggeber', 'auftraggeber/empfänger'],
+      amount: ['betrag', 'amount', 'umsatz', 'summe'],
+      account: ['konto', 'account', 'kontonummer', 'buchung'],
+      currency: ['währung', 'currency', 'whr']
+    };
+
+    const findColumnIndex = (pattern) => {
+      if (!headers) return -1;
+      return headers.findIndex(header => 
+        pattern.some(p => 
+          header && header.toString().toLowerCase().includes(p.toLowerCase())
+        )
+      );
+    };
+
+    const dateIndex = findColumnIndex(patterns.date);
+    const descriptionIndex = findColumnIndex(patterns.description);
+    const recipientIndex = findColumnIndex(patterns.recipient);
+    const amountIndex = findColumnIndex(patterns.amount);
+    const accountIndex = findColumnIndex(patterns.account);
+
+    console.log('Column indices:', {
+      dateIndex,
+      descriptionIndex,
+      recipientIndex,
+      amountIndex,
+      accountIndex
+    });
+
+    // If we can't find essential columns, try positional parsing
+    if (dateIndex === -1 || amountIndex === -1) {
+      console.log('Essential columns not found, trying positional parsing');
+      const result = parseByPosition(row);
+      console.log('Positional parsing result:', result);
+      return result;
+    }
+
+    const dateValue = row[dateIndex];
+    const amountValue = row[amountIndex];
+
+    console.log('Extracted values:', {
+      dateValue,
+      amountValue,
+      dateIndex,
+      amountIndex
+    });
+
+    if (!dateValue || amountValue === undefined || amountValue === null) {
+      console.log('Missing essential values, returning null');
+      return null;
+    }
+
+    // Parse date
+    let parsedDate;
+    if (typeof dateValue === 'number') {
+      // Excel serial date
+      parsedDate = XLSX.SSF.parse_date_code(dateValue);
+      parsedDate = new Date(parsedDate.y, parsedDate.m - 1, parsedDate.d).toISOString().split('T')[0];
+    } else {
+      // String date
+      const dateStr = dateValue.toString();
+      parsedDate = parseGermanDate(dateStr);
+    }
+
+    // Parse amount - handle German number format and negative values
+    let amountStr = amountValue.toString().trim();
+    
+    // Handle negative amounts in German format (sometimes with trailing minus)
+    let isNegative = amountStr.includes('-') || amountStr.startsWith('(') || amountStr.endsWith(')');
+    
+    // Clean the amount string
+    amountStr = amountStr.replace(/[^\d,.-]/g, ''); // Remove everything except digits, comma, dot, minus
+    amountStr = amountStr.replace(',', '.'); // Replace German decimal comma with dot
+    
+    let parsedAmount = parseFloat(amountStr);
+    if (isNaN(parsedAmount)) {
+      return null;
+    }
+    
+    // Apply negative sign if detected
+    if (isNegative && parsedAmount > 0) {
+      parsedAmount = -parsedAmount;
+    }
+
+    // Combine description and Verwendungszweck if both exist
+    let description = '';
+    if (descriptionIndex !== -1 && row[descriptionIndex]) {
+      description = row[descriptionIndex].toString();
+    }
+    
+    // Look for "Verwendungszweck" column
+    const verwendungszweckIndex = headers.findIndex(header => 
+      header && header.toString().toLowerCase().includes('verwendungszweck')
+    );
+    if (verwendungszweckIndex !== -1 && row[verwendungszweckIndex]) {
+      const verwendungszweck = row[verwendungszweckIndex].toString();
+      if (description && verwendungszweck) {
+        description = `${description} - ${verwendungszweck}`;
+      } else if (verwendungszweck) {
+        description = verwendungszweck;
+      }
+    }
+
+    return {
+      date: parsedDate,
+      description: description,
+      recipient: recipientIndex !== -1 ? (row[recipientIndex] || '').toString() : '',
+      amount: parsedAmount,
+      account: accountIndex !== -1 ? (row[accountIndex] || '').toString() : 'Import',
+      uploadedAt: new Date().toISOString()
+    };
+  };
+
+  const parseByPosition = (row) => {
+    // Common positional formats: Date, Description, Amount or Date, Description, Recipient, Amount
+    if (row.length < 3) return null;
+
+    const dateValue = row[0];
+    const amountValue = row[row.length - 1]; // Amount usually last
+    
+    if (!dateValue || amountValue === undefined) return null;
+
+    let parsedDate;
+    if (typeof dateValue === 'number') {
+      parsedDate = XLSX.SSF.parse_date_code(dateValue);
+      parsedDate = new Date(parsedDate.y, parsedDate.m - 1, parsedDate.d).toISOString().split('T')[0];
+    } else {
+      parsedDate = parseGermanDate(dateValue.toString());
+    }
+
+    let parsedAmount = parseFloat(amountValue.toString().replace(',', '.').replace(/[^\d.-]/g, ''));
+    if (isNaN(parsedAmount)) return null;
+
+    return {
+      date: parsedDate,
+      description: row.length > 2 ? (row[1] || '').toString() : '',
+      recipient: row.length > 3 ? (row[2] || '').toString() : '',
+      amount: parsedAmount,
+      account: 'Import',
+      uploadedAt: new Date().toISOString()
+    };
+  };
+
+  const parseGermanDate = (dateStr) => {
+    // Try different German date formats
+    const formats = [
+      /(\d{1,2})\.(\d{1,2})\.(\d{4})/, // DD.MM.YYYY
+      /(\d{4})-(\d{1,2})-(\d{1,2})/, // YYYY-MM-DD
+      /(\d{1,2})\/(\d{1,2})\/(\d{4})/, // DD/MM/YYYY
+    ];
+
+    for (const format of formats) {
+      const match = dateStr.match(format);
+      if (match) {
+        if (format === formats[1]) {
+          // YYYY-MM-DD
+          return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+        } else {
+          // DD.MM.YYYY or DD/MM/YYYY
+          return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+        }
+      }
+    }
+
+    // Fallback to current date
+    return new Date().toISOString().split('T')[0];
+  };
+
+
+
+
+
   // File upload handler
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     try {
-      const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      
-      // Skip header row if exists
-      const dataLines = lines.slice(1);
-      
-      const transactions = [];
-      
-      for (const line of dataLines) {
-        const columns = line.split(';');
-        if (columns.length >= 4) {
-          // Parse CSV format (adjust based on your CSV structure)
-          const [dateStr, description, amount, ] = columns;
+      let transactions = [];
+
+      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+          file.type === 'application/vnd.ms-excel' || 
+          file.name.endsWith('.xlsx') || 
+          file.name.endsWith('.xls')) {
+        
+        // Handle Excel files
+        const data = new Uint8Array(await file.arrayBuffer());
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        transactions = parseExcelTransactions(jsonData);
+        
+      } else if (file.type === 'application/pdf') {
+        alert('📄 PDF Upload wird derzeit nicht unterstützt. Bitte verwenden Sie Excel (.xlsx, .xls) oder CSV Dateien.');
+        return;
+      } else {
+        // Handle CSV/TXT files
+        const text = await file.text();
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        console.log('=== CSV PARSING DEBUG ===');
+        console.log('Total lines:', lines.length);
+        console.log('First 10 lines:', lines.slice(0, 10));
+        
+        // Find header line for ING CSV format
+        let headerLineIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.includes('Buchung;Wertstellungsdatum') || 
+              line.includes('Wertstellungsdatum;Auftraggeber')) {
+            headerLineIndex = i;
+            console.log('Found CSV header at line:', i, line);
+            break;
+          }
+        }
+        
+        if (headerLineIndex === -1) {
+          console.log('No ING CSV header found, trying generic parsing');
+          // Fallback for other CSV formats
+          const dataLines = lines.slice(1);
           
-          if (dateStr && description && amount) {
-            const parsedAmount = parseFloat(amount.replace(',', '.'));
-            if (!isNaN(parsedAmount)) {
-              transactions.push({
-                date: dateStr,
-                description: description.trim(),
-                amount: parsedAmount,
-                uploadedAt: new Date().toISOString(),
-                processed: false
-              });
+          for (const line of dataLines) {
+            const columns = line.split(';');
+            if (columns.length >= 3) {
+              const [dateStr, description, amount] = columns;
+              
+              if (dateStr && description && amount) {
+                const parsedAmount = parseFloat(amount.replace(',', '.'));
+                if (!isNaN(parsedAmount)) {
+                  transactions.push({
+                    date: dateStr,
+                    description: description.trim(),
+                    amount: parsedAmount,
+                    uploadedAt: new Date().toISOString(),
+                    processed: false
+                  });
+                }
+              }
+            }
+          }
+        } else {
+          // Parse ING CSV format
+          const headers = lines[headerLineIndex].split(';');
+          console.log('CSV Headers:', headers);
+          
+          for (let i = headerLineIndex + 1; i < lines.length; i++) {
+            const line = lines[i];
+            if (!line.trim()) continue;
+            
+            const columns = line.split(';');
+            console.log(`Processing CSV line ${i}:`, columns);
+            
+            if (columns.length >= 6) {
+              // ING CSV format: Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Betrag;Währung
+              const [buchung, wertstellungsdatum, auftraggeber, buchungstext, verwendungszweck, betrag, waehrung] = columns;
+              
+              if (wertstellungsdatum && betrag) {
+                // Parse German date format DD.MM.YYYY
+                const dateParts = wertstellungsdatum.split('.');
+                let parsedDate = wertstellungsdatum;
+                if (dateParts.length === 3) {
+                  parsedDate = `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
+                }
+                
+                // Parse amount
+                let parsedAmount = parseFloat(betrag.replace(',', '.').replace(/[^\d.-]/g, ''));
+                if (!isNaN(parsedAmount)) {
+                  // Combine description
+                  let description = '';
+                  if (buchungstext) description += buchungstext;
+                  if (verwendungszweck) {
+                    description += description ? ` - ${verwendungszweck}` : verwendungszweck;
+                  }
+                  
+                  const transaction = {
+                    date: parsedDate,
+                    description: description.trim(),
+                    recipient: auftraggeber ? auftraggeber.trim() : '',
+                    amount: parsedAmount,
+                    account: 'Import',
+                    uploadedAt: new Date().toISOString()
+                  };
+                  
+                  console.log('Parsed CSV transaction:', transaction);
+                  transactions.push(transaction);
+                }
+              }
             }
           }
         }
+        console.log('=== END CSV PARSING ===');
       }
 
       // Add transactions to inbox
       if (transactions.length > 0) {
         await db.inbox.bulkAdd(transactions);
         console.log(`${transactions.length} Transaktionen wurden erfolgreich hochgeladen`);
+        alert(`✅ ${transactions.length} Transaktionen erfolgreich hochgeladen und im Posteingang verfügbar!`);
         
         // Optionally redirect to inbox
         if (setPage) {
           setPage('inbox');
         }
+      } else {
+        alert('❌ Keine Transaktionen gefunden. Für Excel: Verwenden Sie ING-Bank Format. Für CSV: Format "Datum;Beschreibung;Betrag".');
       }
     } catch (error) {
       console.error('Fehler beim Verarbeiten der Datei:', error);
+      alert('❌ Fehler beim Verarbeiten der Datei. Unterstützte Formate: Excel (.xlsx, .xls), CSV, TXT');
     }
 
     // Reset file input
@@ -134,7 +485,6 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   const savingsGoals = useLiveQuery(() => db.savingsGoals.toArray()) || [];
   const debts = useLiveQuery(() => db.debts.toArray()) || [];
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
-  const accounts = useLiveQuery(() => db.accounts.toArray()) || [];
   
   // German wealth averages by age group (2024 data in EUR)
   const germanWealthAverages = {
@@ -289,42 +639,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     yearsToFI: yearsToFI
   };
   
-  // Calculate savings rate from real data starting from January
-  const calculateSavingsRateData = () => {
-    const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-    const data = [];
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    
-    // Start from January of current year up to current month
-    for (let month = 0; month <= now.getMonth(); month++) {
-      const monthlyTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.date);
-        return transactionDate.getMonth() === month && 
-               transactionDate.getFullYear() === currentYear;
-      });
-      
-      const income = monthlyTransactions
-        .filter(t => t.amount > 0)
-        .reduce((sum, t) => sum + t.amount, 0);
-      
-      // Calculate actual savings (negative amounts that are savings-related)
-      const savingsAmount = Math.abs(monthlyTransactions
-        .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
-        .reduce((sum, t) => sum + t.amount, 0));
-      
-      const savingsRate = income > 0 ? (savingsAmount / income * 100) : 0;
-      
-      data.push({
-        month: monthNames[month],
-        savingsRate: Math.max(0, Math.round(savingsRate * 10) / 10)
-      });
-    }
-    
-    return data;
-  };
   
-  const savingsRateData = calculateSavingsRateData();
   
   // Calculate expenses by category with percentage of total monthly expenses
   const calculateBudgetVsActual = () => {
@@ -401,10 +716,6 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   };
   
   
-  // Calculate average savings rate from available months
-  const averageSavingsRate = savingsRateData.length > 0 
-    ? (savingsRateData.reduce((sum, item) => sum + item.savingsRate, 0) / savingsRateData.length).toFixed(1)
-    : 0;
 
   // State for time period selection
   const [savingsRatePeriod, setSavingsRatePeriod] = useState('1year');
@@ -725,7 +1036,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.txt"
+              accept=".xlsx,.xls,.csv,.txt"
               onChange={handleFileUpload}
               style={{ display: 'none' }}
             />

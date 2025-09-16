@@ -1,0 +1,21 @@
+Umsatzanzeige;Datei erstellt am: 16.09.2025 22:27
+
+IBAN;DE43 5001 0517 5427 3044 27
+Kontoname;Girokonto
+Bank;ING
+Kunde;Daniel Seelhöfer
+Zeitraum;01.08.2025 - 31.08.2025
+
+Sortierung;Datum absteigend
+
+In der CSV-Datei finden Sie alle bereits gebuchten Umsätze. Die vorgemerkten Umsätze werden nicht aufgenommen, auch wenn sie in Ihrem Internetbanking angezeigt werden.
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Betrag;Währung
+26.08.2025;26.08.2025;Daniel Seelhoefer;Gutschrift;DB Ticket;58,00;EUR
+12.08.2025;12.08.2025;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;1044098385570/PP.9515.PP/. Google P ayment Ireland Limited, Ihr Einkauf bei Google Payment Ireland Limited;-21,99;EUR
+12.08.2025;12.08.2025;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;1044060639854/. Uber, Ihr Einkauf b ei Uber;-22,17;EUR
+11.08.2025;11.08.2025;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;1044039458853/. fraenk - eine Marke der Telekom Deutschland GmbH, Ihr Einkauf bei fraenk - eine Marke der Telekom Deutschland GmbH;-10,00;EUR
+04.08.2025;04.08.2025;Kleingeld Plus - Sparen;Überweisung;Überweisung / Aus Kauf 14,78- bei 00409 MCDONALDS SEQ000013834724837;-0,22;EUR
+04.08.2025;04.08.2025;00409 MCDONALDS;Lastschrift;00409 MCDONALDS//OSNABRUECK/DE 2025 -08-02T23:39:44 Folgenr.001 Verfall d.2027-12;-14,78;EUR
+04.08.2025;04.08.2025;ING;Entgelt;GIROCARD 270000143932 MONATLICHES ENTGELT GIROCARD (DEBITKARTE);-1,49;EUR
+01.08.2025;01.08.2025;Stichting Pay.nl;Gutschrift;Pay.nl inzake De Nijs Kamperhoek vo f / Terugbetaling / Huub de Nijs / RF-5914-2088-0240;26,20;EUR
