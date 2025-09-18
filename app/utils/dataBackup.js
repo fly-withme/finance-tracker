@@ -187,7 +187,7 @@ export async function exportTransactionsToCSV(dateRange = null) {
     
     return {
       content: csvContent,
-      filename: `zenith-finance-export-${new Date().toISOString().slice(0, 10)}.csv`,
+      filename: `open-ledger-export-${new Date().toISOString().slice(0, 10)}.csv`,
       count: transactions.length
     };
     
@@ -332,7 +332,7 @@ export function downloadBackupFile(backupData, filename) {
   
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename || `zenith-finance-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = filename || `open-ledger-backup-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

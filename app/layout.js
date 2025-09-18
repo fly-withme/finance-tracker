@@ -8,8 +8,12 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata = {
-  title: "Personal Finance App",
+  title: "Open Ledger",
   description: "Modern personal finance management application",
+  // Füge das 'icons'-Objekt hinzu, um das Favicon zu definieren
+  icons: {
+    icon: "/logo.svg", // Verwenden Sie den Pfad zu Ihrem SVG-Logo
+  },
 };
 
 export default function RootLayout({ children }) {

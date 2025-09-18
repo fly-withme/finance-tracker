@@ -1,6 +1,6 @@
 import Dexie from 'dexie';
 
-export const db = new Dexie('ZenithFinanceDB');
+export const db = new Dexie('OpenLedgerDB');
 
 // Version 16: Erweitert investments um WKN/ISIN field für API tracking
 db.version(16).stores({

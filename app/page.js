@@ -1,7 +1,7 @@
 'use client';
 
-import ZenithFinanceApp from './components/ZenithFinanceApp';
+import OpenLedgerApp from './components/OpenLedgerApp';
 
 export default function Page() {
-  return <ZenithFinanceApp />;
+  return <OpenLedgerApp />;
 }

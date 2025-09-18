@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../utils/db';
 import { jonyColors } from '../theme';
+import * as XLSX from 'xlsx';
 
 // Unified icon system
 import { 
@@ -12,7 +13,6 @@ import {
 } from 'lucide-react';
 
 import AutocompleteCategorySelector from './AutocompleteCategorySelector';
-import ExcelUpload from './ExcelUpload';
 
 const formatCurrency = (amount) => 
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -27,7 +27,8 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
   const [selectedCategory, setSelectedCategory] = useState('');
   const [personSearch, setPersonSearch] = useState('');
   const [showPersonSuggestions, setShowPersonSuggestions] = useState(false);
-  const [showExcelUpload, setShowExcelUpload] = useState(false);
+  const [isExcelProcessing, setIsExcelProcessing] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Load contacts
   const allContacts = useLiveQuery(() => 
@@ -285,10 +286,421 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
     setShowPersonSuggestions(false);
   };
 
-  const handleExcelUpload = async (transactions) => {
-    // This function is now optional since ExcelUpload handles the DB operations directly
-    // Just close the modal as transactions are already added to the inbox
-    setShowExcelUpload(false);
+  // Excel processing functions - synchronized with Dashboard
+  const parseExcelTransactions = (data) => {
+    const transactions = [];
+    
+    console.log('=== DEBUGGING EXCEL PARSING ===');
+    console.log('Total rows in Excel:', data.length);
+    console.log('First 10 rows:', data.slice(0, 10));
+    
+    // Find the header row by looking for "Wertstellungsdatum"
+    let headerRowIndex = -1;
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      if (row && row.some(cell => 
+        cell && cell.toString().toLowerCase().includes('wertstellungsdatum')
+      )) {
+        headerRowIndex = i;
+        console.log('Found header row at index:', i, 'Headers:', row);
+        break;
+      }
+    }
+
+    if (headerRowIndex === -1) {
+      // Fallback: look for any date-like header
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        if (row && row.some(cell => 
+          cell && (cell.toString().toLowerCase().includes('datum') || 
+                  cell.toString().toLowerCase().includes('date'))
+        )) {
+          headerRowIndex = i;
+          console.log('Found fallback header row at index:', i, 'Headers:', row);
+          break;
+        }
+      }
+    }
+
+    if (headerRowIndex === -1) {
+      console.warn('No header row found, using first row');
+      headerRowIndex = 0;
+    }
+
+    const headers = data[headerRowIndex];
+    console.log('Using headers:', headers);
+    
+    // Process data starting from the row after headers
+    for (let i = headerRowIndex + 1; i < data.length; i++) {
+      const row = data[i];
+      console.log(`Processing row ${i}:`, row);
+      
+      if (!row || row.length === 0) {
+        console.log(`Skipping row ${i}: empty or null`);
+        continue;
+      }
+
+      // Skip rows that don't have enough data or are empty
+      if (row.every(cell => !cell || cell.toString().trim() === '')) {
+        console.log(`Skipping row ${i}: all cells empty`);
+        continue;
+      }
+
+      const transaction = parseTransactionRow(row, headers);
+      console.log(`Row ${i} parsed result:`, transaction);
+      
+      if (transaction) {
+        transactions.push(transaction);
+        console.log(`Added transaction from row ${i}:`, transaction);
+      } else {
+        console.log(`Failed to parse row ${i}`);
+      }
+    }
+
+    console.log('Final parsed transactions:', transactions);
+    console.log('=== END DEBUGGING ===');
+    return transactions;
+  };
+
+  const parseTransactionRow = (row, headers) => {
+    console.log('=== PARSING TRANSACTION ROW ===');
+    console.log('Row:', row);
+    console.log('Headers:', headers);
+    
+    // German bank statement column patterns based on the provided image
+    const patterns = {
+      date: ['datum', 'date', 'buchungstag', 'wertstellung', 'wertstellungsdatum'],
+      description: ['beschreibung', 'verwendungszweck', 'description', 'zweck', 'details', 'buchungstext'],
+      recipient: ['empfänger', 'begünstigter', 'recipient', 'zahlungsempfänger', 'auftraggeber', 'auftraggeber/empfänger'],
+      amount: ['betrag', 'amount', 'umsatz', 'summe'],
+      account: ['konto', 'account', 'kontonummer', 'buchung'],
+      currency: ['währung', 'currency', 'whr']
+    };
+
+    const findColumnIndex = (pattern) => {
+      if (!headers) return -1;
+      return headers.findIndex(header => 
+        pattern.some(p => 
+          header && header.toString().toLowerCase().includes(p.toLowerCase())
+        )
+      );
+    };
+
+    const dateIndex = findColumnIndex(patterns.date);
+    const descriptionIndex = findColumnIndex(patterns.description);
+    const recipientIndex = findColumnIndex(patterns.recipient);
+    const amountIndex = findColumnIndex(patterns.amount);
+    const accountIndex = findColumnIndex(patterns.account);
+
+    console.log('Column indices:', {
+      dateIndex,
+      descriptionIndex,
+      recipientIndex,
+      amountIndex,
+      accountIndex
+    });
+
+    // If we can't find essential columns, try positional parsing
+    if (dateIndex === -1 || amountIndex === -1) {
+      console.log('Essential columns not found, trying positional parsing');
+      const result = parseByPosition(row);
+      console.log('Positional parsing result:', result);
+      return result;
+    }
+
+    const dateValue = row[dateIndex];
+    const amountValue = row[amountIndex];
+
+    console.log('Extracted values:', {
+      dateValue,
+      amountValue,
+      dateIndex,
+      amountIndex
+    });
+
+    if (!dateValue || amountValue === undefined || amountValue === null) {
+      console.log('Missing essential values, returning null');
+      return null;
+    }
+
+    // Parse date
+    let parsedDate;
+    if (typeof dateValue === 'number') {
+      // Excel serial date
+      parsedDate = XLSX.SSF.parse_date_code(dateValue);
+      parsedDate = new Date(parsedDate.y, parsedDate.m - 1, parsedDate.d).toISOString().split('T')[0];
+    } else {
+      // String date
+      const dateStr = dateValue.toString();
+      parsedDate = parseGermanDate(dateStr);
+    }
+
+    // Parse amount - handle German number format and negative values
+    let amountStr = amountValue.toString().trim();
+    
+    // Handle negative amounts in German format (sometimes with trailing minus)
+    let isNegative = amountStr.includes('-') || amountStr.startsWith('(') || amountStr.endsWith(')');
+    
+    // Clean the amount string
+    amountStr = amountStr.replace(/[^\d,.-]/g, ''); // Remove everything except digits, comma, dot, minus
+    amountStr = amountStr.replace(',', '.'); // Replace German decimal comma with dot
+    
+    let parsedAmount = parseFloat(amountStr);
+    if (isNaN(parsedAmount)) {
+      return null;
+    }
+    
+    // Apply negative sign if detected
+    if (isNegative && parsedAmount > 0) {
+      parsedAmount = -parsedAmount;
+    }
+
+    // Combine description and Verwendungszweck if both exist
+    let description = '';
+    if (descriptionIndex !== -1 && row[descriptionIndex]) {
+      description = row[descriptionIndex].toString();
+    }
+    
+    // Look for "Verwendungszweck" column
+    const verwendungszweckIndex = headers.findIndex(header => 
+      header && header.toString().toLowerCase().includes('verwendungszweck')
+    );
+    if (verwendungszweckIndex !== -1 && row[verwendungszweckIndex]) {
+      const verwendungszweck = row[verwendungszweckIndex].toString();
+      if (description && verwendungszweck) {
+        description = `${description} - ${verwendungszweck}`;
+      } else if (verwendungszweck) {
+        description = verwendungszweck;
+      }
+    }
+
+    return {
+      date: parsedDate,
+      description: description,
+      recipient: recipientIndex !== -1 ? (row[recipientIndex] || '').toString() : '',
+      amount: parsedAmount,
+      account: accountIndex !== -1 ? (row[accountIndex] || '').toString() : 'Import',
+      uploadedAt: new Date().toISOString()
+    };
+  };
+
+  const parseByPosition = (row) => {
+    // Common positional formats: Date, Description, Amount or Date, Description, Recipient, Amount
+    if (row.length < 3) return null;
+
+    const dateValue = row[0];
+    const amountValue = row[row.length - 1]; // Amount usually last
+    
+    if (!dateValue || amountValue === undefined) return null;
+
+    let parsedDate;
+    if (typeof dateValue === 'number') {
+      parsedDate = XLSX.SSF.parse_date_code(dateValue);
+      parsedDate = new Date(parsedDate.y, parsedDate.m - 1, parsedDate.d).toISOString().split('T')[0];
+    } else {
+      parsedDate = parseGermanDate(dateValue.toString());
+    }
+
+    let parsedAmount = parseFloat(amountValue.toString().replace(',', '.').replace(/[^\d.-]/g, ''));
+    if (isNaN(parsedAmount)) return null;
+
+    return {
+      date: parsedDate,
+      description: row.length > 2 ? (row[1] || '').toString() : '',
+      recipient: row.length > 3 ? (row[2] || '').toString() : '',
+      amount: parsedAmount,
+      account: 'Import',
+      uploadedAt: new Date().toISOString()
+    };
+  };
+
+  const parseGermanDate = (dateStr) => {
+    // Try different German date formats
+    const formats = [
+      /(\d{1,2})\.(\d{1,2})\.(\d{4})/, // DD.MM.YYYY
+      /(\d{4})-(\d{1,2})-(\d{1,2})/, // YYYY-MM-DD
+      /(\d{1,2})\/(\d{1,2})\/(\d{4})/, // DD/MM/YYYY
+    ];
+
+    for (const format of formats) {
+      const match = dateStr.match(format);
+      if (match) {
+        if (format === formats[1]) {
+          // YYYY-MM-DD
+          return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+        } else {
+          // DD.MM.YYYY or DD/MM/YYYY
+          return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+        }
+      }
+    }
+
+    // Fallback to current date
+    return new Date().toISOString().split('T')[0];
+  };
+
+
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsExcelProcessing(true);
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        let transactions = [];
+        
+        if (file.name.endsWith('.csv') || file.name.endsWith('.txt')) {
+          // Handle CSV/TXT files - use Dashboard CSV parsing logic
+          const text = e.target.result;
+          const lines = text.split('\n').filter(line => line.trim());
+          
+          console.log('=== CSV PARSING DEBUG ===');
+          console.log('Total lines:', lines.length);
+          console.log('First 10 lines:', lines.slice(0, 10));
+          
+          // Find header line for ING CSV format
+          let headerLineIndex = -1;
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.includes('Buchung;Wertstellungsdatum') || 
+                line.includes('Wertstellungsdatum;Auftraggeber')) {
+              headerLineIndex = i;
+              console.log('Found CSV header at line:', i, line);
+              break;
+            }
+          }
+          
+          if (headerLineIndex === -1) {
+            console.log('No ING CSV header found, trying generic parsing');
+            // Fallback for other CSV formats
+            const dataLines = lines.slice(1);
+            
+            for (const line of dataLines) {
+              const columns = line.split(';');
+              if (columns.length >= 3) {
+                const [dateStr, description, amount] = columns;
+                
+                if (dateStr && description && amount) {
+                  const parsedAmount = parseFloat(amount.replace(',', '.'));
+                  if (!isNaN(parsedAmount)) {
+                    transactions.push({
+                      date: dateStr,
+                      description: description.trim(),
+                      amount: parsedAmount,
+                      uploadedAt: new Date().toISOString(),
+                      processed: false
+                    });
+                  }
+                }
+              }
+            }
+          } else {
+            // Parse ING CSV format
+            const headers = lines[headerLineIndex].split(';');
+            console.log('CSV Headers:', headers);
+            
+            for (let i = headerLineIndex + 1; i < lines.length; i++) {
+              const line = lines[i];
+              if (!line.trim()) continue;
+              
+              const columns = line.split(';');
+              console.log(`Processing CSV line ${i}:`, columns);
+              
+              if (columns.length >= 6) {
+                // ING CSV format: Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Betrag;Währung
+                const [buchung, wertstellungsdatum, auftraggeber, buchungstext, verwendungszweck, betrag, waehrung] = columns;
+                
+                if (wertstellungsdatum && betrag) {
+                  // Parse German date format DD.MM.YYYY
+                  const dateParts = wertstellungsdatum.split('.');
+                  let parsedDate = wertstellungsdatum;
+                  if (dateParts.length === 3) {
+                    parsedDate = `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
+                  }
+                  
+                  // Parse amount
+                  let parsedAmount = parseFloat(betrag.replace(',', '.').replace(/[^\d.-]/g, ''));
+                  if (!isNaN(parsedAmount)) {
+                    // Combine description
+                    let description = '';
+                    if (buchungstext) description += buchungstext;
+                    if (verwendungszweck) {
+                      description += description ? ` - ${verwendungszweck}` : verwendungszweck;
+                    }
+                    
+                    const transaction = {
+                      date: parsedDate,
+                      description: description.trim(),
+                      recipient: auftraggeber ? auftraggeber.trim() : '',
+                      amount: parsedAmount,
+                      account: 'Import',
+                      uploadedAt: new Date().toISOString()
+                    };
+                    
+                    console.log('Parsed CSV transaction:', transaction);
+                    transactions.push(transaction);
+                  }
+                }
+              }
+            }
+          }
+          console.log('=== END CSV PARSING ===');
+        } else {
+          // Handle Excel files
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          if (jsonData.length === 0) {
+            alert('Die Excel-Datei ist leer.');
+            setIsExcelProcessing(false);
+            return;
+          }
+
+          transactions = parseExcelTransactions(jsonData);
+        }
+        
+        // Add transactions to inbox
+        if (transactions.length > 0) {
+          await db.inbox.bulkAdd(transactions);
+          console.log(`${transactions.length} Transaktionen wurden erfolgreich hochgeladen`);
+          alert(`✅ ${transactions.length} Transaktionen erfolgreich hochgeladen und im Posteingang verfügbar!`);
+          
+          setIsExcelProcessing(false);
+        } else {
+          alert('❌ Keine Transaktionen gefunden. Für Excel: Verwenden Sie ING-Bank Format. Für CSV: Format "Datum;Beschreibung;Betrag".');
+          setIsExcelProcessing(false);
+        }
+        
+      } catch (error) {
+        console.error('Error processing file:', error);
+        alert('Fehler beim Verarbeiten der Datei.');
+        setIsExcelProcessing(false);
+      }
+    };
+
+    // Read CSV/TXT as text, Excel as ArrayBuffer
+    if (file.name.endsWith('.csv') || file.name.endsWith('.txt')) {
+      reader.readAsText(file, 'UTF-8');
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
+  const triggerFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
   
   const isActionable = selectedCategory.trim() !== '';
@@ -342,8 +754,9 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                 
                 <div className="ml-auto flex items-center space-x-3">
                   <button
-                    onClick={() => setShowExcelUpload(true)}
-                    className="px-4 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-sm"
+                    onClick={triggerFileUpload}
+                    disabled={isExcelProcessing}
+                    className="px-4 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
                       backgroundColor: jonyColors.accent1Alpha,
                       color: jonyColors.accent1,
@@ -356,8 +769,14 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                       e.target.style.backgroundColor = jonyColors.accent1Alpha;
                     }}
                   >
-                    <Upload className="w-4 h-4 inline mr-2" />
-                    Excel Upload
+                    {isExcelProcessing ? (
+                      <div className="relative w-4 h-4 inline mr-2">
+                        <div className="absolute inset-0 rounded-full border border-transparent animate-spin" style={{ borderTopColor: jonyColors.accent1, borderRightColor: jonyColors.accent1 }}></div>
+                      </div>
+                    ) : (
+                      <Upload className="w-4 h-4 inline mr-2" />
+                    )}
+                    {isExcelProcessing ? 'Verarbeitung...' : 'Datei Upload'}
                   </button>
                   <button
                     onClick={() => setShowClearConfirmation(true)}
@@ -405,15 +824,22 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                 Alle Transaktionen wurden erfolgreich kategorisiert. Dein Posteingang ist leer!
               </p>
               <button
-                onClick={() => setShowExcelUpload(true)}
-                className="inline-flex items-center space-x-2 px-6 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl"
+                onClick={triggerFileUpload}
+                disabled={isExcelProcessing}
+                className="inline-flex items-center space-x-2 px-6 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   backgroundColor: jonyColors.accent1,
                   color: jonyColors.background
                 }}
               >
-                <Upload className="w-5 h-5" />
-                <span>Excel hochladen</span>
+                {isExcelProcessing ? (
+                  <div className="relative w-5 h-5">
+                    <div className="absolute inset-0 rounded-full border border-transparent animate-spin" style={{ borderTopColor: jonyColors.background, borderRightColor: jonyColors.background }}></div>
+                  </div>
+                ) : (
+                  <Upload className="w-5 h-5" />
+                )}
+                <span>{isExcelProcessing ? 'Verarbeitung...' : 'Datei hochladen'}</span>
               </button>
             </div>
           </div>
@@ -890,13 +1316,14 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
         </div>
       )}
 
-      {/* Excel Upload Modal */}
-      {showExcelUpload && (
-        <ExcelUpload
-          onTransactionsParsed={handleExcelUpload}
-          onClose={() => setShowExcelUpload(false)}
-        />
-      )}
+      {/* Hidden file input for Excel upload */}
+      <input 
+        ref={fileInputRef}
+        type="file" 
+        accept=".xlsx,.xls,.csv,.txt" 
+        onChange={handleFileSelect}
+        className="hidden" 
+      />
     </div>
   );
 };

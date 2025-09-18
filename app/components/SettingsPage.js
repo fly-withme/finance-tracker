@@ -7,21 +7,15 @@ import { db } from '../utils/db';
 import { jonyColors } from '../theme';
 
 const SettingsPage = ({ settings, setSettings, categories, setCategories, enhancedClassifier, useEnhancedML }) => {
-  // Profile States (need to be declared first since they're used in useLiveQuery)
-  const [profileData, setProfileData] = useState({
-    userName: '',
-    age: '',
-    annualIncome: '',
-    monthlyExpenses: ''
-  });
-  const [hasProfileChanges, setHasProfileChanges] = useState(false);
 
   // Live-Daten aus der Datenbank
   const liveCategories = useLiveQuery(() => db.categories.toArray(), []) || [];
   const pageVisibilitySettings = useLiveQuery(() => db.settings.get('pageVisibility'), []);
-  // userSettings nur laden, nicht bei jedem Re-Render aktualisieren
+  // userSettings mit useMemo optimiert für weniger Re-Renders
   const userSettingsRaw = useLiveQuery(() => db.settings.get('userProfile'), []);
-  const userSettings = React.useMemo(() => userSettingsRaw || {}, [userSettingsRaw?.value]);
+  const userSettings = React.useMemo(() => {
+    return userSettingsRaw || {};
+  }, [userSettingsRaw?.value, userSettingsRaw?.key]);
   
   // UI States
   const [activeTab, setActiveTab] = useState('profile');
@@ -68,57 +62,11 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     }
   ];
 
-  // Load profile data when userSettings changes - but only when not actively editing
-  React.useEffect(() => {
-    if (!hasProfileChanges) {
-      if (userSettings?.value) {
-        setProfileData({
-          userName: userSettings.value.userName || '',
-          age: userSettings.value.age || '',
-          annualIncome: userSettings.value.annualIncome || '',
-          monthlyExpenses: userSettings.value.monthlyExpenses || ''
-        });
-      } else {
-        setProfileData({
-          userName: '',
-          age: '',
-          annualIncome: '',
-          monthlyExpenses: ''
-        });
-      }
-    }
-  }, [userSettings?.value, hasProfileChanges]);
+
+
 
   // --- HANDLERS ---
   
-  // Profile Management
-  const handleProfileSave = async () => {
-    try {
-      await db.settings.put({
-        key: 'userProfile',
-        value: {
-          ...userSettings?.value,
-          userName: profileData.userName || 'Benutzer',
-          age: profileData.age ? parseInt(profileData.age) : null,
-          annualIncome: profileData.annualIncome ? parseFloat(profileData.annualIncome) : null,
-          monthlyExpenses: profileData.monthlyExpenses ? parseFloat(profileData.monthlyExpenses) : null,
-          appName: userSettings?.value?.appName || 'Finance App',
-          updatedAt: new Date().toISOString()
-        }
-      });
-      setHasProfileChanges(false);
-    } catch (error) {
-      console.error('Fehler beim Speichern der Profildaten:', error);
-    }
-  };
-
-  const handleProfileInputChange = (field, value) => {
-    setProfileData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    setHasProfileChanges(true);
-  };
   
   // Page Visibility Management
   const handlePageVisibilityToggle = async (pageId) => {
@@ -338,7 +286,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
       
       const link = document.createElement('a');
       link.href = url;
-      link.download = `zenith-finance-backup-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `open-ledger-backup-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(link);
       link.click();
       
@@ -666,147 +614,210 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     </div>
   );
 
-  // Profile Tab Component - Direct Edit Style
-  const ProfileTab = () => (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>Profil verwalten</h2>
-          <p className="text-sm mt-1" style={{ color: jonyColors.textSecondary }}>Deine persönlichen Finanzdaten</p>
+  // New Profile Tab Component - Clean and Simple
+  const ProfileTab = () => {
+    const [localProfile, setLocalProfile] = useState({
+      userName: '',
+      age: '',
+      annualIncome: '',
+      monthlyExpenses: ''
+    });
+    const [isDirty, setIsDirty] = useState(false);
+    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+
+    // Load data on component mount
+    React.useEffect(() => {
+      if (userSettings?.value && !isDirty) {
+        setLocalProfile({
+          userName: userSettings.value.userName || '',
+          age: userSettings.value.age || '',
+          annualIncome: userSettings.value.annualIncome || '',
+          monthlyExpenses: userSettings.value.monthlyExpenses || ''
+        });
+      }
+    }, [userSettings?.value, isDirty]);
+
+    const handleInputChange = (field, value) => {
+      setLocalProfile(prev => ({
+        ...prev,
+        [field]: value
+      }));
+      setIsDirty(true);
+    };
+
+    const handleSave = async () => {
+      try {
+        await db.settings.put({
+          key: 'userProfile',
+          value: {
+            ...userSettings?.value,
+            userName: localProfile.userName || 'Benutzer',
+            age: localProfile.age ? parseInt(localProfile.age) : null,
+            annualIncome: localProfile.annualIncome ? parseFloat(localProfile.annualIncome) : null,
+            monthlyExpenses: localProfile.monthlyExpenses ? parseFloat(localProfile.monthlyExpenses) : null,
+            appName: userSettings?.value?.appName || 'Finance App',
+            updatedAt: new Date().toISOString()
+          }
+        });
+        setIsDirty(false);
+        
+        // Show success feedback
+        setShowSaveSuccess(true);
+        setTimeout(() => setShowSaveSuccess(false), 3000);
+      } catch (error) {
+        console.error('Fehler beim Speichern:', error);
+      }
+    };
+
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>Profil verwalten</h2>
+            <p className="text-sm mt-1" style={{ color: jonyColors.textSecondary }}>Deine persönlichen Finanzdaten</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {showSaveSuccess && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{
+                backgroundColor: jonyColors.accent1Alpha,
+                color: jonyColors.accent1
+              }}>
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+                <span className="text-sm font-medium">Gespeichert!</span>
+              </div>
+            )}
+            {isDirty && (
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200"
+                style={{ 
+                  backgroundColor: jonyColors.accent1,
+                  color: 'black'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'scale(1)';
+                }}
+              >
+                <Save className="w-4 h-4" />
+                Speichern
+              </button>
+            )}
+          </div>
         </div>
-        {hasProfileChanges && (
-          <button
-            onClick={handleProfileSave}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200"
-            style={{ 
-              backgroundColor: jonyColors.accent1,
-              color: 'black'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'scale(1)';
-            }}
-          >
-            <Save className="w-4 h-4" />
-            Speichern
-          </button>
-        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+              Name
+            </label>
+            <input
+              type="text"
+              value={localProfile.userName}
+              onChange={(e) => handleInputChange('userName', e.target.value)}
+              className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+              style={{
+                backgroundColor: jonyColors.cardBackground,
+                color: jonyColors.textPrimary,
+                border: `1px solid ${jonyColors.border}`
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = jonyColors.textSecondary;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = jonyColors.border;
+              }}
+              placeholder="Dein Name"
+            />
+          </div>
+
+          {/* Age */}
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+              Alter
+            </label>
+            <input
+              type="number"
+              min="18"
+              max="120"
+              value={localProfile.age}
+              onChange={(e) => handleInputChange('age', e.target.value)}
+              className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+              style={{
+                backgroundColor: jonyColors.cardBackground,
+                color: jonyColors.textPrimary,
+                border: `1px solid ${jonyColors.border}`
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = jonyColors.textSecondary;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = jonyColors.border;
+              }}
+              placeholder="30"
+            />
+          </div>
+
+          {/* Annual Income */}
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+              Jahreseinkommen
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              value={localProfile.annualIncome}
+              onChange={(e) => handleInputChange('annualIncome', e.target.value)}
+              className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+              style={{
+                backgroundColor: jonyColors.cardBackground,
+                color: jonyColors.textPrimary,
+                border: `1px solid ${jonyColors.border}`
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = jonyColors.textSecondary;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = jonyColors.border;
+              }}
+              placeholder="50000"
+            />
+          </div>
+
+          {/* Monthly Expenses */}
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
+              Monatliche Ausgaben (Ruhestand)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="100"
+              value={localProfile.monthlyExpenses}
+              onChange={(e) => handleInputChange('monthlyExpenses', e.target.value)}
+              className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+              style={{
+                backgroundColor: jonyColors.cardBackground,
+                color: jonyColors.textPrimary,
+                border: `1px solid ${jonyColors.border}`
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = jonyColors.textSecondary;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = jonyColors.border;
+              }}
+              placeholder="2500"
+            />
+          </div>
+        </div>
       </div>
-
-      {/* Profile Fields - Direct Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* User Name */}
-        <div>
-          <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
-            Name
-          </label>
-          <input
-            type="text"
-            value={profileData.userName || ''}
-            onChange={(e) => handleProfileInputChange('userName', e.target.value)}
-            className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
-            style={{
-              backgroundColor: jonyColors.cardBackground,
-              color: jonyColors.textPrimary,
-              border: `1px solid ${jonyColors.border}`
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = jonyColors.textSecondary;
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = jonyColors.border;
-            }}
-            placeholder="Dein Name"
-            autoComplete="off"
-            spellCheck="false"
-          />
-        </div>
-
-        {/* Age */}
-        <div>
-          <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
-            Alter
-          </label>
-          <input
-            type="number"
-            min="18"
-            max="120"
-            value={profileData.age || ''}
-            onChange={(e) => handleProfileInputChange('age', e.target.value)}
-            className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
-            style={{
-              backgroundColor: jonyColors.cardBackground,
-              color: jonyColors.textPrimary,
-              border: `1px solid ${jonyColors.border}`
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = jonyColors.textSecondary;
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = jonyColors.border;
-            }}
-            placeholder="30"
-          />
-        </div>
-
-        {/* Annual Income */}
-        <div>
-          <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
-            Jahreseinkommen
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="1000"
-            value={profileData.annualIncome || ''}
-            onChange={(e) => handleProfileInputChange('annualIncome', e.target.value)}
-            className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
-            style={{
-              backgroundColor: jonyColors.cardBackground,
-              color: jonyColors.textPrimary,
-              border: `1px solid ${jonyColors.border}`
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = jonyColors.textSecondary;
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = jonyColors.border;
-            }}
-            placeholder="50000"
-          />
-        </div>
-
-        {/* Monthly Expenses */}
-        <div>
-          <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
-            Monatliche Ausgaben (Ruhestand)
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="100"
-            value={profileData.monthlyExpenses || ''}
-            onChange={(e) => handleProfileInputChange('monthlyExpenses', e.target.value)}
-            className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
-            style={{
-              backgroundColor: jonyColors.cardBackground,
-              color: jonyColors.textPrimary,
-              border: `1px solid ${jonyColors.border}`
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = jonyColors.textSecondary;
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = jonyColors.border;
-            }}
-            placeholder="2500"
-          />
-        </div>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -838,7 +849,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
             {/* Right: Navigation */}
             <div className="flex justify-end">
               <nav className="flex items-center gap-1">
-                {tabs.map((tab, index) => {
+                {tabs.map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
                   

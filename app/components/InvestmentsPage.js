@@ -11,7 +11,6 @@ import {
   TrendingDown,
   Globe,
   RefreshCw,
-  Loader,
   MapPin,
   FileText
 } from 'lucide-react';
@@ -705,7 +704,9 @@ const InvestmentsPage = () => {
                   }}
                 >
                   {isRefreshing ? (
-                    <Loader className="w-5 h-5 animate-spin" />
+                    <div className="relative w-5 h-5">
+                      <div className="absolute inset-0 rounded-full border border-transparent animate-spin" style={{ borderTopColor: jonyColors.accent1, borderRightColor: jonyColors.accent1 }}></div>
+                    </div>
                   ) : (
                     <RefreshCw className="w-5 h-5" />
                   )}

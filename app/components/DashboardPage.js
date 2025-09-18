@@ -485,6 +485,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   const savingsGoals = useLiveQuery(() => db.savingsGoals.toArray()) || [];
   const debts = useLiveQuery(() => db.debts.toArray()) || [];
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
+  const userSettings = useLiveQuery(() => db.settings.get('userProfile')) || {};
   
   // German wealth averages by age group (2024 data in EUR)
   const germanWealthAverages = {
@@ -527,9 +528,9 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     return totalSavings + totalInvestments + Math.max(0, currentCashFlow) - totalDebt;
   };
   
-  // Calculate B Score based on German averages (assuming user is 25-34 for now)
+  // Calculate B Score based on German averages using real user age
   const calculateFinancialScore = (netWorth) => {
-    const userAge = 30; // You can add this to user profile later
+    const userAge = userSettings?.value?.age || 30; // Use real age from profile
     let ageGroup = '25-34';
     
     if (userAge < 25) ageGroup = '18-24';
@@ -578,15 +579,80 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     return { income, expenses, savings };
   };
   
-  // Calculate years to FI (Financial Independence)
-  const calculateYearsToFI = (monthlyIncome, monthlyExpenses, currentNetWorth) => {
-    const monthlySavings = monthlyIncome - monthlyExpenses;
-    if (monthlySavings <= 0) return null; // Can't reach FI with negative savings
+  // Calculate years to FI (Financial Independence) using profile data first
+  const calculateYearsToFI = (currentNetWorth) => {
+    // Use user's profile data for FI calculation
+    const userAnnualIncome = userSettings?.value?.annualIncome;
+    const userMonthlyExpensesInRetirement = userSettings?.value?.monthlyExpenses;
     
-    const fiTarget = monthlyExpenses * 12 * 25; // 25x annual expenses rule
-    const yearsToFI = Math.max(0, (fiTarget - currentNetWorth) / (monthlySavings * 12));
+    // Priority 1: Use profile data if both income and retirement expenses are provided
+    if (userAnnualIncome && userMonthlyExpensesInRetirement) {
+      const annualRetirementExpenses = userMonthlyExpensesInRetirement * 12;
+      const annualSavings = userAnnualIncome - annualRetirementExpenses;
+      
+      // Check if user can save money
+      if (annualSavings <= 0) return null;
+      
+      // FI Target: 25x annual retirement expenses
+      const fiTarget = annualRetirementExpenses * 25;
+      
+      // Calculate years to FI
+      const yearsToFI = Math.max(0, (fiTarget - currentNetWorth) / annualSavings);
+      return Math.ceil(yearsToFI);
+    }
     
-    return Math.ceil(yearsToFI);
+    // Priority 2: Partial profile data - only retirement expenses
+    if (userMonthlyExpensesInRetirement) {
+      const fiTarget = userMonthlyExpensesInRetirement * 12 * 25;
+      
+      // Try to use transaction data for income if available
+      const monthlyMetrics = calculateMonthlyMetrics();
+      const monthlyIncome = monthlyMetrics.income;
+      const monthlyExpenses = monthlyMetrics.expenses;
+      
+      if (monthlyIncome > 0) {
+        const monthlySavings = monthlyIncome - userMonthlyExpensesInRetirement;
+        if (monthlySavings <= 0) return null;
+        
+        const yearsToFI = Math.max(0, (fiTarget - currentNetWorth) / (monthlySavings * 12));
+        return Math.ceil(yearsToFI);
+      }
+    }
+    
+    // Priority 3: Only annual income from profile
+    if (userAnnualIncome) {
+      // Use transaction data for expenses if available
+      const monthlyMetrics = calculateMonthlyMetrics();
+      const monthlyExpenses = monthlyMetrics.expenses;
+      
+      if (monthlyExpenses > 0) {
+        const annualExpenses = monthlyExpenses * 12;
+        const annualSavings = userAnnualIncome - annualExpenses;
+        
+        if (annualSavings <= 0) return null;
+        
+        const fiTarget = annualExpenses * 25;
+        const yearsToFI = Math.max(0, (fiTarget - currentNetWorth) / annualSavings);
+        return Math.ceil(yearsToFI);
+      }
+    }
+    
+    // Priority 4: Fallback to pure transaction-based calculation
+    const monthlyMetrics = calculateMonthlyMetrics();
+    const monthlyIncome = monthlyMetrics.income;
+    const monthlyExpenses = monthlyMetrics.expenses;
+    
+    if (monthlyIncome > 0 && monthlyExpenses > 0) {
+      const monthlySavings = monthlyIncome - monthlyExpenses;
+      if (monthlySavings <= 0) return null;
+      
+      const fiTarget = monthlyExpenses * 12 * 25;
+      const yearsToFI = Math.max(0, (fiTarget - currentNetWorth) / (monthlySavings * 12));
+      return Math.ceil(yearsToFI);
+    }
+    
+    // No sufficient data available
+    return null;
   };
   
   // Calculate annual metrics (for the top dashboard cards)
@@ -616,7 +682,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   const { income: monthlyIncome, expenses: monthlyExpense, savings: monthlySavings } = monthlyMetrics;
   const { annualIncome, annualSavings } = calculateAnnualMetrics();
   const fiScore = calculateFinancialScore(netWorth);
-  const yearsToFI = calculateYearsToFI(monthlyIncome, monthlyExpense, netWorth);
+  const yearsToFI = calculateYearsToFI(netWorth);
   
   // Calculate annual savings rate in percentage (for top dashboard card)
   const annualSavingsRate = annualIncome > 0 ? (annualSavings / annualIncome * 100) : 0;
@@ -982,7 +1048,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
               <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
-                Willkommen zurück, User
+                Willkommen zurück, {userSettings?.value?.userName || 'User'}
               </h1>
             </div>
             

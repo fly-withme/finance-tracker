@@ -81,7 +81,7 @@ const AppContent = () => {
             <div className="absolute inset-0 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: jonyColors.accent1, borderRightColor: jonyColors.accent1 }}></div>
           </div>
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold" style={{ color: jonyColors.textPrimary }}>Zenith Finance</h2>
+            <h2 className="text-xl font-semibold" style={{ color: jonyColors.textPrimary }}>Open Ledger</h2>
             <p className="text-sm" style={{ color: jonyColors.textSecondary }}>App wird initialisiert...</p>
           </div>
         </div>
@@ -99,8 +99,11 @@ const AppContent = () => {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: jonyColors.background }}>
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-slate-600 dark:text-slate-400">Daten werden geladen...</p>
+          <div className="relative w-16 h-16 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full border-2 opacity-20" style={{ borderColor: jonyColors.accent1 }}></div>
+            <div className="absolute inset-0 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: jonyColors.accent1, borderRightColor: jonyColors.accent1 }}></div>
+          </div>
+          <p style={{ color: jonyColors.textSecondary }}>Daten werden geladen...</p>
         </div>
       </div>
     );
@@ -153,7 +156,7 @@ const AppContent = () => {
   );
 };
 
-export default function ZenithFinanceApp() {
+export default function OpenLedgerApp() {
   return (
     <DarkModeProvider>
       <AuthProvider>

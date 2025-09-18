@@ -1,11 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config) => {
-    // Handle PDF.js worker
+    // Canvas-Alias beibehalten
     config.resolve.alias = {
       ...config.resolve.alias,
       canvas: false,
     };
+    
+    // SVG-Regel hinzufügen
+    config.module.rules.push({
+      test: /\.svg$/,
+      use: ['@svgr/webpack'],
+    });
     
     return config;
   },

@@ -187,7 +187,7 @@ const AuthPage = ({ onAuthSuccess }) => {
     setError('');
 
     try {
-      const db = new window.Dexie('ZenithFinanceDB');
+      const db = new window.Dexie('OpenLedgerDB');
       await db.open();
         
       localStorage.removeItem('finance_password_hash');
@@ -223,7 +223,7 @@ const AuthPage = ({ onAuthSuccess }) => {
   const renderSetupMode = () => (
     <div className="space-y-6">
       <div className="text-center mb-8">
-        <ZenithLogo />
+        <OpenLedgerLogo />
         <h1 className="text-3xl font-bold mb-3" style={{ color: jonyColors.textPrimary }}>
           Sicherheit einrichten
         </h1>
@@ -356,7 +356,7 @@ const AuthPage = ({ onAuthSuccess }) => {
     </div>
   );
 
-  const ZenithLogo = () => (
+  const OpenLedgerLogo = () => (
     <div className="flex items-center justify-center mb-6">
       <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: jonyColors.accent1Alpha }}>
         <PiggyBank className="w-8 h-8" style={{ color: jonyColors.accent1 }} />
@@ -367,7 +367,7 @@ const AuthPage = ({ onAuthSuccess }) => {
   const renderLoginMode = () => (
     <div className="text-center">
       <div className="mb-16">
-        <ZenithLogo />
+        <OpenLedgerLogo />
         <h1 className="text-6xl font-light" style={{ color: jonyColors.textPrimary }}>
           Anmelden
         </h1>
@@ -511,7 +511,13 @@ const AuthPage = ({ onAuthSuccess }) => {
                 border: `1px solid ${jonyColors.magenta}`
               }}
             >
-              <RotateCcw className="w-4 h-4" />
+              {loading ? (
+                <div className="relative w-4 h-4">
+                  <div className="absolute inset-0 rounded-full border border-transparent animate-spin" style={{ borderTopColor: jonyColors.magenta, borderRightColor: jonyColors.magenta }}></div>
+                </div>
+              ) : (
+                <RotateCcw className="w-4 h-4" />
+              )}
               {loading ? 'Zurücksetzen...' : 'App zurücksetzen'}
             </button>
 

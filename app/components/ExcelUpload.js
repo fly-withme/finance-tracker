@@ -418,7 +418,10 @@ const ExcelUpload = ({ onTransactionsParsed, onClose }) => {
           {isProcessing && (
             <div className="mt-6 p-4 rounded-xl flex items-center space-x-3" 
                  style={{ backgroundColor: jonyColors.cardBackground }}>
-              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <div className="relative w-6 h-6">
+                <div className="absolute inset-0 rounded-full border-2 opacity-20" style={{ borderColor: jonyColors.accent1 }}></div>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: jonyColors.accent1, borderRightColor: jonyColors.accent1 }}></div>
+              </div>
               <span style={{ color: jonyColors.textPrimary }}>Verarbeite Excel-Datei...</span>
             </div>
           )}
