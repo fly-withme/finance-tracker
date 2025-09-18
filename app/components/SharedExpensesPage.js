@@ -45,14 +45,14 @@ const SharedExpensesPage = () => {
   // MOCK DATA: In a real app, this would come from a user contacts table.
   const allContacts = useMemo(
     () => [
-      { name: 'Lukas', color: '#6366F1' },
-      { name: 'Lotta', color: '#EC4899' },
-      { name: 'Simon', color: '#10B981' },
-      { name: 'Anna M.', color: '#F59E0B' },
-      { name: 'Max K.', color: '#3B82F6' },
-      { name: 'Julia', color: '#EF4444' },
-      { name: 'Chris', color: '#A855F7' },
-      { name: 'Tina', color: '#F472B6' },
+      { name: 'Lukas', color: jonyColors.accent1 },
+      { name: 'Lotta', color: jonyColors.magenta },
+      { name: 'Simon', color: jonyColors.accent2 },
+      { name: 'Anna M.', color: jonyColors.accent1 },
+      { name: 'Max K.', color: jonyColors.accent2 },
+      { name: 'Julia', color: jonyColors.magenta },
+      { name: 'Chris', color: jonyColors.accent1 },
+      { name: 'Tina', color: jonyColors.magenta },
     ],
     []
   );
@@ -99,7 +99,7 @@ const SharedExpensesPage = () => {
         if (!personGroups[person.name]) {
           personGroups[person.name] = {
             name: person.name,
-            color: person.color || '#6366F1',
+            color: person.color || jonyColors.accent1,
             totalOwed: 0,
             totalPaid: 0,
             transactions: [],
@@ -273,7 +273,7 @@ const SharedExpensesPage = () => {
   };
   
   const getRandomColor = () => {
-    const colors = ['#6366F1', '#EC4899', '#10B981', '#F59E0B', '#3B82F6', '#EF4444', '#A855F7', '#F472B6'];
+    const colors = [jonyColors.accent1, jonyColors.accent2, jonyColors.magenta];
     const randomIndex = Math.floor(Math.random() * colors.length);
     return colors[randomIndex];
   };

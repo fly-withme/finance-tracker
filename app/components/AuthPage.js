@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Shield, Key, AlertCircle, RotateCcw, PiggyBank } from 'lucide-react';
+import Toast from './Toast';
+import { useToast } from '../hooks/useToast';
 
 // Inlined theme colors to resolve import error
 const jonyColors = {
@@ -30,6 +32,7 @@ const AuthPage = ({ onAuthSuccess }) => {
   // New states for visual feedback on input focus
   const [isPasswordActive, setIsPasswordActive] = useState(false);
   const [isConfirmPasswordActive, setIsConfirmPasswordActive] = useState(false);
+  const { toasts, removeToast, success, error: toastError, warning, info } = useToast();
 
   // Dynamically load Dexie.js to avoid build issues
   useEffect(() => {
@@ -124,7 +127,10 @@ const AuthPage = ({ onAuthSuccess }) => {
       console.log('Stored hash verification:', storedHash);
       console.log('Storage successful:', storedHash === hashedPassword);
       
-      alert(`✅ Passwort erfolgreich eingerichtet!\n\n📝 Dein Code: ${password}\n🔑 Reset-Code: ${resetCode}\n\n⚠️ Notiere dir beide Codes sicher!`);
+      success(
+        `Passwort erfolgreich eingerichtet! Bitte notieren Sie sich Ihren Code sicher.`,
+        '✅ Setup abgeschlossen'
+      );
       
       onAuthSuccess();
     } catch (error) {
@@ -211,7 +217,10 @@ const AuthPage = ({ onAuthSuccess }) => {
       setShowCodeForgotten(false);
       setError('');
       
-      alert('Die App wurde komplett zurückgesetzt. Du kannst nun ein neues Passwort einrichten.');
+      success(
+        'Die App wurde komplett zurückgesetzt. Sie können nun ein neues Passwort einrichten.',
+        'Reset erfolgreich'
+      );
     } catch (error) {
       console.error('Error during complete reset:', error);
       setError('Fehler beim Zurücksetzen der App. Versuche es erneut.');
@@ -541,6 +550,9 @@ const AuthPage = ({ onAuthSuccess }) => {
         {mode === 'login' && renderLoginMode()}
         {mode === 'reset' && renderResetMode()}
       </div>
+      
+      {/* Toast Notifications */}
+      <Toast toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

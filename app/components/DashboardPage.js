@@ -18,8 +18,59 @@ import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, L
 import { db } from '../utils/db';
 import { jonyColors } from '../theme';
 import * as XLSX from 'xlsx';
+import Toast from './Toast';
+import { useToast } from '../hooks/useToast';
 
 const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
+  const { toasts, removeToast, success, error, warning, info } = useToast();
+  
+  // Tooltip state
+  const [hoveredMetric, setHoveredMetric] = useState(null);
+
+  const handleMouseEnter = (metricType, event) => {
+    setHoveredMetric(metricType);
+    // Fixed position at bottom-right of screen - no need to calculate position
+  };
+
+  const handleMouseMove = (event) => {
+    // Keep the same position on move - no following the mouse
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredMetric(null);
+  };
+
+  const getTooltipContent = (metricType) => {
+    switch (metricType) {
+      case 'netWorth':
+        return {
+          title: 'Nettovermögen',
+          details: 'Vermögen minus Schulden'
+        };
+      case 'fiProgress':
+        return {
+          title: 'FI-Fortschritt',
+          details: 'Benötigt: 25x jährliche Ausgaben • Berechnung: (25x Ausgaben - Nettovermögen) ÷ jährliche Sparrate'
+        };
+      case 'wealthScore':
+        return {
+          title: 'Vermögens-Score',
+          details: 'A = Top 20% • B = Überdurchschnittlich • C = Durchschnitt • D-F = Unterdurchschnittlich'
+        };
+      case 'savingsRate':
+        return {
+          title: 'Sparquote',
+          details: 'Prozent des Einkommens gespart'
+        };
+      case 'upload':
+        return {
+          title: 'Daten Upload',
+          details: 'Kontoauszug importieren'
+        };
+      default:
+        return null;
+    }
+  };
   // Smart savings detection keywords
   const SAVINGS_KEYWORDS = [
     'sparen', 'savings', 'investieren', 'investment', 'etf', 'aktien', 'stocks',
@@ -333,7 +384,10 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
         transactions = parseExcelTransactions(jsonData);
         
       } else if (file.type === 'application/pdf') {
-        alert('📄 PDF Upload wird derzeit nicht unterstützt. Bitte verwenden Sie Excel (.xlsx, .xls) oder CSV Dateien.');
+        warning(
+          'PDF Upload wird derzeit nicht unterstützt. Bitte verwenden Sie Excel (.xlsx, .xls) oder CSV Dateien.',
+          'Unsupported Format'
+        );
         return;
       } else {
         // Handle CSV/TXT files
@@ -437,18 +491,27 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       if (transactions.length > 0) {
         await db.inbox.bulkAdd(transactions);
         console.log(`${transactions.length} Transaktionen wurden erfolgreich hochgeladen`);
-        alert(`✅ ${transactions.length} Transaktionen erfolgreich hochgeladen und im Posteingang verfügbar!`);
+        success(
+          `${transactions.length} Transaktionen erfolgreich importiert und stehen im Posteingang zur Verfügung!`,
+          'Import erfolgreich'
+        );
         
         // Optionally redirect to inbox
         if (setPage) {
-          setPage('inbox');
+          setTimeout(() => setPage('inbox'), 1500); // Small delay to show toast
         }
       } else {
-        alert('❌ Keine Transaktionen gefunden. Für Excel: Verwenden Sie ING-Bank Format. Für CSV: Format "Datum;Beschreibung;Betrag".');
+        error(
+          'Keine gültigen Transaktionen gefunden. Stellen Sie sicher, dass die Datei das richtige Format hat.',
+          'Import fehlgeschlagen'
+        );
       }
     } catch (error) {
       console.error('Fehler beim Verarbeiten der Datei:', error);
-      alert('❌ Fehler beim Verarbeiten der Datei. Unterstützte Formate: Excel (.xlsx, .xls), CSV, TXT');
+      error(
+        'Die Datei konnte nicht verarbeitet werden. Unterstützte Formate: Excel (.xlsx, .xls), CSV, TXT',
+        'Verarbeitungsfehler'
+      );
     }
 
     // Reset file input
@@ -1068,7 +1131,10 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                 // Change icon color to black
                 const icon = e.target.querySelector('.upload-icon');
                 if (icon) icon.style.color = 'black';
+                // Tooltip functionality
+                handleMouseEnter('upload', e);
               }}
+              onMouseMove={handleMouseMove}
               onMouseLeave={(e) => {
                 e.target.style.backgroundColor = 'transparent';
                 e.target.style.borderColor = jonyColors.accent1;
@@ -1076,6 +1142,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                 // Change icon color back to green
                 const icon = e.target.querySelector('.upload-icon');
                 if (icon) icon.style.color = jonyColors.accent1;
+                // Tooltip functionality
+                handleMouseLeave();
               }}
               onFocus={(e) => {
                 e.target.style.outline = 'none';
@@ -1083,7 +1151,6 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               onBlur={(e) => {
                 e.target.style.outline = 'none';
               }}
-              title="Kontoauszug hochladen"
             >
               <Plus 
                 className="w-5 h-5 pointer-events-none select-none upload-icon" 
@@ -1117,12 +1184,15 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
           {/* Top Row - Key Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {/* Nettovermögen */}
-            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
+            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40 select-none"
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
               }}
-              title="Dein Gesamtvermögen minus alle Schulden. Zeigt deine echte finanzielle Position - alles was du besitzt abzüglich allem was du schuldest.">
+              onMouseEnter={(e) => handleMouseEnter('netWorth', e)}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+            >
               <div>
                 <div className="text-4xl font-bold mb-2" style={{ 
                   color: jonyColors.accent1
@@ -1136,12 +1206,15 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             </div>
 
             {/* Years to FI */}
-            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
+            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40 select-none"
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
               }}
-              title="Financial Independence: Wie lange es dauert, bis du genug Geld angespart hast, um von den Zinsen zu leben (25x deine jährlichen Ausgaben). FI = Arbeiten wird optional.">
+              onMouseEnter={(e) => handleMouseEnter('fiProgress', e)}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+            >
               <div>
                 <div className="text-5xl font-bold mb-2" style={{ 
                   color: (fiMetrics?.yearsToFI !== null && fiMetrics?.yearsToFI !== undefined) ? jonyColors.accent1 : jonyColors.textSecondary
@@ -1155,16 +1228,20 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             </div>
 
             {/* Score */}
-            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
+            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40 select-none"
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
               }}
-              title="Dein Vermögens-Rating im Vergleich zum deutschen Durchschnitt deiner Altersgruppe. A = Top 20%, B = Überdurchschnittlich, C = Durchschnitt, D-F = Unterdurchschnittlich.">
+              onMouseEnter={(e) => handleMouseEnter('wealthScore', e)}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+            >
               <div>
                 <div className="text-5xl font-bold mb-2" style={{ 
                   color: fiMetrics?.finanzScore === 'A' ? jonyColors.accent1 : 
-                         fiMetrics?.finanzScore === 'B' ? jonyColors.accent1 : jonyColors.red
+                         fiMetrics?.finanzScore === 'B' ? jonyColors.accent2 : 
+                         fiMetrics?.finanzScore === 'C' ? jonyColors.magenta : jonyColors.magenta
                 }}>
                   {fiMetrics?.finanzScore || 'C'}
                 </div>
@@ -1175,12 +1252,15 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             </div>
 
             {/* Annual Savings Rate */}
-            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
+            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40 select-none"
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
               }}
-              title="Wieviel Prozent deines Jahreseinkommens du sparst. Berechnet aus allen Sparbeträgen (Sparen, Investieren, ETF, etc.) des aktuellen Jahres geteilt durch das Jahreseinkommen. 20%+ ist sehr gut, 10-20% ist solide, unter 10% sollte verbessert werden.">
+              onMouseEnter={(e) => handleMouseEnter('savingsRate', e)}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+            >
               <div>
                 <div className="text-5xl font-bold mb-2" style={{ 
                   color: jonyColors.accent1
@@ -1668,7 +1748,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                   e.target.style.backgroundColor = jonyColors.cardBackground;
                   e.target.style.color = jonyColors.textSecondary;
                 }}
-                title="Vorheriger Monat"
+                title="⬅️ Previous Month | Navigate Timeline"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -1687,7 +1767,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                   e.target.style.backgroundColor = jonyColors.cardBackground;
                   e.target.style.color = jonyColors.textSecondary;
                 }}
-                title="Nächster Monat"
+                title="➡️ Next Month | Navigate Timeline"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -1697,7 +1777,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
           {/* Three metric cards in a row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {/* Monatliche Einnahmen */}
-            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
+            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40 select-none"
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
@@ -1715,7 +1795,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             </div>
 
             {/* Monatliche Ausgaben */}
-            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
+            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40 select-none"
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
@@ -1733,7 +1813,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
             </div>
 
             {/* Monatliche Sparquote */}
-            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40"
+            <div className="p-6 rounded-2xl border flex items-center justify-center text-center h-40 select-none"
               style={{
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
@@ -1946,6 +2026,53 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
         </div>
       </div>
 
+      {/* Custom Cyberpunk Tooltip */}
+      {hoveredMetric && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            bottom: '20px',
+            right: '20px'
+          }}
+        >
+          <div style={{
+            backgroundColor: jonyColors.surface,
+            border: `1px solid ${jonyColors.accent1}`,
+            borderRadius: '8px',
+            padding: '10px 12px',
+            boxShadow: `0 0 15px ${jonyColors.accent1}44, 0 8px 25px rgba(0, 0, 0, 0.6)`,
+            color: jonyColors.textPrimary,
+            maxWidth: '320px'
+          }}>
+            {(() => {
+              const tooltipContent = getTooltipContent(hoveredMetric);
+              return tooltipContent ? (
+                <>
+                  <p style={{ 
+                    color: jonyColors.accent1, 
+                    margin: '0 0 6px 0',
+                    fontWeight: '600',
+                    fontSize: '14px'
+                  }}>
+                    {tooltipContent.title}
+                  </p>
+                  <p style={{ 
+                    color: jonyColors.textSecondary,
+                    margin: '0',
+                    fontSize: '12px',
+                    fontWeight: '400'
+                  }}>
+                    {tooltipContent.details}
+                  </p>
+                </>
+              ) : null;
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notifications */}
+      <Toast toasts={toasts} removeToast={removeToast} />
 
     </div>
   );

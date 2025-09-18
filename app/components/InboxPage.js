@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 
 import AutocompleteCategorySelector from './AutocompleteCategorySelector';
+import Toast from './Toast';
+import { useToast } from '../hooks/useToast';
 
 const formatCurrency = (amount) => 
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -29,6 +31,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
   const [showPersonSuggestions, setShowPersonSuggestions] = useState(false);
   const [isExcelProcessing, setIsExcelProcessing] = useState(false);
   const fileInputRef = useRef(null);
+  const { toasts, removeToast, success, error, warning, info } = useToast();
 
   // Load contacts
   const allContacts = useLiveQuery(() => 
@@ -657,7 +660,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
           jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
           
           if (jsonData.length === 0) {
-            alert('Die Excel-Datei ist leer.');
+            warning('Die ausgewählte Datei enthält keine Daten.', 'Leere Datei');
             setIsExcelProcessing(false);
             return;
           }
@@ -669,17 +672,26 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
         if (transactions.length > 0) {
           await db.inbox.bulkAdd(transactions);
           console.log(`${transactions.length} Transaktionen wurden erfolgreich hochgeladen`);
-          alert(`✅ ${transactions.length} Transaktionen erfolgreich hochgeladen und im Posteingang verfügbar!`);
+          success(
+            `${transactions.length} Transaktionen erfolgreich importiert und stehen im Posteingang zur Verfügung!`,
+            'Import erfolgreich'
+          );
           
           setIsExcelProcessing(false);
         } else {
-          alert('❌ Keine Transaktionen gefunden. Für Excel: Verwenden Sie ING-Bank Format. Für CSV: Format "Datum;Beschreibung;Betrag".');
+          error(
+            'Keine gültigen Transaktionen gefunden. Stellen Sie sicher, dass die Datei das richtige Format hat.',
+            'Import fehlgeschlagen'
+          );
           setIsExcelProcessing(false);
         }
         
       } catch (error) {
         console.error('Error processing file:', error);
-        alert('Fehler beim Verarbeiten der Datei.');
+        error(
+          'Die Datei konnte nicht verarbeitet werden. Bitte überprüfen Sie das Dateiformat.',
+          'Verarbeitungsfehler'
+        );
         setIsExcelProcessing(false);
       }
     };
@@ -782,15 +794,15 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                     onClick={() => setShowClearConfirmation(true)}
                     className="px-4 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-sm"
                     style={{
-                      backgroundColor: jonyColors.redAlpha,
-                      color: jonyColors.red,
-                      border: `1px solid ${jonyColors.red}33`
+                      backgroundColor: jonyColors.magentaAlpha,
+                      color: jonyColors.magenta,
+                      border: `1px solid ${jonyColors.magenta}33`
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.backgroundColor = jonyColors.red + '22';
+                      e.target.style.backgroundColor = jonyColors.magenta + '22';
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.backgroundColor = jonyColors.redAlpha;
+                      e.target.style.backgroundColor = jonyColors.magentaAlpha;
                     }}
                   >
                     <Trash2 className="w-4 h-4 inline mr-2" />
@@ -884,8 +896,8 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                       border: `1px solid ${jonyColors.cardBorder}`
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.backgroundColor = jonyColors.redAlpha;
-                      e.target.style.color = jonyColors.red;
+                      e.target.style.backgroundColor = jonyColors.magentaAlpha;
+                      e.target.style.color = jonyColors.magenta;
                     }}
                     onMouseLeave={(e) => {
                       e.target.style.backgroundColor = jonyColors.cardBackground;
@@ -1159,7 +1171,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                                   className="p-1 rounded transition-colors"
                                   style={{ color: jonyColors.textSecondary }}
                                   onMouseEnter={(e) => {
-                                    e.target.style.color = jonyColors.red;
+                                    e.target.style.color = jonyColors.magenta;
                                   }}
                                   onMouseLeave={(e) => {
                                     e.target.style.color = jonyColors.textSecondary;
@@ -1241,7 +1253,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
             <div className="p-8">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg" style={{
-                  backgroundColor: jonyColors.red
+                  backgroundColor: jonyColors.magenta
                 }}>
                   <AlertCircle className="w-8 h-8" style={{ color: jonyColors.background }} />
                 </div>
@@ -1251,11 +1263,11 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                 </div>
               </div>
               <div className="p-6 rounded-2xl mb-6 border" style={{
-                backgroundColor: jonyColors.redAlpha,
-                border: `1px solid ${jonyColors.red}33`
+                backgroundColor: jonyColors.magentaAlpha,
+                border: `1px solid ${jonyColors.magenta}33`
               }}>
                 <p className="font-medium" style={{ color: jonyColors.textPrimary }}>
-                  Alle <span className="font-bold" style={{ color: jonyColors.red }}>{inboxTransactions.length} Transaktionen</span> werden permanent gelöscht.
+                  Alle <span className="font-bold" style={{ color: jonyColors.magenta }}>{inboxTransactions.length} Transaktionen</span> werden permanent gelöscht.
                 </p>
               </div>
               <div className="flex space-x-4">
@@ -1283,18 +1295,18 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                   disabled={isClearing}
                   className="flex-1 py-4 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center space-x-3 font-bold shadow-lg hover:shadow-2xl"
                   style={{
-                    backgroundColor: jonyColors.red,
+                    backgroundColor: jonyColors.magenta,
                     color: jonyColors.background,
                     opacity: isClearing ? 0.7 : 1
                   }}
                   onMouseEnter={(e) => {
                     if (!isClearing) {
-                      e.target.style.backgroundColor = jonyColors.magenta;
+                      e.target.style.backgroundColor = jonyColors.magentaDark;
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isClearing) {
-                      e.target.style.backgroundColor = jonyColors.red;
+                      e.target.style.backgroundColor = jonyColors.magenta;
                     }
                   }}
                 >
@@ -1324,6 +1336,9 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
         onChange={handleFileSelect}
         className="hidden" 
       />
+
+      {/* Toast Notifications */}
+      <Toast toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

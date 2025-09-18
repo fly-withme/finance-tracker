@@ -436,16 +436,16 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               onClick={() => setDeleteAllCategoriesConfirm(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200"
               style={{ 
-                backgroundColor: jonyColors.redAlpha,
-                color: jonyColors.red
+                backgroundColor: jonyColors.magentaAlpha,
+                color: jonyColors.magenta
               }}
               onMouseEnter={(e) => {
-                e.target.style.backgroundColor = jonyColors.red;
+                e.target.style.backgroundColor = jonyColors.magenta;
                 e.target.style.color = 'white';
               }}
               onMouseLeave={(e) => {
-                e.target.style.backgroundColor = jonyColors.redAlpha;
-                e.target.style.color = jonyColors.red;
+                e.target.style.backgroundColor = jonyColors.magentaAlpha;
+                e.target.style.color = jonyColors.magenta;
               }}
             >
               <Trash2 className="w-4 h-4" />
@@ -508,16 +508,16 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
                 <Edit className="w-4 h-4" />
               </button>
               <button onClick={() => handleDeleteRequest(category.id)} className="p-2 rounded-lg transition-colors" style={{ 
-                backgroundColor: jonyColors.redAlpha,
-                color: jonyColors.red
+                backgroundColor: jonyColors.magentaAlpha,
+                color: jonyColors.magenta
               }}
                 onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = jonyColors.red;
+                  e.target.style.backgroundColor = jonyColors.magenta;
                   e.target.style.color = 'white';
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = jonyColors.redAlpha;
-                  e.target.style.color = jonyColors.red;
+                  e.target.style.backgroundColor = jonyColors.magentaAlpha;
+                  e.target.style.color = jonyColors.magenta;
                 }}
                 title="Löschen">
                 <Trash2 className="w-4 h-4" />
@@ -588,25 +588,25 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
           }}
           onClick={() => setDeleteAllConfirmOpen(true)}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = jonyColors.redAlpha;
-            e.currentTarget.style.borderColor = jonyColors.red;
+            e.currentTarget.style.backgroundColor = jonyColors.magentaAlpha;
+            e.currentTarget.style.borderColor = jonyColors.magenta;
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = jonyColors.cardBackground;
             e.currentTarget.style.borderColor = jonyColors.border;
           }}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center group-hover:bg-red-500 transition-colors" style={{
-              backgroundColor: jonyColors.redAlpha
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{
+              backgroundColor: jonyColors.magentaAlpha
             }}>
-              <Trash2 className="w-4 h-4 group-hover:text-white transition-colors" style={{ color: jonyColors.red }} />
+              <Trash2 className="w-4 h-4 group-hover:text-white transition-colors" style={{ color: jonyColors.magenta }} />
             </div>
             <div>
-              <h3 className="font-medium group-hover:text-red-600 transition-colors" style={{ color: jonyColors.textPrimary }}>Alle Daten löschen</h3>
-              <p className="text-xs group-hover:text-red-500 transition-colors" style={{ color: jonyColors.textSecondary }}>Komplett zurücksetzen (unwiderruflich)</p>
+              <h3 className="font-medium transition-colors" style={{ color: jonyColors.textPrimary }}>Alle Daten löschen</h3>
+              <p className="text-xs transition-colors" style={{ color: jonyColors.textSecondary }}>Komplett zurücksetzen (unwiderruflich)</p>
             </div>
           </div>
-          <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: jonyColors.red }}>
+          <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: jonyColors.magenta }}>
             Mit Vorsicht verwenden
           </span>
         </div>
@@ -915,26 +915,26 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
           <div className="rounded-2xl shadow-2xl w-full max-w-lg border" style={{ 
             backgroundColor: jonyColors.surface, 
-            border: `1px solid ${jonyColors.red}` 
+            border: `1px solid ${jonyColors.magenta}` 
           }}>
             <div className="p-8">
               {/* Header */}
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg" style={{
-                  background: `linear-gradient(to bottom right, ${jonyColors.red}, ${jonyColors.redDark})`
+                  background: `linear-gradient(to bottom right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
                 }}>
                   <Trash2 className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold" style={{ color: jonyColors.red }}>Alle Daten löschen?</h2>
-                  <p className="text-sm font-medium" style={{ color: jonyColors.red }}>Dieser Vorgang ist unwiderruflich</p>
+                  <h2 className="text-2xl font-bold" style={{ color: jonyColors.magenta }}>Alle Daten löschen?</h2>
+                  <p className="text-sm font-medium" style={{ color: jonyColors.magenta }}>Dieser Vorgang ist unwiderruflich</p>
                 </div>
               </div>
               
               {/* Warning Message */}
               <div className="rounded-xl p-4 mb-6 border" style={{ 
-                backgroundColor: jonyColors.redAlpha, 
-                border: `1px solid ${jonyColors.red}` 
+                backgroundColor: jonyColors.magentaAlpha, 
+                border: `1px solid ${jonyColors.magenta}` 
               }}>
                 <p className="text-sm leading-relaxed" style={{ color: jonyColors.textPrimary }}>
                   <span className="font-semibold">Warnung:</span> Diese Aktion löscht permanent alle deine:
@@ -950,7 +950,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               {/* Confirmation Input */}
               <div className="mb-8">
                 <label className="block text-sm font-semibold mb-3" style={{ color: jonyColors.textPrimary }}>
-                  Tippe <span className="px-2 py-1 rounded font-mono text-xs" style={{ backgroundColor: jonyColors.redAlpha, color: jonyColors.red }}>LÖSCHEN</span> um zu bestätigen:
+                  Tippe <span className="px-2 py-1 rounded font-mono text-xs" style={{ backgroundColor: jonyColors.magentaAlpha, color: jonyColors.magenta }}>LÖSCHEN</span> um zu bestätigen:
                 </label>
                 <input
                   type="text"
@@ -960,8 +960,8 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
                   style={{ 
                     backgroundColor: jonyColors.cardBackground,
                     color: jonyColors.textPrimary,
-                    borderColor: jonyColors.red,
-                    '--tw-ring-color': jonyColors.red
+                    borderColor: jonyColors.magenta,
+                    '--tw-ring-color': jonyColors.magenta
                   }}
                   placeholder="LÖSCHEN"
                 />
@@ -990,7 +990,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
                   disabled={deleteConfirmText !== 'LÖSCHEN'}
                   className="flex-1 px-6 py-3 text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
                   style={{
-                    background: `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})`
+                    background: `linear-gradient(to right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
                   }}
                   onMouseEnter={(e) => {
                     if (!e.target.disabled) {
@@ -1046,20 +1046,20 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               {/* Header */}
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg" style={{
-                  background: `linear-gradient(to bottom right, ${jonyColors.red}, ${jonyColors.redDark})`
+                  background: `linear-gradient(to bottom right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
                 }}>
                   <Trash2 className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold" style={{ color: jonyColors.red }}>Alle Kategorien löschen?</h2>
-                  <p className="text-sm font-medium" style={{ color: jonyColors.red }}>Dieser Vorgang ist unwiderruflich</p>
+                  <h2 className="text-2xl font-bold" style={{ color: jonyColors.magenta }}>Alle Kategorien löschen?</h2>
+                  <p className="text-sm font-medium" style={{ color: jonyColors.magenta }}>Dieser Vorgang ist unwiderruflich</p>
                 </div>
               </div>
               
               {/* Warning Message */}
               <div className="rounded-xl p-4 mb-6 border" style={{ 
-                backgroundColor: jonyColors.redAlpha, 
-                border: `1px solid ${jonyColors.red}` 
+                backgroundColor: jonyColors.magentaAlpha, 
+                border: `1px solid ${jonyColors.magenta}` 
               }}>
                 <p className="text-sm leading-relaxed" style={{ color: jonyColors.textPrimary }}>
                   <span className="font-semibold">Warnung:</span> Diese Aktion löscht permanent alle deine:
@@ -1074,7 +1074,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               {/* Confirmation Input */}
               <div className="mb-8">
                 <label className="block text-sm font-semibold mb-3" style={{ color: jonyColors.textPrimary }}>
-                  Tippe <span className="px-2 py-1 rounded font-mono text-xs" style={{ backgroundColor: jonyColors.redAlpha, color: jonyColors.red }}>ALLE LÖSCHEN</span> um zu bestätigen:
+                  Tippe <span className="px-2 py-1 rounded font-mono text-xs" style={{ backgroundColor: jonyColors.magentaAlpha, color: jonyColors.magenta }}>ALLE LÖSCHEN</span> um zu bestätigen:
                 </label>
                 <input
                   type="text"
@@ -1084,8 +1084,8 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
                   style={{ 
                     backgroundColor: jonyColors.cardBackground,
                     color: jonyColors.textPrimary,
-                    borderColor: jonyColors.red,
-                    '--tw-ring-color': jonyColors.red
+                    borderColor: jonyColors.magenta,
+                    '--tw-ring-color': jonyColors.magenta
                   }}
                   placeholder="ALLE LÖSCHEN"
                 />
@@ -1114,7 +1114,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
                   disabled={deleteAllCategoriesText !== 'ALLE LÖSCHEN'}
                   className="flex-1 px-6 py-3 text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
                   style={{
-                    background: `linear-gradient(to right, ${jonyColors.red}, ${jonyColors.redDark})`
+                    background: `linear-gradient(to right, ${jonyColors.magenta}, ${jonyColors.magentaDark})`
                   }}
                   onMouseEnter={(e) => {
                     if (!e.target.disabled) {
