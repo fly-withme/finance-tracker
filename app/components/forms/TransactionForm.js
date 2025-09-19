@@ -7,7 +7,21 @@ import { jonyColors } from '../../theme';
 // --- Hilfskomponenten für das UI ---
 
 const Avatar = ({ name }) => {
-  const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  let initials = '?';
+  try {
+    const safeName = String(name || '');
+    if (safeName && safeName.trim()) {
+      initials = safeName.trim().split(' ')
+        .map(n => n && n[0] ? n[0].toUpperCase() : '')
+        .filter(Boolean)
+        .slice(0, 2)
+        .join('') || '?';
+    }
+  } catch (error) {
+    console.warn('Error generating initials for name:', name, error);
+    initials = '?';
+  }
+  
   return (
     <div
       className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
@@ -90,11 +104,39 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
     account: transaction?.account || accounts[0]?.name || '',
   });
 
-  const [splitConfig, setSplitConfig] = useState({
-    isSplitting: transaction?.sharedWith?.length > 0 || false,
-    splitType: transaction?.splitType || 'EQUAL',
-    participants: transaction?.sharedWith || [],
-    customAmounts: transaction?.splitDetails || {},
+  const [splitConfig, setSplitConfig] = useState(() => {
+    // Handle existing shared expense data
+    if (transaction?.sharedWith?.length > 0) {
+      const participants = transaction.sharedWith.map(person => 
+        typeof person === 'string' ? person : person.name
+      );
+      const customAmounts = {};
+      if (transaction.sharedWith[0]?.amount !== undefined) {
+        // If we have person objects with amounts, use those
+        transaction.sharedWith.forEach(person => {
+          if (typeof person === 'object' && person.name) {
+            customAmounts[person.name] = person.amount;
+          }
+        });
+      } else if (transaction.splitDetails) {
+        // Fall back to splitDetails
+        Object.assign(customAmounts, transaction.splitDetails);
+      }
+      
+      return {
+        isSplitting: true,
+        splitType: transaction.splitType || 'EQUAL',
+        participants: participants,
+        customAmounts: customAmounts,
+      };
+    }
+    
+    return {
+      isSplitting: false,
+      splitType: 'EQUAL',
+      participants: [],
+      customAmounts: {},
+    };
   });
   
   const isIncome = detectIncome(formData.recipient, formData.description, formData.category);
@@ -232,9 +274,38 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
     }
     
     if (!isIncome && splitConfig.isSplitting && Math.abs(remainingAmount) < 0.01) {
+      // Create proper shared expense structure with person objects
+      const sharedWithPersons = splitConfig.participants.map((participantName) => {
+        const amount = splitConfig.splitType === 'EQUAL' 
+          ? participantShares[participantName] || 0
+          : parseFloat(splitConfig.customAmounts[participantName]) || 0;
+        
+        // Generate color based on name hash (same logic as SharedExpensesPage)
+        const neonColors = [
+          jonyColors.accent1,     // Neon green
+          jonyColors.accent2,     // Neon cyan  
+          jonyColors.magenta,     // Neon magenta
+          jonyColors.orange,      // Orange
+          jonyColors.greenMedium, // Medium green
+          jonyColors.magentaLight // Light magenta
+        ];
+        
+        let hash = 0;
+        for (let i = 0; i < participantName.length; i++) {
+          hash = participantName.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const color = neonColors[Math.abs(hash) % neonColors.length];
+        
+        return {
+          name: participantName,
+          amount: amount,
+          color: color
+        };
+      });
+      
       transactionData = {
         ...transactionData,
-        sharedWith: splitConfig.participants,
+        sharedWith: sharedWithPersons,
         splitType: splitConfig.splitType,
         splitDetails: splitConfig.splitType === 'EQUAL' ? participantShares : splitConfig.customAmounts,
       };

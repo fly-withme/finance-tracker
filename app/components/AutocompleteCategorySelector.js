@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, ChevronDown } from 'lucide-react';
 import { useOutsideClick } from './hooks/useOutsideClick';
+import { jonyColors } from '../theme';
 
 const AutocompleteCategorySelector = ({ 
   categories, 
@@ -87,7 +88,7 @@ const AutocompleteCategorySelector = ({
           onKeyDown={handleKeyDown}
           placeholder="Kategorie suchen oder erstellen..."
           className={`
-            w-full px-4 py-3 text-base border rounded-lg
+            w-full p-2.5 text-base border border-slate-300 rounded-xl
             placeholder-slate-400 dark:placeholder-slate-500
             focus:outline-none
             transition-colors duration-200
@@ -97,9 +98,9 @@ const AutocompleteCategorySelector = ({
             }
           `}
           style={{
-            backgroundColor: hasPrediction ? undefined : '#111113',
-            borderColor: hasPrediction ? undefined : '#333333',
-            color: '#ffffff'
+            backgroundColor: hasPrediction ? undefined : jonyColors.cardBackground,
+            borderColor: hasPrediction ? undefined : '#cbd5e1',
+            color: jonyColors.textPrimary
           }}
         />
         <button
@@ -116,12 +117,22 @@ const AutocompleteCategorySelector = ({
           {/* AI Suggestions */}
           {suggestions.length > 0 && inputValue.length === 0 && (
              <div className="p-2 border-b" style={{ borderColor: '#333333' }}>
-              <div className="text-xs text-blue-600 dark:text-blue-400 mb-1 px-2">Vorschläge</div>
+              <div className="text-xs mb-1 px-2" style={{ color: jonyColors.accent1 }}>Vorschläge</div>
               {suggestions.slice(0, 3).map(suggestion => (
                 <button
                   key={suggestion}
                   onClick={() => handleSelectCategory(suggestion)}
-                  className="w-full text-left px-3 py-2 text-sm rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 flex items-center space-x-3"
+                  className="w-full text-left px-3 py-2 text-sm rounded flex items-center space-x-3"
+                  style={{ 
+                    color: jonyColors.accent1,
+                    ':hover': { backgroundColor: `${jonyColors.accent1}20` }
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = `${jonyColors.accent1}20`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'transparent';
+                  }}
                 >
                   <div 
                     className="w-2.5 h-2.5 rounded-full" 
@@ -158,7 +169,7 @@ const AutocompleteCategorySelector = ({
               <button
                 onClick={handleCreateNew}
                 className="w-full text-left px-3 py-2 text-sm flex items-center space-x-2 hover:opacity-80 transition-opacity"
-                style={{ color: '#10B981' }}
+                style={{ color: jonyColors.accent1 }}
               >
                 <Plus className="w-4 h-4" />
                 <span>Erstelle Kategorie "{inputValue}"</span>

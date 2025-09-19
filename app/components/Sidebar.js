@@ -60,7 +60,7 @@ const SidebarItem = ({ item, isActive, setPage }) => {
         />
         {item.count > 0 && (
           <span className="absolute -top-2 -right-2 w-4 h-4 text-xs font-medium rounded-full flex items-center justify-center"
-            style={{ backgroundColor: jonyColors.magenta, color: jonyColors.background }}>
+            style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}>
             {item.count > 9 ? '9+' : item.count}
           </span>
         )}

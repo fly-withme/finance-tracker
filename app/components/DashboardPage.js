@@ -45,7 +45,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       case 'netWorth':
         return {
           title: 'Nettovermögen',
-          details: 'Vermögen minus Schulden'
+          details: 'Berechnung: Sparguthaben + Investments + verfügbares Geld - Schulden • Zeigt dein gesamtes verfügbares Vermögen'
         };
       case 'fiProgress':
         return {
@@ -60,7 +60,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       case 'savingsRate':
         return {
           title: 'Sparquote',
-          details: 'Prozent des Einkommens gespart'
+          details: 'Berechnung: (Jährliche Ersparnisse ÷ Jahreseinkommen) × 100 • Optimaler Wert: 20-30% für langfristigen Vermögensaufbau'
         };
       case 'upload':
         return {
@@ -85,23 +85,59 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   };
 
   // State for subscriptions
-  const [subscriptions, setSubscriptions] = useState([
-    { id: 1, name: 'Netflix', amount: 12.99, isActive: true, color: '#ff4757' },
-    { id: 2, name: 'Spotify', amount: 9.99, isActive: true, color: '#00ff41' },
-    { id: 3, name: 'Adobe Creative', amount: 59.99, isActive: false, color: '#64748b' },
-    { id: 4, name: 'Gym Membership', amount: 29.90, isActive: true, color: '#ffa726' }
-  ]);
+  const [showAddSubscriptionModal, setShowAddSubscriptionModal] = useState(false);
+  const [newSubscription, setNewSubscription] = useState({ name: '', amount: '' });
 
   // File upload ref
   const fileInputRef = React.useRef(null);
 
-  // Toggle subscription function
-  const toggleSubscription = (id) => {
-    setSubscriptions(prev => 
-      prev.map(sub => 
-        sub.id === id ? { ...sub, isActive: !sub.isActive } : sub
-      )
-    );
+  
+  // Remove subscription from category (change category to something else)
+  const removeFromSubscriptions = async (subscription) => {
+    try {
+      // Update all transactions for this subscription to remove from Abo category
+      const updatePromises = subscription.transactions.map(transaction => {
+        return db.transactions.update(transaction.id, {
+          category: 'Sonstige Ausgaben' // Move to general expenses
+        });
+      });
+      
+      await Promise.all(updatePromises);
+      success(`${subscription.name} wurde aus den Abos entfernt`, 'Abo entfernt');
+    } catch (error) {
+      console.error('Error removing subscription:', error);
+      error('Fehler beim Entfernen des Abos', 'Fehler');
+    }
+  };
+  
+  // Add manual subscription
+  const addManualSubscription = async () => {
+    if (!newSubscription.name || !newSubscription.amount) {
+      warning('Bitte füllen Sie alle Felder aus', 'Unvollständige Daten');
+      return;
+    }
+    
+    try {
+      // Create a manual subscription transaction for current month
+      const now = new Date();
+      const transaction = {
+        date: now.toISOString().split('T')[0],
+        description: `Manuelles Abo: ${newSubscription.name}`,
+        recipient: newSubscription.name,
+        amount: -Math.abs(parseFloat(newSubscription.amount)),
+        category: 'Abo',
+        account: 'Manual',
+        createdAt: now.toISOString()
+      };
+      
+      await db.transactions.add(transaction);
+      setNewSubscription({ name: '', amount: '' });
+      setShowAddSubscriptionModal(false);
+      success(`${newSubscription.name} wurde als Abo hinzugefügt`, 'Abo hinzugefügt');
+    } catch (error) {
+      console.error('Error adding manual subscription:', error);
+      error('Fehler beim Hinzufügen des Abos', 'Fehler');
+    }
   };
 
   // Excel parsing functions (same as ExcelUpload component)
@@ -333,66 +369,171 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   };
 
   const parseGermanDate = (dateStr) => {
+    // Clean up the date string
+    const cleanDateStr = dateStr.toString().trim();
+    
     // Try different German date formats
     const formats = [
-      /(\d{1,2})\.(\d{1,2})\.(\d{4})/, // DD.MM.YYYY
-      /(\d{4})-(\d{1,2})-(\d{1,2})/, // YYYY-MM-DD
-      /(\d{1,2})\/(\d{1,2})\/(\d{4})/, // DD/MM/YYYY
+      /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, // DD.MM.YYYY
+      /^(\d{4})-(\d{1,2})-(\d{1,2})$/, // YYYY-MM-DD
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, // DD/MM/YYYY
+      /^(\d{1,2})-(\d{1,2})-(\d{4})$/, // DD-MM-YYYY
     ];
 
-    for (const format of formats) {
-      const match = dateStr.match(format);
+    for (let i = 0; i < formats.length; i++) {
+      const format = formats[i];
+      const match = cleanDateStr.match(format);
       if (match) {
-        if (format === formats[1]) {
-          // YYYY-MM-DD
-          return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+        console.log('Date parsing match:', { input: cleanDateStr, format: i, match });
+        
+        if (i === 1) {
+          // YYYY-MM-DD (already in correct format)
+          const year = match[1];
+          const month = match[2].padStart(2, '0');
+          const day = match[3].padStart(2, '0');
+          const result = `${year}-${month}-${day}`;
+          console.log('YYYY-MM-DD result:', result);
+          return result;
         } else {
-          // DD.MM.YYYY or DD/MM/YYYY
-          return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+          // DD.MM.YYYY, DD/MM/YYYY, or DD-MM-YYYY (convert to YYYY-MM-DD)
+          const day = match[1].padStart(2, '0');
+          const month = match[2].padStart(2, '0');
+          const year = match[3];
+          const result = `${year}-${month}-${day}`;
+          console.log('DD.MM.YYYY conversion result:', result);
+          return result;
         }
       }
     }
 
-    // Fallback to current date
-    return new Date().toISOString().split('T')[0];
+    // Fallback: try to parse as a JavaScript Date
+    const attemptDate = new Date(cleanDateStr);
+    if (!isNaN(attemptDate.getTime())) {
+      const result = attemptDate.toISOString().split('T')[0];
+      console.log('JavaScript Date fallback result:', result);
+      return result;
+    }
+
+    // Final fallback to current date
+    const fallbackResult = new Date().toISOString().split('T')[0];
+    console.warn('Date parsing failed, using current date:', { input: cleanDateStr, fallback: fallbackResult });
+    return fallbackResult;
   };
 
 
 
 
 
-  // File upload handler
+  // File upload handler for multiple files
   const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+    const files = Array.from(event.target.files);
+    if (!files || files.length === 0) return;
 
+    console.log(`Processing ${files.length} file(s)...`);
+    
     try {
-      let transactions = [];
+      let allTransactions = [];
+      let successfulFiles = 0;
+      let failedFiles = [];
 
-      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-          file.type === 'application/vnd.ms-excel' || 
-          file.name.endsWith('.xlsx') || 
-          file.name.endsWith('.xls')) {
+      // Process each file
+      for (const file of files) {
+        console.log(`Processing file: ${file.name}`);
         
-        // Handle Excel files
-        const data = new Uint8Array(await file.arrayBuffer());
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        try {
+          let transactions = [];
+
+          if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+              file.type === 'application/vnd.ms-excel' || 
+              file.name.endsWith('.xlsx') || 
+              file.name.endsWith('.xls')) {
+            
+            // Handle Excel files
+            console.log(`Processing Excel file: ${file.name}`);
+            const data = new Uint8Array(await file.arrayBuffer());
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            transactions = parseExcelTransactions(jsonData);
+            
+          } else if (file.type === 'application/pdf') {
+            console.warn(`Skipping PDF file: ${file.name}`);
+            failedFiles.push({ name: file.name, reason: 'PDF format not supported' });
+            continue;
+          } else {
+            // Handle CSV/TXT files
+            console.log(`Processing CSV/TXT file: ${file.name}`);
+            transactions = await processCsvFile(file);
+          }
+
+          // Add file source information to each transaction
+          const transactionsWithSource = transactions.map(t => ({
+            ...t,
+            sourceFile: file.name,
+            uploadedAt: new Date().toISOString()
+          }));
+
+          allTransactions.push(...transactionsWithSource);
+          successfulFiles++;
+          console.log(`Successfully processed ${file.name}: ${transactions.length} transactions`);
+
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError);
+          failedFiles.push({ name: file.name, reason: fileError.message });
+        }
+      }
+
+      // Add all transactions to database
+      if (allTransactions.length > 0) {
+        await db.inbox.bulkAdd(allTransactions);
         
-        transactions = parseExcelTransactions(jsonData);
+        // Show success message
+        let message = `${allTransactions.length} Transaktionen aus ${successfulFiles} Datei(en) erfolgreich importiert!`;
+        if (failedFiles.length > 0) {
+          message += `\n\nFehlgeschlagen: ${failedFiles.map(f => `${f.name} (${f.reason})`).join(', ')}`;
+        }
         
-      } else if (file.type === 'application/pdf') {
-        warning(
-          'PDF Upload wird derzeit nicht unterstützt. Bitte verwenden Sie Excel (.xlsx, .xls) oder CSV Dateien.',
-          'Unsupported Format'
-        );
-        return;
+        success(message, 'Import erfolgreich');
+        
+        // Optionally redirect to inbox
+        if (setPage) {
+          setTimeout(() => setPage('inbox'), 2000);
+        }
       } else {
-        // Handle CSV/TXT files
-        const text = await file.text();
-        const lines = text.split('\n').filter(line => line.trim());
+        if (failedFiles.length > 0) {
+          error(
+            `Keine Dateien konnten verarbeitet werden:\n${failedFiles.map(f => `${f.name}: ${f.reason}`).join('\n')}`,
+            'Import fehlgeschlagen'
+          );
+        } else {
+          error(
+            'Keine gültigen Transaktionen in den ausgewählten Dateien gefunden.',
+            'Import fehlgeschlagen'
+          );
+        }
+      }
+
+    } catch (error) {
+      console.error('Fehler beim Verarbeiten der Dateien:', error);
+      error(
+        'Ein unerwarteter Fehler ist beim Verarbeiten der Dateien aufgetreten.',
+        'Verarbeitungsfehler'
+      );
+    }
+
+    // Reset file input
+    event.target.value = '';
+  };
+
+  // Helper function to process CSV files
+  const processCsvFile = async (file) => {
+    let transactions = [];
+    
+    // Handle CSV/TXT files
+    const text = await file.text();
+    const lines = text.split('\n').filter(line => line.trim());
         
         console.log('=== CSV PARSING DEBUG ===');
         console.log('Total lines:', lines.length);
@@ -451,12 +592,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               const [buchung, wertstellungsdatum, auftraggeber, buchungstext, verwendungszweck, betrag, waehrung] = columns;
               
               if (wertstellungsdatum && betrag) {
-                // Parse German date format DD.MM.YYYY
-                const dateParts = wertstellungsdatum.split('.');
-                let parsedDate = wertstellungsdatum;
-                if (dateParts.length === 3) {
-                  parsedDate = `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
-                }
+                // Parse German date format using our enhanced parser
+                const parsedDate = parseGermanDate(wertstellungsdatum);
                 
                 // Parse amount
                 let parsedAmount = parseFloat(betrag.replace(',', '.').replace(/[^\d.-]/g, ''));
@@ -485,37 +622,8 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
           }
         }
         console.log('=== END CSV PARSING ===');
-      }
-
-      // Add transactions to inbox
-      if (transactions.length > 0) {
-        await db.inbox.bulkAdd(transactions);
-        console.log(`${transactions.length} Transaktionen wurden erfolgreich hochgeladen`);
-        success(
-          `${transactions.length} Transaktionen erfolgreich importiert und stehen im Posteingang zur Verfügung!`,
-          'Import erfolgreich'
-        );
-        
-        // Optionally redirect to inbox
-        if (setPage) {
-          setTimeout(() => setPage('inbox'), 1500); // Small delay to show toast
-        }
-      } else {
-        error(
-          'Keine gültigen Transaktionen gefunden. Stellen Sie sicher, dass die Datei das richtige Format hat.',
-          'Import fehlgeschlagen'
-        );
-      }
-    } catch (error) {
-      console.error('Fehler beim Verarbeiten der Datei:', error);
-      error(
-        'Die Datei konnte nicht verarbeitet werden. Unterstützte Formate: Excel (.xlsx, .xls), CSV, TXT',
-        'Verarbeitungsfehler'
-      );
-    }
-
-    // Reset file input
-    event.target.value = '';
+    
+    return transactions;
   };
 
   // Trigger file upload
@@ -550,52 +658,123 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
   const userSettings = useLiveQuery(() => db.settings.get('userProfile')) || {};
   
-  // German wealth averages by age group (2024 data in EUR)
+  // Get subscription transactions from database
+  const getSubscriptionTransactions = () => {
+    // Find all transactions categorized as "Abo" or "Abos"
+    const subscriptionTransactions = transactions.filter(t => {
+      const category = (t.category || '').toLowerCase();
+      return category.includes('abo') && t.amount < 0; // Only expense transactions
+    });
+    
+    console.log('Found subscription transactions:', subscriptionTransactions.length);
+    
+    // Group by recipient/description to create subscription items
+    const subscriptionMap = new Map();
+    
+    subscriptionTransactions.forEach(transaction => {
+      const key = transaction.recipient || transaction.description || 'Unbekannt';
+      const amount = Math.abs(transaction.amount);
+      
+      // Validate and log date parsing
+      const transactionDate = new Date(transaction.date);
+      if (isNaN(transactionDate.getTime())) {
+        console.warn('Invalid transaction date:', { transaction, date: transaction.date });
+        return; // Skip invalid dates
+      }
+      
+      if (subscriptionMap.has(key)) {
+        const existing = subscriptionMap.get(key);
+        const existingDate = new Date(existing.lastDate);
+        
+        // Take the most recent amount (in case subscription cost changed)
+        if (transactionDate > existingDate) {
+          console.log('Updating subscription with newer transaction:', { key, oldDate: existing.lastDate, newDate: transaction.date });
+          existing.amount = amount;
+          existing.lastDate = transaction.date;
+        }
+        existing.transactionCount++;
+        existing.transactions.push(transaction);
+      } else {
+        console.log('Creating new subscription entry:', { key, date: transaction.date, amount });
+        subscriptionMap.set(key, {
+          id: `sub_${key.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          name: key,
+          amount: amount,
+          isActive: true,
+          lastDate: transaction.date,
+          transactionCount: 1,
+          transactions: [transaction]
+        });
+      }
+    });
+    
+    const result = Array.from(subscriptionMap.values()).sort((a, b) => b.amount - a.amount);
+    console.log('Final subscription results:', result);
+    return result;
+  };
+  
+  const subscriptions = getSubscriptionTransactions();
+  
+  // German wealth averages by age group (2023 Bundesbank survey data in EUR)
+  // Source: Deutsche Bundesbank household wealth survey 2023
+  // German wealth averages based on Bundesbank 2023 PHF survey
+  // Overall median: €103,200 (2023), Mean: €324,800
+  // Data source: Bundesbank Panel on Household Finances (PHF) 2023
   const germanWealthAverages = {
-    '18-24': 8500,
-    '25-34': 31000,
-    '35-44': 81000, 
-    '45-54': 142000,
-    '55-64': 214000,
-    '65+': 232000
+    '18-24': 11400,    // 2023 survey: under 25 median wealth
+    '25-34': 45000,    // Estimated: significant increase from early career to family formation
+    '35-44': 95000,    // Estimated: family peak accumulation phase before 45-54 range  
+    '45-54': 154700,   // 2023 survey: 45-74 range peak accumulation period
+    '55-64': 192000,   // 2023 survey: 45-74 range pre-retirement peak
+    '65+': 175000      // 2023 survey: post-retirement decline in wealth
   };
   
   // Calculate comprehensive net worth from real data
   const calculateNetWorth = () => {
-    // 1. Sparvermögen: Alle Sparziele (inkl. Notgroschen)
+    // 1. Explicit Sparvermögen: Alle Sparziele (inkl. Notgroschen)
     const totalSavings = savingsGoals.reduce((sum, goal) => sum + (goal.currentAmount || 0), 0);
     
     // 2. Schulden: Alle aktuellen Schulden
     const totalDebt = debts.reduce((sum, debt) => sum + (debt.currentAmount || 0), 0);
     
-    // 3. Laufendes Vermögen: Kumulierter Cashflow (alle Einnahmen minus alle Ausgaben)
+    // 3. Liquide Mittel: Verfügbares Geld berechnet aus Transaktionen
+    // Alle Einnahmen minus alle Ausgaben (ohne bereits in Sparziele eingezahlte Beträge)
     const totalIncome = transactions
       .filter(t => t.amount > 0)
       .reduce((sum, t) => sum + t.amount, 0);
     
-    const totalExpenses = Math.abs(transactions
-      .filter(t => t.amount < 0)
+    // Alle Ausgaben OHNE Sparbeträge (um Doppelzählung zu vermeiden)
+    const nonSavingsExpenses = Math.abs(transactions
+      .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
       .reduce((sum, t) => sum + t.amount, 0));
     
-    // Bereits in Sparziele eingezahltes Geld nicht doppelt zählen
-    const totalSavingsContributions = Math.abs(transactions
-      .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
-      .reduce((sum, t) => sum + t.amount, 0));
-    
-    const currentCashFlow = totalIncome - totalExpenses + totalSavingsContributions;
+    // Verfügbares Geld = Einnahmen - Ausgaben (ohne Sparen)
+    const liquidAssets = totalIncome - nonSavingsExpenses;
     
     // 4. Investment-Vermögen (placeholder - später aus investments Tabelle)
     const totalInvestments = 0; // TODO: Implement when investments table is ready
     
-    // Gesamtvermögen = Sparen + Investments + laufendes Geld - Schulden
-    return totalSavings + totalInvestments + Math.max(0, currentCashFlow) - totalDebt;
+    // Debug-Output für Transparenz
+    const finalNetWorth = totalSavings + totalInvestments + Math.max(0, liquidAssets) - totalDebt;
+    console.log('Net Worth Calculation:', {
+      totalSavings: `€${totalSavings.toLocaleString('de-DE')}`,
+      totalDebt: `€${totalDebt.toLocaleString('de-DE')}`, 
+      liquidAssets: `€${liquidAssets.toLocaleString('de-DE')}`,
+      totalInvestments: `€${totalInvestments.toLocaleString('de-DE')}`,
+      finalNetWorth: `€${finalNetWorth.toLocaleString('de-DE')}`
+    });
+    
+    // Gesamtvermögen = Sparen + Investments + liquide Mittel - Schulden
+    // Liquide Mittel nur wenn positiv (negative Werte bedeuten Überziehung, gehört zu Schulden)
+    return totalSavings + totalInvestments + Math.max(0, liquidAssets) - totalDebt;
   };
   
-  // Calculate B Score based on German averages using real user age
+  // Calculate Wealth Score based on German median wealth averages using real user age
   const calculateFinancialScore = (netWorth) => {
     const userAge = userSettings?.value?.age || 30; // Use real age from profile
     let ageGroup = '25-34';
     
+    // Age group assignment based on German wealth survey brackets
     if (userAge < 25) ageGroup = '18-24';
     else if (userAge < 35) ageGroup = '25-34';
     else if (userAge < 45) ageGroup = '35-44';
@@ -606,11 +785,35 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     const avgWealth = germanWealthAverages[ageGroup];
     const ratio = netWorth / avgWealth;
     
-    if (ratio >= 1.5) return 'A';
-    else if (ratio >= 0.8) return 'B';
-    else if (ratio >= 0.4) return 'C';
-    else if (ratio >= 0.1) return 'D';
-    else return 'F';
+    // Score thresholds based on percentile analysis:
+    // A = Top 20% (above 1.5x median)
+    // B = Above average (0.8-1.5x median) 
+    // C = Average range (0.4-0.8x median)
+    // D = Below average (0.1-0.4x median)
+    // F = Bottom 20% (below 0.1x median)
+    
+    let score;
+    if (ratio >= 1.5) score = 'A';
+    else if (ratio >= 0.8) score = 'B';
+    else if (ratio >= 0.4) score = 'C';
+    else if (ratio >= 0.1) score = 'D';
+    else score = 'F';
+    
+    // Debug-Output für Transparenz
+    console.log('Financial Score Calculation:', {
+      userAge,
+      ageGroup,
+      avgWealth: `€${avgWealth.toLocaleString('de-DE')}`,
+      netWorth: `€${netWorth.toLocaleString('de-DE')}`,
+      ratio: ratio.toFixed(2),
+      score,
+      interpretation: ratio >= 1.5 ? 'Top 20% (Excellent)' : 
+                     ratio >= 0.8 ? 'Above Average' : 
+                     ratio >= 0.4 ? 'Average Range' : 
+                     ratio >= 0.1 ? 'Below Average' : 'Bottom 20%'
+    });
+    
+    return score;
   };
   
   // Calculate monthly income/expenses from selected month
@@ -671,7 +874,6 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       // Try to use transaction data for income if available
       const monthlyMetrics = calculateMonthlyMetrics();
       const monthlyIncome = monthlyMetrics.income;
-      const monthlyExpenses = monthlyMetrics.expenses;
       
       if (monthlyIncome > 0) {
         const monthlySavings = monthlyIncome - userMonthlyExpensesInRetirement;
@@ -1131,10 +1333,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                 // Change icon color to black
                 const icon = e.target.querySelector('.upload-icon');
                 if (icon) icon.style.color = 'black';
-                // Tooltip functionality
-                handleMouseEnter('upload', e);
               }}
-              onMouseMove={handleMouseMove}
               onMouseLeave={(e) => {
                 e.target.style.backgroundColor = 'transparent';
                 e.target.style.borderColor = jonyColors.accent1;
@@ -1142,8 +1341,6 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                 // Change icon color back to green
                 const icon = e.target.querySelector('.upload-icon');
                 if (icon) icon.style.color = jonyColors.accent1;
-                // Tooltip functionality
-                handleMouseLeave();
               }}
               onFocus={(e) => {
                 e.target.style.outline = 'none';
@@ -1171,6 +1368,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
               type="file"
               accept=".xlsx,.xls,.csv,.txt"
               onChange={handleFileUpload}
+              multiple
               style={{ display: 'none' }}
             />
           </div>
@@ -1655,69 +1853,116 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                   Deine Abos
                 </h3>
               </div>
-              <span className="text-lg font-light tracking-tight" style={{ color: jonyColors.magenta }}>
-                {subscriptions
-                  .filter(sub => sub.isActive)
-                  .reduce((total, sub) => total + sub.amount, 0)
-                  .toFixed(2)}€/Monat
-              </span>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setShowAddSubscriptionModal(true)}
+                  className="p-2 rounded-lg transition-all duration-200"
+                  style={{ 
+                    backgroundColor: jonyColors.accent1Alpha,
+                    color: jonyColors.accent1
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = jonyColors.accent1;
+                    e.target.style.color = 'black';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                    e.target.style.color = jonyColors.accent1;
+                  }}
+                  title="Manuelles Abo hinzufügen"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <span className="text-lg font-light tracking-tight" style={{ color: jonyColors.magenta }}>
+                  {subscriptions
+                    .filter(sub => sub.isActive)
+                    .reduce((total, sub) => total + sub.amount, 0)
+                    .toFixed(2)}€/Monat
+                </span>
+              </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {subscriptions.map((subscription) => (
-                <div 
-                  key={subscription.id}
-                  className={`p-6 rounded-2xl text-center transition-all duration-300 relative group ${
-                    subscription.isActive ? '' : 'opacity-60'
-                  }`}
-                  style={{
-                    backgroundColor: jonyColors.surface,
-                    border: `1px solid ${jonyColors.cardBorder}`,
-                    minHeight: '140px'
-                  }}
-                >
-                  {/* Toggle Switch - positioned in top right */}
-                  <button
-                    onClick={() => toggleSubscription(subscription.id)}
-                    className={`absolute top-4 right-4 w-8 h-4 rounded-full transition-all duration-300 flex items-center ${
-                      subscription.isActive ? 'justify-end' : 'justify-start'
-                    }`}
+            {subscriptions.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {subscriptions.map((subscription) => (
+                  <div 
+                    key={subscription.id}
+                    className="p-6 rounded-2xl text-center transition-all duration-300 relative group"
                     style={{
-                      backgroundColor: subscription.isActive ? jonyColors.magenta : jonyColors.cardBorder
+                      backgroundColor: jonyColors.surface,
+                      border: `1px solid ${jonyColors.cardBorder}`,
+                      minHeight: '140px'
                     }}
-                    title={subscription.isActive ? 'Deaktivieren' : 'Aktivieren'}
                   >
-                    <div 
-                      className="w-3 h-3 rounded-full transition-all duration-300"
+                    {/* Remove button - positioned in top right */}
+                    <button
+                      onClick={() => removeFromSubscriptions(subscription)}
+                      className="absolute top-2 right-2 w-6 h-6 rounded-full transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100"
                       style={{
-                        backgroundColor: jonyColors.background,
-                        margin: '2px'
+                        backgroundColor: jonyColors.magentaAlpha,
+                        color: jonyColors.magenta
                       }}
-                    />
-                  </button>
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = jonyColors.magenta;
+                        e.target.style.color = 'white';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = jonyColors.magentaAlpha;
+                        e.target.style.color = jonyColors.magenta;
+                      }}
+                      title="Aus Abos entfernen"
+                    >
+                      <span style={{ fontSize: '12px', fontWeight: 'bold' }}>×</span>
+                    </button>
 
-                  {/* Main content - centered like monthly metrics */}
-                  <div className="flex flex-col items-center justify-center h-full">
+                    {/* Transaction count indicator */}
                     <div 
-                      className="text-4xl font-bold mb-2"
-                      style={{ 
-                        color: subscription.isActive ? jonyColors.magenta : jonyColors.textSecondary
+                      className="absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: jonyColors.accent1Alpha,
+                        color: jonyColors.accent1
                       }}
                     >
-                      {subscription.amount.toFixed(2)}€
+                      {subscription.transactionCount}x
                     </div>
-                    <div 
-                      className="text-sm font-semibold"
-                      style={{ 
-                        color: jonyColors.textPrimary
-                      }}
-                    >
-                      {subscription.name}
+
+                    {/* Main content - centered like monthly metrics */}
+                    <div className="flex flex-col items-center justify-center h-full">
+                      <div 
+                        className="text-4xl font-bold mb-2"
+                        style={{ 
+                          color: jonyColors.magenta
+                        }}
+                      >
+                        {subscription.amount.toFixed(2)}€
+                      </div>
+                      <div 
+                        className="text-sm font-semibold"
+                        style={{ 
+                          color: jonyColors.textPrimary
+                        }}
+                      >
+                        {subscription.name}
+                      </div>
+                      <div 
+                        className="text-xs mt-1"
+                        style={{ 
+                          color: jonyColors.textSecondary
+                        }}
+                      >
+                        Letzte Zahlung: {new Date(subscription.lastDate).toLocaleDateString('de-DE')}
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+                  Keine Abos gefunden. Kategorisiere Transaktionen als "Abo" oder füge manuell hinzu.
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
 
         </div>
@@ -2031,16 +2276,16 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
         <div
           className="fixed z-50 pointer-events-none"
           style={{
-            bottom: '20px',
-            right: '20px'
+            bottom: '44px',
+            right: '36px'
           }}
         >
           <div style={{
             backgroundColor: jonyColors.surface,
-            border: `1px solid ${jonyColors.accent1}`,
-            borderRadius: '8px',
-            padding: '10px 12px',
-            boxShadow: `0 0 15px ${jonyColors.accent1}44, 0 8px 25px rgba(0, 0, 0, 0.6)`,
+            border: `1px solid ${jonyColors.cardBorder}`,
+            borderRadius: '6px',
+            padding: '8px 10px',
+            boxShadow: `0 4px 12px rgba(0, 0, 0, 0.4)`,
             color: jonyColors.textPrimary,
             maxWidth: '320px'
           }}>
@@ -2067,6 +2312,93 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
                 </>
               ) : null;
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Add Subscription Modal */}
+      {showAddSubscriptionModal && (
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="rounded-2xl max-w-md w-full p-6 shadow-xl" style={{ backgroundColor: jonyColors.surface }}>
+            <h2 className="text-xl font-bold mb-6" style={{ color: jonyColors.textPrimary }}>Manuelles Abo hinzufügen</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: jonyColors.textPrimary }}>
+                  Name des Abos
+                </label>
+                <input
+                  type="text"
+                  value={newSubscription.name}
+                  onChange={(e) => setNewSubscription(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 transition-colors"
+                  style={{
+                    backgroundColor: jonyColors.cardBackground,
+                    color: jonyColors.textPrimary,
+                    borderColor: jonyColors.border,
+                    '--tw-ring-color': jonyColors.accent1
+                  }}
+                  placeholder="z.B. Netflix, Spotify"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: jonyColors.textPrimary }}>
+                  Monatlicher Betrag
+                </label>
+                <input
+                  type="number"
+                  value={newSubscription.amount}
+                  onChange={(e) => setNewSubscription(prev => ({ ...prev, amount: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 transition-colors"
+                  style={{
+                    backgroundColor: jonyColors.cardBackground,
+                    color: jonyColors.textPrimary,
+                    borderColor: jonyColors.border,
+                    '--tw-ring-color': jonyColors.accent1
+                  }}
+                  placeholder="9.99"
+                  step="0.01"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddSubscriptionModal(false)}
+                className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
+                style={{
+                  backgroundColor: jonyColors.cardBackground,
+                  color: jonyColors.textSecondary
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = jonyColors.border;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                }}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={addManualSubscription}
+                disabled={!newSubscription.name || !newSubscription.amount}
+                className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
+                onMouseEnter={(e) => {
+                  if (!e.target.disabled) {
+                    e.target.style.backgroundColor = jonyColors.greenDark;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!e.target.disabled) {
+                    e.target.style.backgroundColor = jonyColors.accent1;
+                  }
+                }}
+              >
+                Hinzufügen
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -58,7 +58,9 @@ const TransactionsPage = () => {
   // --- DATA PROCESSING & FILTERING ---
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
+      if (!tx.date) return false; // Skip transactions without valid dates
       const txDate = new Date(tx.date);
+      if (isNaN(txDate.getTime())) return false; // Skip invalid date objects
       const now = new Date();
       
       // Check if any filters are active (excluding search)
@@ -113,7 +115,7 @@ const TransactionsPage = () => {
   // --- Group transactions by date for the feed view ---
   const groupedTransactions = useMemo(() => {
     return filteredTransactions.reduce((acc, tx) => {
-      const date = new Date(tx.date).toISOString().split('T')[0];
+      const date = tx.date ? new Date(tx.date).toISOString().split('T')[0] : 'invalid-date';
       if (!acc[date]) {
         acc[date] = [];
       }
@@ -260,8 +262,13 @@ const TransactionsPage = () => {
                           placeholder="Suchen nach Empfänger, Kategorie..." 
                           value={searchQuery} 
                           onChange={(e) => setSearchQuery(e.target.value)} 
-                          className="w-full pl-12 pr-4 py-3 rounded-full focus:outline-none" 
-                          style={{ backgroundColor: jonyColors.background, border: `1px solid ${jonyColors.cardBorder}` }} 
+                          className="w-full pl-12 pr-4 py-3 rounded-xl text-base transition-all duration-200" 
+                          style={{ 
+                            backgroundColor: jonyColors.cardBackground, 
+                            color: jonyColors.textPrimary,
+                            border: `1px solid ${jonyColors.border}`,
+                            outline: 'none'
+                          }} 
                       />
                       {/* Tooltip für die Suchleiste */}
                       <div 
@@ -329,7 +336,9 @@ const TransactionsPage = () => {
                                             <div className="flex items-center gap-4 flex-1 min-w-0">
                                                 <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm" style={{ backgroundColor: bgColor, color: textColor }}>{categoryInitial}</div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-semibold truncate">{tx.recipient || 'Unbekannt'}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-semibold truncate">{tx.recipient || 'Unbekannt'}</p>
+                                                    </div>
                                                     <p className="text-xs truncate" style={{ color: jonyColors.textSecondary }}>{tx.category}</p>
                                                 </div>
                                             </div>
@@ -338,7 +347,59 @@ const TransactionsPage = () => {
                                                     <button onClick={(e) => { e.stopPropagation(); handleShareExpense(tx); }} className="p-2 rounded-lg text-gray-400 hover:text-green-500" title="Teilen"><Users className="w-4 h-4" /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); handleDelete(tx); }} className="p-2 rounded-lg text-gray-400 hover:text-pink-500" title="Löschen"><Trash2 className="w-4 h-4" /></button>
                                                 </div>
-                                                <p className="font-semibold text-lg" style={{color: isIncome ? jonyColors.accent1 : jonyColors.textPrimary}}>{isIncome ? '+' : ''}{formatCurrency(tx.amount)}</p>
+                                                {tx.sharedWith && Array.isArray(tx.sharedWith) && tx.sharedWith.length > 0 && (
+                                                    <div className="flex items-center gap-1 mr-2">
+                                                        {(() => {
+                                                            const validPersons = tx.sharedWith.filter(person => {
+                                                                if (!person) {
+                                                                    console.warn('Found null/undefined person in sharedWith array:', tx.id);
+                                                                    return false;
+                                                                }
+                                                                if (!person.name) {
+                                                                    console.warn('Found person without name in sharedWith array:', person, tx.id);
+                                                                    return false;
+                                                                }
+                                                                return true;
+                                                            });
+                                                            return (
+                                                                <>
+                                                                    {validPersons.slice(0, 3).map((person, index) => (
+                                                                        <div 
+                                                                            key={index}
+                                                                            className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                                                                            style={{ backgroundColor: person.color || '#666' }}
+                                                                            title={person.name || 'Unbekannt'}
+                                                                        >
+                                                                            {(person.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                                        </div>
+                                                                    ))}
+                                                                    {validPersons.length > 3 && (
+                                                                        <div 
+                                                                            className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold"
+                                                                            style={{ 
+                                                                                backgroundColor: jonyColors.textSecondary,
+                                                                                color: jonyColors.background
+                                                                            }}
+                                                                            title={`+${validPersons.length - 3} weitere`}
+                                                                        >
+                                                                            +{validPersons.length - 3}
+                                                                        </div>
+                                                                    )}
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                )}
+                                                {tx.sharedWith && Array.isArray(tx.sharedWith) && tx.sharedWith.length > 0 ? (
+                                                    <div className="text-right">
+                                                        <p className="font-semibold text-lg" style={{color: isIncome ? jonyColors.accent1 : jonyColors.textPrimary}}>{isIncome ? '+' : ''}{formatCurrency(tx.amount)}</p>
+                                                        <p className="text-xs" style={{color: jonyColors.textSecondary}}>
+                                                            Du: {formatCurrency(Math.abs(tx.amount) / (tx.sharedWith.length + 1))}
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <p className="font-semibold text-lg" style={{color: isIncome ? jonyColors.accent1 : jonyColors.textPrimary}}>{isIncome ? '+' : ''}{formatCurrency(tx.amount)}</p>
+                                                )}
                                             </div>
                                         </div>
                                     );

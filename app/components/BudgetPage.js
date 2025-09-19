@@ -568,12 +568,12 @@ const BudgetPage = () => {
                       setNewBudget(prev => ({ ...prev, amount: value }));
                     }}
                     placeholder="500 oder =40+30+60"
-                    className="w-full px-3 py-2 pr-8 border rounded-lg focus:ring-2 transition-colors"
+                    className="w-full px-4 py-3 pr-8 rounded-xl text-base transition-all duration-200"
                     style={{
                       backgroundColor: jonyColors.cardBackground,
                       color: jonyColors.textPrimary,
-                      borderColor: jonyColors.border,
-                      '--tw-ring-color': jonyColors.accent1
+                      border: `1px solid ${jonyColors.border}`,
+                      outline: 'none'
                     }}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: jonyColors.textTertiary }}>€</span>
@@ -744,12 +744,12 @@ const BudgetPage = () => {
                       setEditBudgetDisplayAmount(value);
                       setEditingBudget(prev => ({ ...prev, amount: value }));
                     }}
-                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-2 text-base font-medium transition-all duration-200"
+                    className="w-full pl-12 pr-4 py-3 rounded-xl text-base transition-all duration-200"
                     style={{
                       backgroundColor: jonyColors.cardBackground,
                       color: jonyColors.textPrimary,
-                      borderColor: jonyColors.border,
-                      '--tw-ring-color': jonyColors.magenta
+                      border: `1px solid ${jonyColors.border}`,
+                      outline: 'none'
                     }}
                   />
                 </div>
@@ -859,12 +859,12 @@ const BudgetPage = () => {
                     value={monthlyIncomeInput}
                     onChange={(e) => setMonthlyIncomeInput(e.target.value)}
                     placeholder="3000.00"
-                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-2 text-base font-medium transition-all duration-200"
+                    className="w-full pl-12 pr-4 py-3 rounded-xl text-base transition-all duration-200"
                     style={{
                       backgroundColor: jonyColors.cardBackground,
                       color: jonyColors.textPrimary,
-                      borderColor: jonyColors.border,
-                      '--tw-ring-color': jonyColors.accent2
+                      border: `1px solid ${jonyColors.border}`,
+                      outline: 'none'
                     }}
                   />
                 </div>

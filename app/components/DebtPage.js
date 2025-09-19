@@ -474,12 +474,12 @@ const DebtPage = () => {
                         value={newDebt.name}
                         onChange={(e) => setNewDebt(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="z.B. Autokredit"
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 transition-colors"
+                        className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
                         style={{
                           backgroundColor: jonyColors.cardBackground,
                           color: jonyColors.textPrimary,
-                          borderColor: jonyColors.border,
-                          '--tw-ring-color': jonyColors.magenta
+                          border: `1px solid ${jonyColors.border}`,
+                          outline: 'none'
                         }}
                       />
                     </div>
@@ -491,12 +491,12 @@ const DebtPage = () => {
                       <select
                         value={newDebt.type}
                         onChange={(e) => setNewDebt(prev => ({ ...prev, type: e.target.value }))}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 transition-colors"
+                        className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
                         style={{
                           backgroundColor: jonyColors.cardBackground,
                           color: jonyColors.textPrimary,
-                          borderColor: jonyColors.border,
-                          '--tw-ring-color': jonyColors.magenta
+                          border: `1px solid ${jonyColors.border}`,
+                          outline: 'none'
                         }}
                       >
                         <option value="loan">Kredit</option>
@@ -517,12 +517,12 @@ const DebtPage = () => {
                         value={newDebt.totalAmount}
                         onChange={(e) => setNewDebt(prev => ({ ...prev, totalAmount: e.target.value }))}
                         placeholder="25000"
-                        className="w-full px-3 py-2 pr-8 border rounded-lg focus:ring-2 transition-colors"
+                        className="w-full px-4 py-3 pr-8 rounded-xl text-base transition-all duration-200"
                         style={{
                           backgroundColor: jonyColors.cardBackground,
                           color: jonyColors.textPrimary,
-                          borderColor: jonyColors.border,
-                          '--tw-ring-color': jonyColors.magenta
+                          border: `1px solid ${jonyColors.border}`,
+                          outline: 'none'
                         }}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: jonyColors.textTertiary }}>€</span>
@@ -530,7 +530,7 @@ const DebtPage = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    <label className="block text-sm font-medium mb-2" style={{ color: jonyColors.textPrimary }}>
                       Bereits abbezahlt (optional)
                     </label>
                     <div className="relative">
@@ -548,9 +548,15 @@ const DebtPage = () => {
                           }));
                         }}
                         placeholder="5000"
-                        className="w-full px-3 py-2 pr-8 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className="w-full px-4 py-3 pr-8 rounded-xl text-base transition-all duration-200"
+                        style={{
+                          backgroundColor: jonyColors.cardBackground,
+                          color: jonyColors.textPrimary,
+                          border: `1px solid ${jonyColors.border}`,
+                          outline: 'none'
+                        }}
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">€</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: jonyColors.textTertiary }}>€</span>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                       Aktuell verbleibt: {formatCurrency(Math.max(0, (parseFloat(newDebt.totalAmount) || 0) - (parseFloat(newDebt.paidAmount) || 0)))}

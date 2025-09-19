@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Check, Plus, Lightbulb } from 'lucide-react';
 import { useOutsideClick } from './hooks/useOutsideClick';
+import { jonyColors } from '../theme';
 
 const CategorySelector = ({ categories, selected, onSelect, onCategoryCreate, suggestions = [] }) => {
   const [inputValue, setInputValue] = useState('');
@@ -48,10 +49,26 @@ const CategorySelector = ({ categories, selected, onSelect, onCategoryCreate, su
         onChange={handleInputChange}
         onFocus={() => setDropdownOpen(true)}
         placeholder="Kategorie suchen oder erstellen..."
-        className="w-full p-2.5 pr-10 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+        className="w-full p-2.5 pr-10 rounded-xl border border-slate-300 focus:ring-2 transition-colors"
+        style={{
+          '--tw-ring-color': jonyColors.accent1,
+          ':focus': {
+            borderColor: jonyColors.accent1,
+            ringColor: jonyColors.accent1
+          }
+        }}
+        onFocus={(e) => {
+          setDropdownOpen(true);
+          e.target.style.borderColor = jonyColors.accent1;
+          e.target.style.boxShadow = `0 0 0 2px ${jonyColors.accent1}40`;
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = '#cbd5e1';
+          e.target.style.boxShadow = 'none';
+        }}
       />
       {selected && (
-        <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500" />
+        <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: jonyColors.accent1 }} />
       )}
 
       {isDropdownOpen && (
@@ -65,12 +82,12 @@ const CategorySelector = ({ categories, selected, onSelect, onCategoryCreate, su
                 className="flex items-center justify-between p-3 hover:bg-slate-100"
               >
                 <div className="flex items-center space-x-3">
-                  {cat.isSuggestion && <Lightbulb className="w-4 h-4 text-indigo-500" />}
+                  {cat.isSuggestion && <Lightbulb className="w-4 h-4" style={{ color: jonyColors.accent1 }} />}
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }}></div>
                   <span>{cat.name}</span>
                 </div>
                 {cat.isSuggestion && (
-                    <span className="text-xs text-indigo-500 font-medium">
+                    <span className="text-xs font-medium" style={{ color: jonyColors.accent1 }}>
                         {Math.round(cat.confidence * 100)}%
                     </span>
                 )}
@@ -92,7 +109,8 @@ const CategorySelector = ({ categories, selected, onSelect, onCategoryCreate, su
                 }
                 setDropdownOpen(false);
               }}
-              className="w-full flex items-center space-x-3 p-3 hover:bg-slate-100 text-green-600 border-t border-slate-200"
+              className="w-full flex items-center space-x-3 p-3 hover:bg-slate-100 border-t border-slate-200"
+              style={{ color: jonyColors.accent1 }}
             >
               <Plus className="w-4 h-4" />
               <span>"{inputValue}" als neue Kategorie erstellen</span>

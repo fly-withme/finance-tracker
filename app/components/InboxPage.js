@@ -9,7 +9,7 @@ import {
   CheckCircle, Trash2, ArrowLeft, Plus, X, Building, Calendar, 
   Wallet, SkipForward, Tag, Users, Sparkles, Clock, TrendingUp,
   AlertCircle, Search, Brain, Send, Target, Receipt, User, Crown, 
-  Flame, CreditCard, ChevronRight, Zap, Upload
+  Flame, CreditCard, ChevronRight, Zap, Upload, ArrowRight
 } from 'lucide-react';
 
 import AutocompleteCategorySelector from './AutocompleteCategorySelector';
@@ -18,6 +18,26 @@ import { useToast } from '../hooks/useToast';
 
 const formatCurrency = (amount) => 
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
+
+// Neon color mapping for person initials
+const getNeonPersonColor = (personName) => {
+  const neonColors = [
+    jonyColors.accent1,     // Neon green
+    jonyColors.accent2,     // Neon cyan  
+    jonyColors.magenta,     // Neon magenta
+    jonyColors.orange,      // Orange
+    jonyColors.greenMedium, // Medium green
+    jonyColors.magentaLight // Light magenta
+  ];
+  
+  // Create consistent color mapping based on name hash
+  let hash = 0;
+  for (let i = 0; i < personName.length; i++) {
+    hash = personName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  return neonColors[Math.abs(hash) % neonColors.length];
+};
 
 const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }) => {
   const [isClient, setIsClient] = useState(false);
@@ -961,7 +981,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                         e.target.style.backgroundColor = jonyColors.accent1;
                       }}
                     >
-                      <span>Verarbeiten</span>
+                      Verarbeiten
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   ) : (
@@ -981,7 +1001,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                       }}
                     >
                       <span>Überspringen</span>
-                      <SkipForward className="w-4 h-4" />
+                      <ArrowRight className="w-4 h-4" />
                     </button>
                   )}
                 </div>
@@ -989,14 +1009,14 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
             </div>
 
             <div className="flex flex-col gap-6">
-              <div className="p-4 rounded-2xl border flex flex-col" style={{ 
+              <div className="p-6 rounded-2xl border flex flex-col overflow-hidden" style={{ 
                 height: '280px',
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
               }}>
-                <div className="flex items-center space-x-2 mb-4 flex-shrink-0">
-                  <Tag className="w-4 h-4" style={{ color: jonyColors.textSecondary }} />
-                  <h4 className="text-sm font-semibold" style={{ color: jonyColors.textPrimary }}>Kategorie</h4>
+                <div className="flex items-center space-x-3 mb-4 flex-shrink-0">
+                  <Tag className="w-5 h-5" style={{ color: jonyColors.textSecondary }} />
+                  <h3 className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>Kategorie</h3>
                 </div>
                 
                 <div className="flex-1 flex flex-col min-h-0">
@@ -1013,26 +1033,30 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                   
                   {getMLSuggestions(currentTx).length > 0 && (
                     <div className="mt-4 flex-1 min-h-0 overflow-y-auto">
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         {getMLSuggestions(currentTx).map((suggestion, idx) => (
                           <button 
                             key={idx}
                             onClick={() => setSelectedCategory(suggestion.name)}
-                            className="w-full group flex items-center justify-between p-2 rounded-lg transition-all duration-200"
+                            className="w-full group flex items-center justify-between p-3 rounded-xl transition-all duration-200 border"
                             style={{
-                              backgroundColor: selectedCategory === suggestion.name ? jonyColors.accent1Alpha : 'transparent',
-                              color: selectedCategory === suggestion.name ? jonyColors.accent1 : jonyColors.textSecondary
+                              backgroundColor: selectedCategory === suggestion.name ? jonyColors.surface : jonyColors.cardBackground,
+                              color: selectedCategory === suggestion.name ? jonyColors.textPrimary : jonyColors.textSecondary,
+                              borderColor: selectedCategory === suggestion.name ? jonyColors.accent2 : jonyColors.cardBorder,
+                              boxShadow: selectedCategory === suggestion.name ? `0 0 0 1px ${jonyColors.accent2}40` : 'none'
                             }}
                             onMouseEnter={(e) => {
                               if (selectedCategory !== suggestion.name) {
-                                e.target.style.backgroundColor = jonyColors.cardBackground;
+                                e.target.style.backgroundColor = jonyColors.surface;
                                 e.target.style.color = jonyColors.textPrimary;
+                                e.target.style.borderColor = jonyColors.border;
                               }
                             }}
                             onMouseLeave={(e) => {
                               if (selectedCategory !== suggestion.name) {
-                                e.target.style.backgroundColor = 'transparent';
+                                e.target.style.backgroundColor = jonyColors.cardBackground;
                                 e.target.style.color = jonyColors.textSecondary;
+                                e.target.style.borderColor = jonyColors.cardBorder;
                               }
                             }}
                           >
@@ -1048,7 +1072,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                 </div>
               </div>
 
-              <div className="p-6 rounded-2xl border flex flex-col" style={{ 
+              <div className="p-6 rounded-2xl border flex flex-col overflow-hidden" style={{ 
                 height: '280px',
                 backgroundColor: jonyColors.surface,
                 border: `1px solid ${jonyColors.border}`
@@ -1060,15 +1084,13 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                       <h3 className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>Teilen</h3>
                     </div>
                     
-                    <div className="flex-1 flex flex-col">
-                      <div className="mb-4">
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      <div className="mb-4 flex-shrink-0">
                         <div className="relative">
                           <input 
                             type="text" 
                             value={personSearch} 
                             onChange={(e) => setPersonSearch(e.target.value)} 
-                            onFocus={() => setShowPersonSuggestions(true)} 
-                            onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 150)} 
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
@@ -1078,18 +1100,19 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                               }
                             }}
                             placeholder="Person hinzufügen..." 
-                            className="w-full px-4 py-3 text-base border rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200"
+                            className="w-full p-2.5 text-base border border-slate-300 rounded-xl focus:outline-none transition-colors duration-200"
                             style={{
                               backgroundColor: jonyColors.cardBackground,
-                              color: jonyColors.textPrimary,
-                              borderColor: jonyColors.cardBorder,
-                              focusRingColor: jonyColors.accent1
-                            }} 
+                              color: jonyColors.textPrimary
+                            }}
+                            onFocus={() => setShowPersonSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 150)} 
                           />
                           {showPersonSuggestions && personSearch && (
-                            <div className="absolute z-30 w-full mt-1 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto" style={{
+                            <div className="absolute z-30 w-full mt-1 rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto" style={{
                               backgroundColor: jonyColors.surface,
-                              border: `1px solid ${jonyColors.border}`
+                              border: `1px solid ${jonyColors.border}`,
+                              maxHeight: '120px'
                             }}>
                               {frequentContacts.filter(p => 
                                 p.name.toLowerCase().includes(personSearch.toLowerCase()) && 
@@ -1110,7 +1133,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                                     e.target.style.backgroundColor = 'transparent';
                                   }}
                                 >
-                                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: person.color}}>
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: getNeonPersonColor(person.name)}}>
                                     {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                   </div>
                                   <span>{person.name}</span>
@@ -1124,7 +1147,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                                       setPersonSearch('');
                                     }} 
                                     className="w-full text-left px-3 py-2 text-sm flex items-center space-x-2 transition-colors duration-200"
-                                    style={{ color: jonyColors.accent1 }}
+                                    style={{ color: jonyColors.textPrimary }}
                                     onMouseEnter={(e) => {
                                       e.target.style.backgroundColor = jonyColors.accent1Alpha;
                                     }}
@@ -1143,11 +1166,11 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                       </div>
 
                       {sharedExpenseData && sharedExpenseData.sharedWith.length > 0 ? (
-                        <div className="flex-1">
-                          <div className="text-xs font-medium mb-3 uppercase tracking-wide" style={{ color: jonyColors.textSecondary }}>
+                        <div className="flex-1 flex flex-col min-h-0">
+                          <div className="text-xs font-medium mb-3 uppercase tracking-wide flex-shrink-0" style={{ color: jonyColors.textSecondary }}>
                             Geteilt mit {sharedExpenseData.sharedWith.length} Person{sharedExpenseData.sharedWith.length > 1 ? 'en' : ''}
                           </div>
-                          <div className="space-y-2 mb-4">
+                          <div className="space-y-2 mb-4 flex-1 overflow-y-auto min-h-0 pb-2">
                             {sharedExpenseData.sharedWith.map(person => (
                               <div 
                                 key={person.name} 
@@ -1157,7 +1180,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                                 <div className="flex items-center space-x-3">
                                   <div 
                                     className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-                                    style={{backgroundColor: person.color}}
+                                    style={{backgroundColor: getNeonPersonColor(person.name)}}
                                   >
                                     {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                   </div>
@@ -1183,7 +1206,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                               </div>
                             ))}
                           </div>
-                          <div className="mt-auto pt-3" style={{ borderTop: `1px solid ${jonyColors.border}` }}>
+                          <div className="pt-3 flex-shrink-0" style={{ borderTop: `1px solid ${jonyColors.border}` }}>
                             <div className="flex items-center justify-between text-sm">
                               <span style={{ color: jonyColors.textSecondary }}>Dein Anteil:</span>
                               <span className="font-semibold" style={{ color: jonyColors.textPrimary }}>
@@ -1213,7 +1236,7 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                                   e.target.style.color = jonyColors.textSecondary;
                                 }}
                               >
-                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: person.color}}>
+                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{backgroundColor: getNeonPersonColor(person.name)}}>
                                   {person.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                 </div>
                                 <span className="text-sm">{person.name}</span>
@@ -1262,14 +1285,6 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                   <p style={{ color: jonyColors.textSecondary }}>Unwiderrufliche Aktion</p>
                 </div>
               </div>
-              <div className="p-6 rounded-2xl mb-6 border" style={{
-                backgroundColor: jonyColors.magentaAlpha,
-                border: `1px solid ${jonyColors.magenta}33`
-              }}>
-                <p className="font-medium" style={{ color: jonyColors.textPrimary }}>
-                  Alle <span className="font-bold" style={{ color: jonyColors.magenta }}>{inboxTransactions.length} Transaktionen</span> werden permanent gelöscht.
-                </p>
-              </div>
               <div className="flex space-x-4">
                 <button 
                   onClick={() => setShowClearConfirmation(false)}
@@ -1313,12 +1328,12 @@ const InboxPage = ({ categories, classifier, enhancedClassifier, useEnhancedML }
                   {isClearing ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Lösche...</span>
+                      Lösche...
                     </>
                   ) : (
                     <>
                       <Trash2 className="w-5 h-5" />
-                      <span>Löschen</span>
+                      Löschen
                     </>
                   )}
                 </button>

@@ -3,10 +3,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Settings, Palette, Trash2, Plus, Edit, Folder, Users, Sliders, Database, Download, Upload, X, ChevronRight, ChevronDown, Moon, Eye, EyeOff, LayoutDashboard, Repeat, Calculator, CreditCard, Target, Inbox, User, Save } from 'lucide-react';
 import ConfirmationModal from './ui/ConfirmationModal';
 import CategoryEditModal from './CategoryEditModal';
+import Toast from './Toast';
+import { useToast } from '../hooks/useToast';
 import { db } from '../utils/db';
 import { jonyColors } from '../theme';
 
 const SettingsPage = ({ settings, setSettings, categories, setCategories, enhancedClassifier, useEnhancedML }) => {
+  const { toasts, removeToast, success, error, warning, info } = useToast();
 
   // Live-Daten aus der Datenbank
   const liveCategories = useLiveQuery(() => db.categories.toArray(), []) || [];
@@ -74,6 +77,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     
     // Get current visibility (default to true if not set)
     const currentVisibility = currentSettings[pageId] !== false;
+    const pageLabel = availablePages.find(p => p.id === pageId)?.label || pageId;
     
     const newSettings = {
       ...currentSettings,
@@ -85,9 +89,15 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
         key: 'pageVisibility',
         value: newSettings
       });
-      console.log(`Sichtbarkeit für ${pageId} geändert zu:`, !currentVisibility);
+      
+      if (!currentVisibility) {
+        success(`${pageLabel} ist jetzt sichtbar`, 'Seite eingeblendet');
+      } else {
+        info(`${pageLabel} wurde ausgeblendet`, 'Seite versteckt');
+      }
     } catch (error) {
       console.error('Fehler beim Aktualisieren der Seitensichtbarkeit:', error);
+      error('Fehler beim Ändern der Seitensichtbarkeit', 'Fehler');
     }
   };
   
@@ -104,8 +114,10 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
       if (categoryName) {
         await db.budgets.where('categoryName').equals(categoryName).delete();
       }
+      success(`Kategorie "${categoryName}" wurde gelöscht`, 'Kategorie entfernt');
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
+      error('Fehler beim Löschen der Kategorie', 'Fehler');
     }
     setConfirmOpen(false); 
     setCategoryToDelete(null); 
@@ -120,11 +132,14 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     try {
       if (editingCategory?.id) {
         await db.categories.update(editingCategory.id, categoryData);
+        success(`Kategorie "${categoryData.name}" wurde aktualisiert`, 'Kategorie bearbeitet');
       } else {
         await db.categories.add(categoryData);
+        success(`Kategorie "${categoryData.name}" wurde erstellt`, 'Neue Kategorie');
       }
     } catch (error) {
       console.error('Fehler beim Speichern der Kategorie:', error);
+      error('Fehler beim Speichern der Kategorie', 'Fehler');
     }
   };
   
@@ -146,16 +161,18 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     }
     
     try {
+      const categoryCount = liveCategories.length;
       // Delete all categories and their associated budgets
       await Promise.all([
         db.categories.clear(),
         db.budgets.clear()
       ]);
-      console.log('Alle Kategorien wurden gelöscht.');
+      success(`Alle ${categoryCount} Kategorien wurden gelöscht`, 'Kategorien zurückgesetzt');
       setDeleteAllCategoriesConfirm(false);
       setDeleteAllCategoriesText('');
     } catch (error) {
       console.error('Fehler beim Löschen aller Kategorien:', error);
+      error('Fehler beim Löschen aller Kategorien', 'Fehler');
     }
   };
 
@@ -173,11 +190,14 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   const handleGroupToParent = async (parentId) => {
     if (categoryToGroup && parentId !== categoryToGroup.id) {
       try {
+        const parentName = liveCategories.find(c => c.id === parentId)?.name;
         await db.categories.update(categoryToGroup.id, { parentId });
+        success(`"${categoryToGroup.name}" wurde zu "${parentName}" gruppiert`, 'Kategorie gruppiert');
         setGroupModalOpen(false);
         setCategoryToGroup(null);
       } catch (error) {
         console.error('Fehler beim Gruppieren:', error);
+        error('Fehler beim Gruppieren der Kategorie', 'Fehler');
       }
     }
   };
@@ -185,8 +205,10 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
   const handleUngroupCategory = async (category) => {
     try {
       await db.categories.update(category.id, { parentId: null });
+      success(`"${category.name}" wurde entgruppiert`, 'Kategorie entgruppiert');
     } catch (error) {
       console.error('Fehler beim Entgruppieren:', error);
+      error('Fehler beim Entgruppieren der Kategorie', 'Fehler');
     }
   };
 
@@ -215,9 +237,10 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
         db.sharedExpenses.clear(),
         db.savingsGoals.clear()
       ]);
-      console.log('Alle Daten wurden gelöscht.');
+      warning('Alle Daten wurden unwiderruflich gelöscht', 'Komplett zurückgesetzt');
     } catch (error) {
       console.error('Fehler beim Löschen aller Daten:', error);
+      error('Fehler beim Löschen der Daten', 'Fehler');
     }
     setDeleteAllConfirmOpen(false);
     setDeleteConfirmText('');
@@ -294,9 +317,11 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      console.log('Daten wurden erfolgreich exportiert.');
+      const totalItems = transactions.length + categories.length + budgets.length + contacts.length + sharedExpenses.length + savingsGoals.length;
+      success(`Backup erstellt mit ${totalItems} Einträgen`, 'Export erfolgreich');
     } catch (error) {
       console.error('Fehler beim Exportieren der Daten:', error);
+      error('Fehler beim Erstellen des Backups', 'Export fehlgeschlagen');
     }
   };
 
@@ -623,7 +648,6 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
       monthlyExpenses: ''
     });
     const [isDirty, setIsDirty] = useState(false);
-    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
 
     // Load data on component mount
     React.useEffect(() => {
@@ -638,6 +662,23 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     }, [userSettings?.value, isDirty]);
 
     const handleInputChange = (field, value) => {
+      // Basic validation with feedback
+      if (field === 'age' && value) {
+        const ageNum = parseInt(value);
+        if (isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+          warning('Alter muss zwischen 18 und 120 Jahren liegen', 'Ungültiges Alter');
+          return;
+        }
+      }
+      
+      if ((field === 'annualIncome' || field === 'monthlyExpenses') && value) {
+        const amount = parseFloat(value);
+        if (isNaN(amount) || amount < 0) {
+          warning('Betrag muss eine positive Zahl sein', 'Ungültiger Betrag');
+          return;
+        }
+      }
+      
       setLocalProfile(prev => ({
         ...prev,
         [field]: value
@@ -661,11 +702,11 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
         });
         setIsDirty(false);
         
-        // Show success feedback
-        setShowSaveSuccess(true);
-        setTimeout(() => setShowSaveSuccess(false), 3000);
+        // Toast notification instead of inline feedback
+        success('Profildaten wurden gespeichert', 'Profil aktualisiert');
       } catch (error) {
         console.error('Fehler beim Speichern:', error);
+        error('Fehler beim Speichern der Profildaten', 'Fehler');
       }
     };
 
@@ -677,15 +718,6 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
             <p className="text-sm mt-1" style={{ color: jonyColors.textSecondary }}>Deine persönlichen Finanzdaten</p>
           </div>
           <div className="flex items-center gap-3">
-            {showSaveSuccess && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{
-                backgroundColor: jonyColors.accent1Alpha,
-                color: jonyColors.accent1
-              }}>
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
-                <span className="text-sm font-medium">Gespeichert!</span>
-              </div>
-            )}
             {isDirty && (
               <button
                 onClick={handleSave}
@@ -718,11 +750,12 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               type="text"
               value={localProfile.userName}
               onChange={(e) => handleInputChange('userName', e.target.value)}
-              className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+              className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
               style={{
                 backgroundColor: jonyColors.cardBackground,
                 color: jonyColors.textPrimary,
-                border: `1px solid ${jonyColors.border}`
+                border: `1px solid ${jonyColors.border}`,
+                outline: 'none'
               }}
               onFocus={(e) => {
                 e.target.style.borderColor = jonyColors.textSecondary;
@@ -745,11 +778,12 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               max="120"
               value={localProfile.age}
               onChange={(e) => handleInputChange('age', e.target.value)}
-              className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+              className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
               style={{
                 backgroundColor: jonyColors.cardBackground,
                 color: jonyColors.textPrimary,
-                border: `1px solid ${jonyColors.border}`
+                border: `1px solid ${jonyColors.border}`,
+                outline: 'none'
               }}
               onFocus={(e) => {
                 e.target.style.borderColor = jonyColors.textSecondary;
@@ -772,11 +806,12 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               step="1000"
               value={localProfile.annualIncome}
               onChange={(e) => handleInputChange('annualIncome', e.target.value)}
-              className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+              className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
               style={{
                 backgroundColor: jonyColors.cardBackground,
                 color: jonyColors.textPrimary,
-                border: `1px solid ${jonyColors.border}`
+                border: `1px solid ${jonyColors.border}`,
+                outline: 'none'
               }}
               onFocus={(e) => {
                 e.target.style.borderColor = jonyColors.textSecondary;
@@ -799,11 +834,12 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               step="100"
               value={localProfile.monthlyExpenses}
               onChange={(e) => handleInputChange('monthlyExpenses', e.target.value)}
-              className="w-full px-4 py-3 border rounded-xl font-medium transition-colors focus:outline-none"
+              className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
               style={{
                 backgroundColor: jonyColors.cardBackground,
                 color: jonyColors.textPrimary,
-                border: `1px solid ${jonyColors.border}`
+                border: `1px solid ${jonyColors.border}`,
+                outline: 'none'
               }}
               onFocus={(e) => {
                 e.target.style.borderColor = jonyColors.textSecondary;
@@ -1134,6 +1170,9 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <Toast toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

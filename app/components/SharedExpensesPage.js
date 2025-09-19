@@ -27,6 +27,26 @@ const formatCurrency = (amount) =>
     currency: 'EUR',
   }).format(amount);
 
+// Neon color mapping for person initials (same as inbox)
+const getNeonPersonColor = (personName) => {
+  const neonColors = [
+    jonyColors.accent1,     // Neon green
+    jonyColors.accent2,     // Neon cyan  
+    jonyColors.magenta,     // Neon magenta
+    jonyColors.orange,      // Orange
+    jonyColors.greenMedium, // Medium green
+    jonyColors.magentaLight // Light magenta
+  ];
+  
+  // Create consistent color mapping based on name hash
+  let hash = 0;
+  for (let i = 0; i < personName.length; i++) {
+    hash = personName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  return neonColors[Math.abs(hash) % neonColors.length];
+};
+
 const SharedExpensesPage = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -42,20 +62,8 @@ const SharedExpensesPage = () => {
   const [showTransactionHistory, setShowTransactionHistory] = useState({});
   const [selectedPersonHistory, setSelectedPersonHistory] = useState(null);
 
-  // MOCK DATA: In a real app, this would come from a user contacts table.
-  const allContacts = useMemo(
-    () => [
-      { name: 'Lukas', color: jonyColors.accent1 },
-      { name: 'Lotta', color: jonyColors.magenta },
-      { name: 'Simon', color: jonyColors.accent2 },
-      { name: 'Anna M.', color: jonyColors.accent1 },
-      { name: 'Max K.', color: jonyColors.accent2 },
-      { name: 'Julia', color: jonyColors.magenta },
-      { name: 'Chris', color: jonyColors.accent1 },
-      { name: 'Tina', color: jonyColors.magenta },
-    ],
-    []
-  );
+  // Load contacts from database
+  const allContacts = useLiveQuery(() => db.contacts.toArray(), []) || [];
 
   const frequentContacts = allContacts.slice(0, 3);
   const personSuggestions = allContacts.filter(
@@ -83,15 +91,28 @@ const SharedExpensesPage = () => {
     const monthStart = new Date(year, month, 1);
     const monthEnd = new Date(year, month + 1, 0);
 
+    // Get relevant shared expenses from sharedExpenses table
     const relevantExpenses = sharedExpenses.filter(
       (expense) =>
         new Date(expense.date) >= monthStart &&
         new Date(expense.date) <= monthEnd
     );
 
+    // Get relevant shared transactions from transactions table  
+    const relevantSharedTransactions = transactions.filter(
+      (transaction) => {
+        if (!transaction.sharedWith || !Array.isArray(transaction.sharedWith) || transaction.sharedWith.length === 0) {
+          return false;
+        }
+        const transactionDate = new Date(transaction.date);
+        return transactionDate >= monthStart && transactionDate <= monthEnd;
+      }
+    );
+
     // Gruppiere Ausgaben nach Personen
     const personGroups = {};
 
+    // Process shared expenses from sharedExpenses table
     relevantExpenses.forEach((expense) => {
       const paidByMe = expense.paidBy === 'Me';
 
@@ -99,7 +120,7 @@ const SharedExpensesPage = () => {
         if (!personGroups[person.name]) {
           personGroups[person.name] = {
             name: person.name,
-            color: person.color || jonyColors.accent1,
+            color: getNeonPersonColor(person.name),
             totalOwed: 0,
             totalPaid: 0,
             transactions: [],
@@ -121,6 +142,49 @@ const SharedExpensesPage = () => {
           ...expense,
           personAmount: person.amount,
           paidByMe,
+          source: 'sharedExpense'
+        });
+      });
+    });
+
+    // Process shared transactions from transactions table
+    relevantSharedTransactions.forEach((transaction) => {
+      // For shared transactions, I always paid (since they're my transactions split with others)
+      const paidByMe = true;
+      
+      transaction.sharedWith.forEach((person) => {
+        if (!person || !person.name) return; // Skip invalid persons
+        
+        if (!personGroups[person.name]) {
+          personGroups[person.name] = {
+            name: person.name,
+            color: getNeonPersonColor(person.name),
+            totalOwed: 0,
+            totalPaid: 0,
+            transactions: [],
+          };
+        }
+
+        const group = personGroups[person.name];
+        
+        // Calculate person's share of the transaction
+        // If amount is provided use it, otherwise split equally
+        const totalSharers = transaction.sharedWith.length + 1; // +1 for me
+        const personAmount = person.amount || Math.abs(transaction.amount) / totalSharers;
+        
+        // Ich habe bezahlt - die Person schuldet mir Geld  
+        group.totalOwed += personAmount;
+
+        // Füge Transaktion zur Historie hinzu
+        group.transactions.push({
+          id: transaction.id,
+          date: transaction.date,
+          description: transaction.description || transaction.recipient || 'Geteilte Ausgabe',
+          totalAmount: Math.abs(transaction.amount),
+          personAmount: personAmount,
+          paidByMe,
+          source: 'transaction',
+          category: transaction.category
         });
       });
     });
@@ -147,7 +211,7 @@ const SharedExpensesPage = () => {
     };
 
     return { data, summary };
-  }, [sharedExpenses, currentDate]);
+  }, [sharedExpenses, transactions, currentDate]);
 
   const toggleContactInShare = (contact) => {
     let newSharedWith = [...newSharedExpense.sharedWith];
@@ -161,7 +225,7 @@ const SharedExpensesPage = () => {
     setNewSharedExpense((prev) => ({ ...prev, sharedWith: newSharedWith }));
   };
 
-  const handleAddPerson = (name) => {
+  const handleAddPerson = async (name) => {
     const trimmedName = name.trim();
     if (
       !trimmedName ||
@@ -170,19 +234,22 @@ const SharedExpensesPage = () => {
       setPersonSearch('');
       return;
     }
-    const existingContact = allContacts.find(
+    
+    let contact = allContacts.find(
       (c) => c.name.toLowerCase() === trimmedName.toLowerCase()
     );
-    const newContact = existingContact
-      ? existingContact
-      : {
-          name: trimmedName,
-          color: `#${Math.floor(Math.random() * 16777215)
-            .toString(16)
-            .padStart(6, '0')}`,
-        };
+    
+    if (!contact) {
+      // Create new contact in database
+      contact = {
+        name: trimmedName,
+        color: getNeonPersonColor(trimmedName),
+        createdAt: new Date().toISOString()
+      };
+      await db.contacts.add(contact);
+    }
 
-    toggleContactInShare(newContact);
+    toggleContactInShare(contact);
     setPersonSearch('');
     setShowPersonSuggestions(false);
   };
@@ -285,6 +352,13 @@ const SharedExpensesPage = () => {
       expense.sharedWith.some(p => p.name === personName)
     );
 
+    // Get all shared transactions involving this person
+    const sharedTransactionsWithPerson = transactions.filter(transaction =>
+      transaction.sharedWith && 
+      Array.isArray(transaction.sharedWith) && 
+      transaction.sharedWith.some(p => p && p.name === personName)
+    );
+
     // Get all regular transactions that might involve this person (based on recipient)
     const regularTransactionsWithPerson = transactions.filter(transaction => 
       transaction.recipient && transaction.recipient.toLowerCase().includes(personName.toLowerCase())
@@ -292,6 +366,7 @@ const SharedExpensesPage = () => {
 
     // Combine and format the history
     const combinedHistory = [
+      // Shared expenses from sharedExpenses table
       ...sharedExpensesWithPerson.map(expense => ({
         id: expense.id,
         type: 'shared_expense',
@@ -302,6 +377,25 @@ const SharedExpensesPage = () => {
         paidByMe: expense.paidBy === 'Me',
         settled: expense.settledAmount > 0
       })),
+      // Shared transactions from transactions table
+      ...sharedTransactionsWithPerson.map(transaction => {
+        const person = transaction.sharedWith.find(p => p && p.name === personName);
+        const totalSharers = transaction.sharedWith.length + 1; // +1 for me
+        const personShare = person?.amount || Math.abs(transaction.amount) / totalSharers;
+        
+        return {
+          id: transaction.id,
+          type: 'shared_transaction',
+          date: transaction.date,
+          description: transaction.description || transaction.recipient || 'Geteilte Ausgabe',
+          amount: Math.abs(transaction.amount),
+          personShare: personShare,
+          paidByMe: true, // I always paid for my transactions
+          settled: false, // Shared transactions are not settled via this system
+          category: transaction.category
+        };
+      }),
+      // Regular transactions that might involve this person
       ...regularTransactionsWithPerson.map(transaction => ({
         id: transaction.id,
         type: 'transaction',
@@ -651,32 +745,12 @@ const SharedExpensesPage = () => {
 
         {/* Create Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 backdrop-blur-lg flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
-            <div className="rounded-3xl max-w-xl w-full p-8 shadow-2xl border" style={{
-              backgroundColor: jonyColors.surface,
-              border: `1px solid ${jonyColors.border}`
-            }}>
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg" style={{
-                  backgroundColor: jonyColors.accent1
-                }}>
-                  <Plus className="w-6 h-6" style={{ color: jonyColors.background }} />
-                </div>
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+            <div className="rounded-2xl max-w-md w-full p-8 shadow-2xl" style={{ backgroundColor: jonyColors.surface }}>
+              <h2 className="text-xl font-semibold mb-8 text-center" style={{ color: jonyColors.textPrimary }}>Geteilte Ausgabe hinzufügen</h2>
+              
+              <div className="space-y-5">
                 <div>
-                  <h2 className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>
-                    Neue geteilte Ausgabe
-                  </h2>
-                  <p className="text-sm" style={{ color: jonyColors.textSecondary }}>
-                    Erfasse eine Ausgabe und teile sie mit anderen.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
-                    Beschreibung
-                  </label>
                   <input
                     type="text"
                     value={newSharedExpense.description}
@@ -686,23 +760,21 @@ const SharedExpensesPage = () => {
                         description: e.target.value,
                       }))
                     }
-                    placeholder="Essen gehen mit Freunden..."
-                    className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 text-base font-medium transition-all"
+                    placeholder="Beschreibung (z.B. Essen gehen mit Freunden)"
+                    className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
                     style={{
                       backgroundColor: jonyColors.cardBackground,
                       color: jonyColors.textPrimary,
-                      borderColor: jonyColors.cardBorder,
-                      '--tw-ring-color': jonyColors.accent1
+                      border: `1px solid ${jonyColors.border}`,
+                      outline: 'none'
                     }}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: jonyColors.textPrimary }}>
-                    Gesamtbetrag
-                  </label>
                   <input
                     type="number"
+                    step="0.01"
                     value={newSharedExpense.totalAmount}
                     onChange={(e) =>
                       setNewSharedExpense((prev) => ({
@@ -710,29 +782,19 @@ const SharedExpensesPage = () => {
                         totalAmount: e.target.value,
                       }))
                     }
-                    placeholder="50.00"
-                    className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 text-base font-medium transition-all"
+                    placeholder="Gesamtbetrag (€)"
+                    className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
                     style={{
                       backgroundColor: jonyColors.cardBackground,
                       color: jonyColors.textPrimary,
-                      borderColor: jonyColors.cardBorder,
-                      '--tw-ring-color': jonyColors.accent1
+                      border: `1px solid ${jonyColors.border}`,
+                      outline: 'none'
                     }}
                   />
                 </div>
 
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Geteilt mit
-                  </label>
-                  {newSharedExpense.sharedWith.length > 0 && (
-                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                      Du und {newSharedExpense.sharedWith.length} Person(en)
-                    </div>
-                  )}
-                </div>
-                <div className="relative mb-4">
+                <div className="relative">
                   <input
                     type="text"
                     value={personSearch}
@@ -742,8 +804,14 @@ const SharedExpensesPage = () => {
                     onKeyDown={(e) =>
                       e.key === 'Enter' && handleAddPerson(personSearch)
                     }
-                    placeholder="Person suchen oder hinzufügen..."
-                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow bg-white/80 dark:bg-slate-700/80"
+                    placeholder="Person hinzufügen..."
+                    className="w-full px-4 py-3 rounded-xl text-base transition-all duration-200"
+                    style={{
+                      backgroundColor: jonyColors.cardBackground,
+                      color: jonyColors.textPrimary,
+                      border: `1px solid ${jonyColors.border}`,
+                      outline: 'none'
+                    }}
                   />
                   {showPersonSuggestions && (
                     <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
@@ -852,25 +920,32 @@ const SharedExpensesPage = () => {
 
               {newSharedExpense.splitType === 'custom' && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-900">
-                    <span className="font-semibold">Dein Anteil</span>
-                    <span className="font-bold text-lg">
+                  <div className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: jonyColors.cardBackground }}>
+                    <span className="font-semibold" style={{ color: jonyColors.textPrimary }}>Dein Anteil</span>
+                    <span className="font-bold text-lg" style={{ color: jonyColors.textPrimary }}>
                       {formatCurrency(myCalculatedShare)}
                     </span>
                   </div>
                   {newSharedExpense.sharedWith.map((person) => (
                     <div
                       key={person.name}
-                      className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-900"
+                      className="flex items-center justify-between p-4 rounded-xl"
+                      style={{ backgroundColor: jonyColors.cardBackground }}
                     >
-                      <span className="font-semibold">{person.name}</span>
+                      <span className="font-semibold" style={{ color: jonyColors.textPrimary }}>{person.name}</span>
                       <input
                         type="number"
                         value={person.amount}
                         onChange={(e) =>
                           handleUpdateMyShare(person.name, e.target.value)
                         }
-                        className="w-32 px-2 py-1 text-right border rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                        className="w-32 px-4 py-3 text-right rounded-xl text-base transition-all duration-200"
+                        style={{
+                          backgroundColor: jonyColors.cardBackground,
+                          color: jonyColors.textPrimary,
+                          border: `1px solid ${jonyColors.border}`,
+                          outline: 'none'
+                        }}
                       />
                     </div>
                   ))}
@@ -881,19 +956,11 @@ const SharedExpensesPage = () => {
               <div className="flex gap-4 mt-8">
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200"
+                  className="flex-1 px-6 py-4 rounded-xl font-medium transition-all duration-200"
                   style={{
-                    backgroundColor: jonyColors.cardBackground,
+                    backgroundColor: 'transparent',
                     color: jonyColors.textSecondary,
-                    border: `1px solid ${jonyColors.cardBorder}`
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = jonyColors.surface;
-                    e.target.style.color = jonyColors.textPrimary;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = jonyColors.cardBackground;
-                    e.target.style.color = jonyColors.textSecondary;
+                    border: `1px solid ${jonyColors.border}`
                   }}
                 >
                   Abbrechen
@@ -903,20 +970,14 @@ const SharedExpensesPage = () => {
                   disabled={
                     processingId === 'create' || !newSharedExpense.description || !newSharedExpense.totalAmount
                   }
-                  className="flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: jonyColors.accent1, color: jonyColors.background }}
-                  onMouseEnter={(e) => {
-                    if (!e.target.disabled) {
-                      e.target.style.backgroundColor = jonyColors.greenDark;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!e.target.disabled) {
-                      e.target.style.backgroundColor = jonyColors.accent1;
-                    }
+                  className="flex-1 px-6 py-4 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ 
+                    backgroundColor: jonyColors.accent1, 
+                    color: '#000000',
+                    border: 'none'
                   }}
                 >
-                  {processingId === 'create' ? 'Erstelle...' : 'Erstellen'}
+                  {processingId === 'create' ? 'Erstelle...' : 'Hinzufügen'}
                 </button>
               </div>
             </div>
