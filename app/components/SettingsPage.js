@@ -662,7 +662,15 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
     }, [userSettings?.value, isDirty]);
 
     const handleInputChange = (field, value) => {
-      // Basic validation with feedback
+      setLocalProfile(prev => ({
+        ...prev,
+        [field]: value
+      }));
+      setIsDirty(true);
+    };
+
+    const handleInputBlur = (field, value) => {
+      // Validation only happens when leaving the field
       if (field === 'age' && value) {
         const ageNum = parseInt(value);
         if (isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
@@ -678,12 +686,6 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
           return;
         }
       }
-      
-      setLocalProfile(prev => ({
-        ...prev,
-        [field]: value
-      }));
-      setIsDirty(true);
     };
 
     const handleSave = async () => {
@@ -790,6 +792,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = jonyColors.border;
+                handleInputBlur('age', e.target.value);
               }}
               placeholder="30"
             />
@@ -818,6 +821,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = jonyColors.border;
+                handleInputBlur('annualIncome', e.target.value);
               }}
               placeholder="50000"
             />
@@ -846,6 +850,7 @@ const SettingsPage = ({ settings, setSettings, categories, setCategories, enhanc
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = jonyColors.border;
+                handleInputBlur('monthlyExpenses', e.target.value);
               }}
               placeholder="2500"
             />
