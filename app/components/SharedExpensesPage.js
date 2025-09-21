@@ -61,6 +61,7 @@ const SharedExpensesPage = () => {
   const [processingId, setProcessingId] = useState(null);
   const [showTransactionHistory, setShowTransactionHistory] = useState({});
   const [selectedPersonHistory, setSelectedPersonHistory] = useState(null);
+  const [splitSettings, setSplitSettings] = useState({}); // Format: { personName: { myShare: number, showSplitControl: boolean } }
 
   // Load contacts from database
   const allContacts = useLiveQuery(() => db.contacts.toArray(), []) || [];
@@ -76,6 +77,15 @@ const SharedExpensesPage = () => {
   const sharedExpenses =
     useLiveQuery(() => db.sharedExpenses.toArray(), []) || [];
   const transactions = useLiveQuery(() => db.transactions.toArray(), []) || [];
+
+  // Prüfe ob überhaupt geteilte Ausgaben existieren (sowohl in sharedExpenses als auch in transactions)
+  const hasAnySharedExpenses = useMemo(() => {
+    const hasSharedExpenses = sharedExpenses.length > 0;
+    const hasSharedTransactions = transactions.some(t => 
+      t.sharedWith && Array.isArray(t.sharedWith) && t.sharedWith.length > 0
+    );
+    return hasSharedExpenses || hasSharedTransactions;
+  }, [sharedExpenses, transactions]);
 
   const goToPreviousMonth = () => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -117,6 +127,11 @@ const SharedExpensesPage = () => {
       const paidByMe = expense.paidBy === 'Me';
 
       expense.sharedWith.forEach((person) => {
+        // Überspringe ausgeglichene Ausgaben für diese spezifische Person
+        const isSettledWithThisPerson = expense.settledWithPersons && 
+                                       expense.settledWithPersons.includes(person.name);
+        if (isSettledWithThisPerson) return;
+        
         if (!personGroups[person.name]) {
           personGroups[person.name] = {
             name: person.name,
@@ -129,10 +144,10 @@ const SharedExpensesPage = () => {
 
         const group = personGroups[person.name];
         
-        if (paidByMe) {
-          // Ich habe bezahlt - die Person schuldet mir Geld
+        if (paidByMe && !expense.paidByThem) {
+          // Ich habe bezahlt - die Person schuldet mir Geld (nur wenn sie noch nicht bezahlt hat)
           group.totalOwed += person.amount;
-        } else {
+        } else if (!paidByMe) {
           // Die Person hat bezahlt - ich schulde ihr Geld  
           group.totalPaid += person.amount;
         }
@@ -142,7 +157,9 @@ const SharedExpensesPage = () => {
           ...expense,
           personAmount: person.amount,
           paidByMe,
-          source: 'sharedExpense'
+          source: 'sharedExpense',
+          isFromSharedExpenses: true,
+          settledWithPersons: expense.settledWithPersons
         });
       });
     });
@@ -154,6 +171,11 @@ const SharedExpensesPage = () => {
       
       transaction.sharedWith.forEach((person) => {
         if (!person || !person.name) return; // Skip invalid persons
+        
+        // Überspringe ausgeglichene Transaktionen für diese spezifische Person
+        const isSettledWithThisPerson = transaction.settledWithPersons && 
+                                       transaction.settledWithPersons.includes(person.name);
+        if (isSettledWithThisPerson) return;
         
         if (!personGroups[person.name]) {
           personGroups[person.name] = {
@@ -172,8 +194,10 @@ const SharedExpensesPage = () => {
         const totalSharers = transaction.sharedWith.length + 1; // +1 for me
         const personAmount = person.amount || Math.abs(transaction.amount) / totalSharers;
         
-        // Ich habe bezahlt - die Person schuldet mir Geld  
-        group.totalOwed += personAmount;
+        // Ich habe bezahlt - die Person schuldet mir Geld (nur wenn sie noch nicht bezahlt hat)
+        if (!transaction.paidByThem) {
+          group.totalOwed += personAmount;
+        }
 
         // Füge Transaktion zur Historie hinzu
         group.transactions.push({
@@ -184,7 +208,9 @@ const SharedExpensesPage = () => {
           personAmount: personAmount,
           paidByMe,
           source: 'transaction',
-          category: transaction.category
+          category: transaction.category,
+          isFromSharedExpenses: false,
+          settledWithPersons: transaction.settledWithPersons
         });
       });
     });
@@ -297,16 +323,216 @@ const SharedExpensesPage = () => {
     }
   };
 
+  // Funktion für einzelne Ausgaben begleichen - KORREKTE LOGIK
+  const handleMarkSingleExpenseAsPaid = async (expenseId, personName, isSharedExpense = true) => {
+    setProcessingId(`single-${expenseId}-${personName}`);
+    try {
+      if (isSharedExpense) {
+        // Für SharedExpenses: Nur als settled markieren
+        const expense = sharedExpenses.find(e => e.id === expenseId);
+        if (!expense) return;
+        
+        const currentSettledWith = expense.settledWithPersons || [];
+        const updatedSettledWith = [...currentSettledWith];
+        if (!updatedSettledWith.includes(personName)) {
+          updatedSettledWith.push(personName);
+        }
+        await db.sharedExpenses.update(expense.id, { settledWithPersons: updatedSettledWith });
+        
+      } else {
+        // Für normale Transaktionen: Betrag der ursprünglichen Transaktion reduzieren
+        const transaction = transactions.find(t => t.id === expenseId);
+        if (!transaction) return;
+        
+        // Finde den Anteil der Person
+        const person = transaction.sharedWith.find(p => p.name === personName);
+        let personShare = person?.amount;
+        
+        // Fallback: Wenn kein spezifischer Betrag definiert ist, muss das Transaction-System dies definieren
+        // Für jetzt: Warnung und einfache gleichmäßige Aufteilung
+        if (!personShare) {
+          console.warn('Person amount not defined, using equal split. Transaction:', transaction.id, 'Person:', personName);
+          const totalSharers = transaction.sharedWith.length + 1; // +1 für mich
+          personShare = Math.abs(transaction.amount) / totalSharers;
+        }
+        
+        // Reduziere den Betrag der ursprünglichen Transaktion
+        const newAmount = transaction.amount + personShare; // Da amount negativ ist, addieren wir
+        
+        // Markiere Person als settled
+        const currentSettledWith = transaction.settledWithPersons || [];
+        const updatedSettledWith = [...currentSettledWith];
+        if (!updatedSettledWith.includes(personName)) {
+          updatedSettledWith.push(personName);
+        }
+        
+        // Speichere den ursprünglichen Betrag beim ersten Settlement
+        const updateData = { 
+          amount: newAmount,
+          settledWithPersons: updatedSettledWith 
+        };
+        
+        // Wenn noch kein originalAmount gesetzt ist, speichere den aktuellen Betrag als original
+        if (!transaction.originalAmount) {
+          updateData.originalAmount = transaction.amount;
+        }
+        
+        // Update die Transaktion
+        await db.transactions.update(transaction.id, updateData);
+      }
+      
+    } catch (error) {
+      console.error('Fehler beim Begleichen der einzelnen Ausgabe:', error);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleMarkAsPaid = async (personName) => {
+    setProcessingId(`paid-${personName}`);
+    try {
+      // Finde alle aktuell sichtbaren, noch nicht ausgeglichenen Ausgaben für diese Person
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+
+      // SharedExpenses für diese Person
+      const relevantExpenses = sharedExpenses.filter(expense => {
+        const expenseDate = new Date(expense.date);
+        const isInMonth = expenseDate >= monthStart && expenseDate <= monthEnd;
+        const involvesThisPerson = expense.sharedWith.some(p => p.name === personName);
+        const notSettledWithThisPerson = !expense.settledWithPersons || !expense.settledWithPersons.includes(personName);
+        
+        return isInMonth && involvesThisPerson && notSettledWithThisPerson;
+      });
+
+      // Normale Transaktionen mit sharedWith für diese Person
+      const relevantTransactions = transactions.filter(transaction => {
+        if (!transaction.sharedWith || !Array.isArray(transaction.sharedWith)) return false;
+        const transactionDate = new Date(transaction.date);
+        const isInMonth = transactionDate >= monthStart && transactionDate <= monthEnd;
+        const involvesThisPerson = transaction.sharedWith.some(p => p && p.name === personName);
+        const notSettledWithThisPerson = !transaction.settledWithPersons || !transaction.settledWithPersons.includes(personName);
+        
+        return isInMonth && involvesThisPerson && notSettledWithThisPerson;
+      });
+
+      // Begleiche alle SharedExpenses für diese Person
+      for (const expense of relevantExpenses) {
+        await handleMarkSingleExpenseAsPaid(expense.id, personName, true);
+      }
+
+      // Begleiche alle normalen Transaktionen für diese Person
+      for (const transaction of relevantTransactions) {
+        await handleMarkSingleExpenseAsPaid(transaction.id, personName, false);
+      }
+
+    } catch (error) {
+      console.error('Error marking as paid:', error);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleSettleUp = async (expenseId, amount, personName) => {
     setProcessingId(expenseId);
     try {
-      const expense = await db.sharedExpenses.get(expenseId);
-      if (!expense) return;
+      // Finde alle Transaktionen für diese Person im aktuellen Monat
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
 
-      const newSettledAmount = expense.settledAmount + amount;
-      await db.sharedExpenses.update(expenseId, {
-        settledAmount: newSettledAmount,
+      // Finde alle relevanten geteilten Transaktionen für diese Person
+      const relevantSharedTransactions = transactions.filter(transaction => {
+        if (!transaction.sharedWith || !Array.isArray(transaction.sharedWith)) return false;
+        const transactionDate = new Date(transaction.date);
+        return transactionDate >= monthStart && 
+               transactionDate <= monthEnd &&
+               transaction.sharedWith.some(p => p && p.name === personName);
       });
+
+      // Für jede geteilte Transaktion: Erstelle eine neue "mein Anteil" Transaktion
+      const myShareTransactions = [];
+      
+      for (const sharedTransaction of relevantSharedTransactions) {
+        const person = sharedTransaction.sharedWith.find(p => p && p.name === personName);
+        const totalSharers = sharedTransaction.sharedWith.length + 1; // +1 für mich
+        const myShare = person?.amount || Math.abs(sharedTransaction.amount) / totalSharers;
+        
+        // Erstelle neue Transaktion für erhaltenen Betrag
+        const myShareTransaction = {
+          date: new Date().toISOString(),
+          description: `Von ${personName} erhalten: ${sharedTransaction.description || sharedTransaction.recipient || 'Geteilte Ausgabe'}`,
+          recipient: personName,
+          amount: myShare, // Positiver Betrag = Einnahme
+          category: sharedTransaction.category,
+          account: sharedTransaction.account,
+          settledFromSharedExpense: true,
+          originalSharedTransactionId: sharedTransaction.id,
+          createdAt: new Date().toISOString()
+        };
+        
+        myShareTransactions.push(myShareTransaction);
+      }
+
+      // Finde relevante SharedExpenses für diese Person
+      const relevantSharedExpenses = sharedExpenses.filter(expense => {
+        const expenseDate = new Date(expense.date);
+        return expenseDate >= monthStart && 
+               expenseDate <= monthEnd &&
+               expense.sharedWith.some(p => p.name === personName);
+      });
+
+      // Für jede SharedExpense: Erstelle eine neue "mein Anteil" Transaktion
+      for (const expense of relevantSharedExpenses) {
+        const person = expense.sharedWith.find(p => p.name === personName);
+        const myShare = person?.amount || 0;
+        
+        if (myShare > 0) {
+          const myShareTransaction = {
+            date: new Date().toISOString(),
+            description: `Von ${personName} erhalten: ${expense.description}`,
+            recipient: personName,
+            amount: myShare, // Positiver Betrag = Einnahme
+            category: 'Geteilte Ausgaben',
+            account: 'Shared Settlement',
+            settledFromSharedExpense: true,
+            originalSharedExpenseId: expense.id,
+            createdAt: new Date().toISOString()
+          };
+          
+          myShareTransactions.push(myShareTransaction);
+        }
+      }
+
+      // Füge alle "mein Anteil" Transaktionen zur Datenbank hinzu
+      if (myShareTransactions.length > 0) {
+        await db.transactions.bulkAdd(myShareTransactions);
+      }
+
+      // Markiere die ursprünglichen geteilten Transaktionen als "ausgeglichen" für diese spezifische Person
+      const transactionUpdates = relevantSharedTransactions.map(t => {
+        const currentSettledWith = t.settledWithPersons || [];
+        const updatedSettledWith = [...currentSettledWith];
+        if (!updatedSettledWith.includes(personName)) {
+          updatedSettledWith.push(personName);
+        }
+        return db.transactions.update(t.id, { settledWithPersons: updatedSettledWith });
+      });
+      
+      const expenseUpdates = relevantSharedExpenses.map(e => {
+        const currentSettledWith = e.settledWithPersons || [];
+        const updatedSettledWith = [...currentSettledWith];
+        if (!updatedSettledWith.includes(personName)) {
+          updatedSettledWith.push(personName);
+        }
+        return db.sharedExpenses.update(e.id, { settledWithPersons: updatedSettledWith });
+      });
+
+      await Promise.all([...transactionUpdates, ...expenseUpdates]);
+
     } catch (error) {
       console.error('Error settling up:', error);
     } finally {
@@ -375,7 +601,9 @@ const SharedExpensesPage = () => {
         amount: expense.totalAmount,
         personShare: expense.sharedWith.find(p => p.name === personName)?.amount || 0,
         paidByMe: expense.paidBy === 'Me',
-        settled: expense.settledAmount > 0
+        settled: expense.settledAmount > 0,
+        isFromSharedExpenses: true,
+        settledWithPersons: expense.settledWithPersons
       })),
       // Shared transactions from transactions table
       ...sharedTransactionsWithPerson.map(transaction => {
@@ -392,7 +620,9 @@ const SharedExpensesPage = () => {
           personShare: personShare,
           paidByMe: true, // I always paid for my transactions
           settled: false, // Shared transactions are not settled via this system
-          category: transaction.category
+          category: transaction.category,
+          isFromSharedExpenses: false,
+          settledWithPersons: transaction.settledWithPersons
         };
       }),
       // Regular transactions that might involve this person
@@ -422,20 +652,209 @@ const SharedExpensesPage = () => {
     }
   };
 
+  const toggleSplitControl = (personName, totalAmount) => {
+    setSplitSettings(prev => ({
+      ...prev,
+      [personName]: {
+        myShare: prev[personName]?.myShare || totalAmount / 2, // Default: 50% Split
+        showSplitControl: !prev[personName]?.showSplitControl
+      }
+    }));
+  };
+
+  const updateMyShare = (personName, newShare) => {
+    setSplitSettings(prev => ({
+      ...prev,
+      [personName]: {
+        ...prev[personName],
+        myShare: newShare
+      }
+    }));
+  };
+
+  // Prüfe ob eine Person vollständig bezahlt/ausgeglichen hat (nur für aktuell sichtbare Transaktionen)
+  const getPersonPaymentStatus = (personName) => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+
+    // Finde nur aktuell sichtbare/relevante Transaktionen (noch nicht ausgeglichene)
+    const visibleSharedTransactions = transactions.filter(transaction => {
+      if (!transaction.sharedWith || !Array.isArray(transaction.sharedWith)) return false;
+      const transactionDate = new Date(transaction.date);
+      const isInMonth = transactionDate >= monthStart && transactionDate <= monthEnd;
+      const involvesThisPerson = transaction.sharedWith.some(p => p && p.name === personName);
+      const notSettledWithThisPerson = !transaction.settledWithPersons || !transaction.settledWithPersons.includes(personName);
+      
+      return isInMonth && involvesThisPerson && notSettledWithThisPerson;
+    });
+
+    const visibleSharedExpenses = sharedExpenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      const isInMonth = expenseDate >= monthStart && expenseDate <= monthEnd;
+      const involvesThisPerson = expense.sharedWith.some(p => p.name === personName);
+      const notSettledWithThisPerson = !expense.settledWithPersons || !expense.settledWithPersons.includes(personName);
+      
+      return isInMonth && involvesThisPerson && notSettledWithThisPerson;
+    });
+
+    // Prüfe ob alle sichtbaren Transaktionen als bezahlt markiert sind
+    const allVisibleTransactionsPaid = visibleSharedTransactions.length === 0 || 
+      visibleSharedTransactions.every(t => t.paidByThem === true);
+    
+    const allVisibleExpensesPaid = visibleSharedExpenses.length === 0 || 
+      visibleSharedExpenses.every(e => e.paidByThem === true);
+
+    const hasVisibleTransactions = visibleSharedTransactions.length > 0 || visibleSharedExpenses.length > 0;
+
+    return {
+      fullyPaid: allVisibleTransactionsPaid && allVisibleExpensesPaid && hasVisibleTransactions,
+      hasTransactions: hasVisibleTransactions
+    };
+  };
+
+  const applyCustomSplit = async (personName, myShare, totalAmount) => {
+    setProcessingId(`split-${personName}`);
+    try {
+      // Ähnlich wie handleSettleUp, aber mit custom Split-Anteil
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+
+      // Finde relevante geteilte Transaktionen für diese Person
+      const relevantSharedTransactions = transactions.filter(transaction => {
+        if (!transaction.sharedWith || !Array.isArray(transaction.sharedWith)) return false;
+        const transactionDate = new Date(transaction.date);
+        return transactionDate >= monthStart && 
+               transactionDate <= monthEnd &&
+               transaction.sharedWith.some(p => p && p.name === personName);
+      });
+
+      // Finde relevante SharedExpenses für diese Person
+      const relevantSharedExpenses = sharedExpenses.filter(expense => {
+        const expenseDate = new Date(expense.date);
+        return expenseDate >= monthStart && 
+               expenseDate <= monthEnd &&
+               expense.sharedWith.some(p => p.name === personName);
+      });
+
+      // Erstelle "mein Anteil" Transaktionen mit custom Split
+      const myShareTransactions = [];
+      
+      for (const sharedTransaction of relevantSharedTransactions) {
+        const myShareTransaction = {
+          date: new Date().toISOString(),
+          description: `Von ${personName} erhalten (${Math.round(myShare/Math.abs(sharedTransaction.amount)*100)}%): ${sharedTransaction.description || sharedTransaction.recipient || 'Geteilte Ausgabe'}`,
+          recipient: personName,
+          amount: myShare, // Positiver Betrag = Einnahme
+          category: sharedTransaction.category,
+          account: sharedTransaction.account,
+          settledFromSharedExpense: true,
+          originalSharedTransactionId: sharedTransaction.id,
+          customSplitPercentage: myShare/Math.abs(sharedTransaction.amount)*100,
+          createdAt: new Date().toISOString()
+        };
+        
+        myShareTransactions.push(myShareTransaction);
+      }
+
+      for (const expense of relevantSharedExpenses) {
+        const myShareTransaction = {
+          date: new Date().toISOString(),
+          description: `Von ${personName} erhalten (${Math.round(myShare/expense.totalAmount*100)}%): ${expense.description}`,
+          recipient: personName,
+          amount: myShare, // Positiver Betrag = Einnahme
+          category: 'Geteilte Ausgaben',
+          account: 'Shared Settlement',
+          settledFromSharedExpense: true,
+          originalSharedExpenseId: expense.id,
+          customSplitPercentage: myShare/expense.totalAmount*100,
+          createdAt: new Date().toISOString()
+        };
+        
+        myShareTransactions.push(myShareTransaction);
+      }
+
+      // Füge alle "mein Anteil" Transaktionen zur Datenbank hinzu
+      if (myShareTransactions.length > 0) {
+        await db.transactions.bulkAdd(myShareTransactions);
+      }
+
+      // Markiere die ursprünglichen geteilten Transaktionen als "ausgeglichen" für diese spezifische Person
+      const transactionUpdates = relevantSharedTransactions.map(t => {
+        const currentSettledWith = t.settledWithPersons || [];
+        const updatedSettledWith = [...currentSettledWith];
+        if (!updatedSettledWith.includes(personName)) {
+          updatedSettledWith.push(personName);
+        }
+        return db.transactions.update(t.id, { settledWithPersons: updatedSettledWith });
+      });
+      
+      const expenseUpdates = relevantSharedExpenses.map(e => {
+        const currentSettledWith = e.settledWithPersons || [];
+        const updatedSettledWith = [...currentSettledWith];
+        if (!updatedSettledWith.includes(personName)) {
+          updatedSettledWith.push(personName);
+        }
+        return db.sharedExpenses.update(e.id, { settledWithPersons: updatedSettledWith });
+      });
+
+      await Promise.all([...transactionUpdates, ...expenseUpdates]);
+
+      // Verstecke Split-Control nach erfolgreichem Anwenden
+      setSplitSettings(prev => ({
+        ...prev,
+        [personName]: {
+          ...prev[personName],
+          showSplitControl: false
+        }
+      }));
+
+    } catch (error) {
+      console.error('Error applying custom split:', error);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: jonyColors.background, color: jonyColors.textPrimary }}>
+      <style jsx>{`
+        .slider::-webkit-slider-thumb {
+          appearance: none;
+          height: 20px;
+          width: 20px;
+          border-radius: 50%;
+          background: ${jonyColors.accent1};
+          border: 2px solid ${jonyColors.background};
+          cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .slider::-moz-range-thumb {
+          height: 20px;
+          width: 20px;
+          border-radius: 50%;
+          background: ${jonyColors.accent1};
+          border: 2px solid ${jonyColors.background};
+          cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+      `}</style>
       <div className="px-6 py-8 mb-2">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
               <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
                 Geteilte Ausgaben
               </h1>
-              {sharedExpenses.length > 0 && (
+              {hasAnySharedExpenses && (
                 <div className="px-3 py-1 rounded-full font-semibold text-sm" style={{ backgroundColor: jonyColors.accent1Alpha, color: jonyColors.accent1 }}>
-                  {sharedExpenses.length}
+                  {sharedExpenses.length + transactions.filter(t => t.sharedWith && Array.isArray(t.sharedWith) && t.sharedWith.length > 0).length}
                 </div>
               )}
             </div>
@@ -500,7 +919,7 @@ const SharedExpensesPage = () => {
       <div className="px-6 mb-12">
         <div className="max-w-7xl mx-auto">
 
-          {sharedExpenses.length === 0 ? (
+          {!hasAnySharedExpenses ? (
             <div className="flex items-center justify-center py-16">
               <div className="text-center p-12 rounded-3xl border-2" style={{
                 backgroundColor: jonyColors.surface,
@@ -572,12 +991,30 @@ const SharedExpensesPage = () => {
                   >
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-4">
-                        <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shadow-lg`}
-                          style={{ backgroundColor: person.color, color: jonyColors.background }}
-                        >
-                          {renderInitial(person.name)}
-                        </div>
+                        {(() => {
+                          const paymentStatus = getPersonPaymentStatus(person.name);
+                          const isPaid = paymentStatus.fullyPaid && paymentStatus.hasTransactions;
+                          const avatarColor = isPaid ? jonyColors.greenMedium : jonyColors.magenta;
+                          
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shadow-lg transition-all duration-300`}
+                                style={{ backgroundColor: avatarColor, color: jonyColors.background }}
+                              >
+                                {renderInitial(person.name)}
+                              </div>
+                              {isPaid && (
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.greenMedium }}></div>
+                                  <span className="text-xs font-semibold" style={{ color: jonyColors.greenMedium }}>
+                                    Bezahlt
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div>
                           <h3 className="text-lg font-bold" style={{ color: jonyColors.textPrimary }}>
                             {person.name}
@@ -634,34 +1071,189 @@ const SharedExpensesPage = () => {
                         }
                       </button>
                       
-                      {person.status !== 'settled' && (
-                        <button
-                          onClick={() =>
-                            handleSettleUp(
-                              person.transactions[0]?.id || 'manual', 
-                              person.absoluteAmount,
-                              person.name
-                            )
-                          }
-                          disabled={processingId === person.name}
-                          className="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200"
-                          style={{
-                            backgroundColor: jonyColors.accent2Alpha,
-                            color: jonyColors.accent2
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = jonyColors.accent2;
-                            e.target.style.color = jonyColors.background;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = jonyColors.accent2Alpha;
-                            e.target.style.color = jonyColors.accent2;
-                          }}
-                        >
-                          Ausgleichen
-                        </button>
-                      )}
+                      {(() => {
+                        const paymentStatus = getPersonPaymentStatus(person.name);
+                        const isPaid = paymentStatus.fullyPaid && paymentStatus.hasTransactions;
+                        
+                        if (isPaid) {
+                          return (
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg" style={{
+                              backgroundColor: jonyColors.greenAlpha,
+                              border: `1px solid ${jonyColors.greenMedium}`
+                            }}>
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.greenMedium }}></div>
+                              <span className="text-sm font-semibold" style={{ color: jonyColors.greenMedium }}>
+                                Vollständig beglichen
+                              </span>
+                            </div>
+                          );
+                        }
+                        
+                        if (person.status !== 'settled') {
+                          return (
+                            <>
+                              <button
+                                onClick={() => handleMarkAsPaid(person.name)}
+                                disabled={processingId === `paid-${person.name}`}
+                                className="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200"
+                                style={{
+                                  backgroundColor: jonyColors.greenAlpha,
+                                  color: jonyColors.greenMedium
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.target.style.backgroundColor = jonyColors.greenMedium;
+                                  e.target.style.color = jonyColors.background;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.target.style.backgroundColor = jonyColors.greenAlpha;
+                                  e.target.style.color = jonyColors.greenMedium;
+                                }}
+                              >
+                                {processingId === `paid-${person.name}` ? 'Wird gespeichert...' : 'Hat bezahlt'}
+                              </button>
+                              <button
+                                onClick={() => toggleSplitControl(person.name, person.absoluteAmount)}
+                                className="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200"
+                                style={{
+                                  backgroundColor: splitSettings[person.name]?.showSplitControl ? jonyColors.orange : jonyColors.accent2Alpha,
+                                  color: splitSettings[person.name]?.showSplitControl ? jonyColors.background : jonyColors.accent2
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!splitSettings[person.name]?.showSplitControl) {
+                                    e.target.style.backgroundColor = jonyColors.accent2;
+                                    e.target.style.color = jonyColors.background;
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!splitSettings[person.name]?.showSplitControl) {
+                                    e.target.style.backgroundColor = jonyColors.accent2Alpha;
+                                    e.target.style.color = jonyColors.accent2;
+                                  }
+                                }}
+                              >
+                                {splitSettings[person.name]?.showSplitControl ? 'Split schließen' : 'Split anpassen'}
+                              </button>
+                            </>
+                          );
+                        }
+                        
+                        return null;
+                      })()}
                     </div>
+
+                    {/* Minimalistisches Split Control */}
+                    {splitSettings[person.name]?.showSplitControl && (
+                      <div className="mt-4 p-4 rounded-xl" style={{
+                        backgroundColor: jonyColors.surface,
+                        border: `1px solid ${jonyColors.cardBorder}`
+                      }}>
+                        <div className="space-y-3">
+                          {/* Kompakte Header-Zeile */}
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>
+                              Mein Anteil von {formatCurrency(person.absoluteAmount)}
+                            </span>
+                            <span className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                              {Math.round(((splitSettings[person.name]?.myShare || person.absoluteAmount / 2) / person.absoluteAmount) * 100)}%
+                            </span>
+                          </div>
+                          
+                          {/* Kompakte Eingabe-Zeile */}
+                          <div className="flex items-center gap-3">
+                            {/* Direkte Betragseingabe */}
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                max={person.absoluteAmount}
+                                step="0.01"
+                                value={splitSettings[person.name]?.myShare || person.absoluteAmount / 2}
+                                onChange={(e) => updateMyShare(person.name, parseFloat(e.target.value) || 0)}
+                                className="w-20 px-3 py-2 text-sm rounded-lg border transition-all duration-200"
+                                style={{
+                                  backgroundColor: jonyColors.cardBackground,
+                                  color: jonyColors.textPrimary,
+                                  border: `1px solid ${jonyColors.cardBorder}`,
+                                  outline: 'none'
+                                }}
+                                onFocus={(e) => {
+                                  e.target.style.borderColor = jonyColors.accent1;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.borderColor = jonyColors.cardBorder;
+                                }}
+                              />
+                              <span className="text-sm" style={{ color: jonyColors.textSecondary }}>€</span>
+                            </div>
+                            
+                            {/* Kompakter Slider */}
+                            <input
+                              type="range"
+                              min="0"
+                              max={person.absoluteAmount}
+                              step="0.01"
+                              value={splitSettings[person.name]?.myShare || person.absoluteAmount / 2}
+                              onChange={(e) => updateMyShare(person.name, parseFloat(e.target.value))}
+                              className="flex-1 h-2 rounded-lg appearance-none cursor-pointer slider"
+                              style={{
+                                background: `linear-gradient(to right, ${jonyColors.accent1} 0%, ${jonyColors.accent1} ${((splitSettings[person.name]?.myShare || person.absoluteAmount / 2) / person.absoluteAmount) * 100}%, ${jonyColors.cardBorder} ${((splitSettings[person.name]?.myShare || person.absoluteAmount / 2) / person.absoluteAmount) * 100}%, ${jonyColors.cardBorder} 100%)`
+                              }}
+                            />
+                            
+                            {/* Kompakter Apply Button */}
+                            <button
+                              onClick={() => applyCustomSplit(
+                                person.name, 
+                                splitSettings[person.name]?.myShare || person.absoluteAmount / 2,
+                                person.absoluteAmount
+                              )}
+                              disabled={processingId === `split-${person.name}`}
+                              className="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap"
+                              style={{
+                                backgroundColor: jonyColors.accent1,
+                                color: jonyColors.background
+                              }}
+                              onMouseEnter={(e) => {
+                                e.target.style.backgroundColor = jonyColors.greenMedium;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.backgroundColor = jonyColors.accent1;
+                              }}
+                            >
+                              {processingId === `split-${person.name}` ? 'Wird gespeichert...' : 'Anwenden'}
+                            </button>
+                          </div>
+                          
+                          {/* Schnelle Prozent-Buttons */}
+                          <div className="flex gap-2 justify-center">
+                            {[25, 50, 75].map(percent => (
+                              <button
+                                key={percent}
+                                onClick={() => updateMyShare(person.name, (person.absoluteAmount * percent) / 100)}
+                                className="px-3 py-1 text-xs rounded-md transition-all duration-200"
+                                style={{
+                                  backgroundColor: jonyColors.cardBackground,
+                                  color: jonyColors.textSecondary,
+                                  border: `1px solid ${jonyColors.cardBorder}`
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.target.style.backgroundColor = jonyColors.accent1Alpha;
+                                  e.target.style.borderColor = jonyColors.accent1;
+                                  e.target.style.color = jonyColors.accent1;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.target.style.backgroundColor = jonyColors.cardBackground;
+                                  e.target.style.borderColor = jonyColors.cardBorder;
+                                  e.target.style.color = jonyColors.textSecondary;
+                                }}
+                              >
+                                {percent}%
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Transaction History */}
                     {showTransactionHistory[person.name] && (
@@ -677,38 +1269,76 @@ const SharedExpensesPage = () => {
                         </div>
                       
                         <div className="space-y-3">
-                          {person.transactions.map((transaction, index) => (
-                            <div key={`${transaction.id}-${index}`} className="flex items-center justify-between p-3 rounded-lg" style={{
-                              backgroundColor: jonyColors.surface
-                            }}>
-                              <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold`} style={{ 
-                                  backgroundColor: person.color,
-                                  color: jonyColors.background
-                                }}>
-                                  {transaction.paidByMe ? '←' : '→'}
+                          {person.transactions.map((transaction, index) => {
+                            // Check if this specific transaction is already settled with this person
+                            const isTransactionSettled = transaction.settledWithPersons && 
+                                                        transaction.settledWithPersons.includes(person.name);
+                            
+                            return (
+                              <div key={`${transaction.id}-${index}`} className="flex items-center justify-between p-3 rounded-lg" style={{
+                                backgroundColor: jonyColors.surface,
+                                opacity: isTransactionSettled ? 0.5 : 1
+                              }}>
+                                <div className="flex items-center gap-3">
+                                  {(() => {
+                                    const paymentStatus = getPersonPaymentStatus(person.name);
+                                    const isPaid = paymentStatus.fullyPaid && paymentStatus.hasTransactions;
+                                    const avatarColor = isPaid ? jonyColors.greenMedium : jonyColors.magenta;
+                                    
+                                    return (
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300`} style={{ 
+                                        backgroundColor: avatarColor,
+                                        color: jonyColors.background
+                                      }}>
+                                        {transaction.paidByMe ? '←' : '→'}
+                                      </div>
+                                    );
+                                  })()}
+                                  <div>
+                                    <p className="font-medium" style={{ color: jonyColors.textPrimary }}>
+                                      {transaction.description}
+                                      {isTransactionSettled && <span style={{ color: jonyColors.accent1 }}> ✓</span>}
+                                    </p>
+                                    <p className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                                      {new Date(transaction.date).toLocaleDateString('de-DE')}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="font-medium" style={{ color: jonyColors.textPrimary }}>
-                                    {transaction.description}
-                                  </p>
-                                  <p className="text-xs" style={{ color: jonyColors.textSecondary }}>
-                                    {new Date(transaction.date).toLocaleDateString('de-DE')}
-                                  </p>
+                                <div className="flex items-center gap-3">
+                                  <div className="text-right">
+                                    <p className="font-semibold" style={{
+                                      color: transaction.paidByMe ? jonyColors.accent1 : jonyColors.magenta
+                                    }}>
+                                      {formatCurrency(transaction.personAmount)}
+                                    </p>
+                                    <p className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                                      {transaction.paidByMe ? 'Schuldet dir' : 'Du schuldest'}
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Button für einzelne Ausgabe begleichen */}
+                                  {!isTransactionSettled && transaction.paidByMe && (
+                                    <button
+                                      onClick={() => handleMarkSingleExpenseAsPaid(
+                                        transaction.id, 
+                                        person.name, 
+                                        transaction.isFromSharedExpenses || false
+                                      )}
+                                      disabled={processingId === `single-${transaction.id}-${person.name}`}
+                                      className="px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105"
+                                      style={{
+                                        backgroundColor: jonyColors.accent1,
+                                        color: jonyColors.background,
+                                        opacity: processingId === `single-${transaction.id}-${person.name}` ? 0.5 : 1
+                                      }}
+                                    >
+                                      {processingId === `single-${transaction.id}-${person.name}` ? '...' : 'Bezahlt'}
+                                    </button>
+                                  )}
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <p className="font-semibold" style={{
-                                  color: transaction.paidByMe ? jonyColors.accent1 : jonyColors.magenta
-                                }}>
-                                  {formatCurrency(transaction.personAmount)}
-                                </p>
-                                <p className="text-xs" style={{ color: jonyColors.textSecondary }}>
-                                  {transaction.paidByMe ? 'Schuldet dir' : 'Du schuldest'}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -718,7 +1348,7 @@ const SharedExpensesPage = () => {
             </div>
           )}
 
-          {monthlyData.data.length === 0 && sharedExpenses.length > 0 && (
+          {monthlyData.data.length === 0 && hasAnySharedExpenses && (
             <div className="mt-8 text-center py-16 border-2 border-dashed rounded-2xl" style={{
               borderColor: jonyColors.border
             }}>

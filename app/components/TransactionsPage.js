@@ -182,7 +182,7 @@ const TransactionsPage = () => {
         <div className="max-w-7xl mx-auto">
         
           {/* Header */}
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
               <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
@@ -363,16 +363,22 @@ const TransactionsPage = () => {
                                                             });
                                                             return (
                                                                 <>
-                                                                    {validPersons.slice(0, 3).map((person, index) => (
-                                                                        <div 
-                                                                            key={index}
-                                                                            className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold text-white"
-                                                                            style={{ backgroundColor: person.color || '#666' }}
-                                                                            title={person.name || 'Unbekannt'}
-                                                                        >
-                                                                            {(person.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                                                        </div>
-                                                                    ))}
+                                                                    {validPersons.slice(0, 3).map((person, index) => {
+                                                                        // Check if this person has paid (is in settledWithPersons array)
+                                                                        const hasPaid = tx.settledWithPersons && tx.settledWithPersons.includes(person.name);
+                                                                        const avatarColor = hasPaid ? jonyColors.accent1 : jonyColors.magenta;
+                                                                        
+                                                                        return (
+                                                                            <div 
+                                                                                key={index}
+                                                                                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                                                                                style={{ backgroundColor: avatarColor }}
+                                                                                title={`${person.name || 'Unbekannt'}${hasPaid ? ' ✓ Bezahlt' : ''}`}
+                                                                            >
+                                                                                {(person.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                     {validPersons.length > 3 && (
                                                                         <div 
                                                                             className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold"
@@ -392,9 +398,16 @@ const TransactionsPage = () => {
                                                 )}
                                                 {tx.sharedWith && Array.isArray(tx.sharedWith) && tx.sharedWith.length > 0 ? (
                                                     <div className="text-right">
-                                                        <p className="font-semibold text-lg" style={{color: isIncome ? jonyColors.accent1 : jonyColors.textPrimary}}>{isIncome ? '+' : ''}{formatCurrency(tx.amount)}</p>
+                                                        <p className="font-semibold text-lg" style={{color: isIncome ? jonyColors.accent1 : jonyColors.textPrimary}}>
+                                                            {isIncome ? '+' : ''}{formatCurrency(tx.amount)}
+                                                        </p>
+                                                        {tx.originalAmount && tx.originalAmount !== tx.amount && (
+                                                            <p className="text-xs line-through" style={{color: jonyColors.textTertiary}}>
+                                                                urspr: {formatCurrency(tx.originalAmount)}
+                                                            </p>
+                                                        )}
                                                         <p className="text-xs" style={{color: jonyColors.textSecondary}}>
-                                                            Du: {formatCurrency(Math.abs(tx.amount) / (tx.sharedWith.length + 1))}
+                                                            Du: {formatCurrency(Math.abs(tx.originalAmount || tx.amount) / (tx.sharedWith.length + 1))}
                                                         </p>
                                                     </div>
                                                 ) : (

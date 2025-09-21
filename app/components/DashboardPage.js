@@ -84,6 +84,55 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     return SAVINGS_KEYWORDS.some(keyword => text.includes(keyword));
   };
 
+  // Hilfsfunktion zum Berechnen des anteiligen Betrags für teilweise ausgeglichene Transaktionen
+  const calculateMyRemainingShare = (transaction) => {
+    if (!transaction.sharedWith || !Array.isArray(transaction.sharedWith)) {
+      return Math.abs(transaction.amount);
+    }
+    
+    // NEUE LOGIK: Verwende den aktuellen Betrag der Transaktion
+    // Wenn Personen bereits bezahlt haben, wurde der Betrag bereits reduziert
+    return Math.abs(transaction.amount);
+  };
+
+  // Hilfsfunktion zum Filtern von Transaktionen unter Berücksichtigung geteilter Ausgaben
+  const filterTransactionsWithSharedExpenseLogic = (transactionsList, dateFilter) => {
+    return transactionsList.map(t => {
+      const isInDateRange = dateFilter(t);
+      if (!isInDateRange) return null;
+      
+      // Berücksichtige "mein Anteil" Transaktionen immer
+      if (t.settledFromSharedExpense) {
+        return t;
+      }
+      
+      // Für geteilte Ausgaben: berechne anteiligen Betrag
+      if (t.sharedWith && Array.isArray(t.sharedWith) && t.sharedWith.length > 0) {
+        const settledWithPersons = t.settledWithPersons || [];
+        const allPersonsSettled = t.sharedWith.every(person => 
+          settledWithPersons.includes(person.name)
+        );
+        
+        // Nicht berücksichtigen wenn mit allen Personen ausgeglichen
+        if (allPersonsSettled) {
+          return null;
+        }
+        
+        // Berechne meinen anteiligen Betrag für noch nicht ausgeglichene Personen
+        const myRemainingShare = calculateMyRemainingShare(t);
+        
+        // Erstelle eine modifizierte Kopie der Transaktion mit dem anteiligen Betrag
+        return {
+          ...t,
+          amount: t.amount < 0 ? -myRemainingShare : myRemainingShare,
+          originalAmount: t.amount
+        };
+      }
+      
+      return t;
+    }).filter(t => t !== null);
+  };
+
   // State for subscriptions
   const [showAddSubscriptionModal, setShowAddSubscriptionModal] = useState(false);
   const [newSubscription, setNewSubscription] = useState({ name: '', amount: '' });
@@ -824,8 +873,11 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     
     const selectedMonthTransactions = transactions.filter(t => {
       const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === selectedMonthIndex && 
-             transactionDate.getFullYear() === selectedYear;
+      const isInMonth = transactionDate.getMonth() === selectedMonthIndex && 
+                       transactionDate.getFullYear() === selectedYear;
+      
+      // Alle Transaktionen im Monat berücksichtigen - geteilte Ausgaben werden später anteilig berechnet
+      return isInMonth;
     });
     
     const income = selectedMonthTransactions
@@ -837,10 +889,15 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
       .filter(t => t.amount < 0 && detectSavings(t.category, t.description, t.recipient))
       .reduce((sum, t) => sum + t.amount, 0));
 
-    // Only regular expenses (excluding savings) for display
-    const expenses = Math.abs(selectedMonthTransactions
-      .filter(t => t.amount < 0 && !detectSavings(t.category, t.description, t.recipient))
-      .reduce((sum, t) => sum + t.amount, 0));
+    // Only regular expenses (excluding savings and settlement transactions) for display
+    const expenses = selectedMonthTransactions
+      .filter(t => t.amount < 0 && 
+                   !detectSavings(t.category, t.description, t.recipient) &&
+                   !t.settledFromSharedExpense) // Ignore settlement transactions
+      .reduce((sum, t) => {
+        // Für geteilte Ausgaben: verwende den aktuellen (bereits reduzierten) Betrag
+        return sum + Math.abs(t.amount);
+      }, 0);
     
     return { income, expenses, savings };
   };
@@ -927,7 +984,14 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     
     const yearTransactions = transactions.filter(t => {
       const transactionDate = new Date(t.date);
-      return transactionDate.getFullYear() === currentYear;
+      const isInYear = transactionDate.getFullYear() === currentYear;
+      
+      // Für geteilte Ausgaben: nur berücksichtigen wenn ich bezahlt habe oder keine geteilte Ausgabe
+      if (t.sharedWith && Array.isArray(t.sharedWith) && t.sharedWith.length > 0) {
+        return isInYear && t.paidByThem === true;
+      }
+      
+      return isInYear;
     });
     
     const annualIncome = yearTransactions
@@ -979,21 +1043,27 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     const selectedYear = selectedDate.getFullYear();
     const selectedMonthBudget = selectedMonthIndex + 1; // Convert to 1-12 for budget comparison
     
-    // Get all expense transactions for selected month
+    // Get all expense transactions for selected month (excluding settlement transactions)
     const selectedMonthTransactions = transactions.filter(t => {
       const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === selectedMonthIndex && 
-             transactionDate.getFullYear() === selectedYear &&
-             t.amount < 0; // Only expenses
+      const isInMonth = transactionDate.getMonth() === selectedMonthIndex && 
+                       transactionDate.getFullYear() === selectedYear &&
+                       t.amount < 0 && // Only expenses
+                       !t.settledFromSharedExpense; // Exclude settlement transactions
+      
+      return isInMonth;
     });
     
-    // Calculate total monthly expenses
-    const totalMonthlyExpenses = selectedMonthTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    // Calculate total monthly expenses (use current transaction amounts)
+    const totalMonthlyExpenses = selectedMonthTransactions.reduce((sum, t) => {
+      return sum + Math.abs(t.amount);
+    }, 0);
     
-    // Group expenses by category
+    // Group expenses by category (use current transaction amounts)
     const expensesByCategory = selectedMonthTransactions.reduce((acc, t) => {
       const category = t.category || 'Unbekannt';
-      acc[category] = (acc[category] || 0) + Math.abs(t.amount);
+      const amount = Math.abs(t.amount);
+      acc[category] = (acc[category] || 0) + amount;
       return acc;
     }, {});
     
@@ -1059,19 +1129,23 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     const monthIndex = selectedDate.getMonth();
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
     
-    // Get all expense transactions for the selected month
+    // Get all expense transactions for the selected month (excluding settlement transactions)
     const monthTransactions = transactions.filter(t => {
       const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === monthIndex && 
-             transactionDate.getFullYear() === year &&
-             t.amount < 0; // Only expenses
+      const isInMonth = transactionDate.getMonth() === monthIndex && 
+                       transactionDate.getFullYear() === year &&
+                       t.amount < 0 && // Only expenses
+                       !t.settledFromSharedExpense; // Exclude settlement transactions
+      
+      return isInMonth;
     });
     
-    // Group expenses by day
+    // Group expenses by day (use current transaction amounts)
     const dailyExpenses = {};
     monthTransactions.forEach(t => {
       const day = new Date(t.date).getDate();
-      dailyExpenses[day] = (dailyExpenses[day] || 0) + Math.abs(t.amount);
+      const amount = Math.abs(t.amount);
+      dailyExpenses[day] = (dailyExpenses[day] || 0) + amount;
     });
     
     // Create daily data array
@@ -1086,10 +1160,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     return dailyData;
   };
 
-  const dailySpendingData = useMemo(() => 
-    generateDailySpendingData(currentMonth), 
-    [transactions, currentMonth]
-  );
+  const dailySpendingData = useMemo(() => generateDailySpendingData(currentMonth), [transactions, currentMonth]);
 
 
   // Calculate annual savings rate data with different views
@@ -1101,7 +1172,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     // 1 Year View: All 12 months of current year
     const oneYearData = [];
     for (let month = 0; month < 12; month++) {
-      const monthlyTransactions = transactions.filter(t => {
+      const monthlyTransactions = filterTransactionsWithSharedExpenseLogic(transactions, t => {
         const transactionDate = new Date(t.date);
         return transactionDate.getMonth() === month && 
                transactionDate.getFullYear() === currentYear;
@@ -1128,7 +1199,7 @@ const DashboardPage = ({ setPage, currentMonth, changeMonth }) => {
     for (let i = 4; i >= 0; i--) {
       const year = currentYear - i;
       
-      const yearTransactions = transactions.filter(t => {
+      const yearTransactions = filterTransactionsWithSharedExpenseLogic(transactions, t => {
         const transactionDate = new Date(t.date);
         return transactionDate.getFullYear() === year;
       });

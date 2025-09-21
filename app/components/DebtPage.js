@@ -209,7 +209,7 @@ const DebtPage = () => {
       <div className="px-6 py-8 mb-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: jonyColors.magenta }}></div>
               <h1 className="text-3xl font-bold tracking-tight" style={{ color: jonyColors.textPrimary, letterSpacing: '-0.02em' }}>
@@ -293,7 +293,7 @@ const DebtPage = () => {
               backgroundColor: jonyColors.surface,
               border: `1px solid ${jonyColors.border}`
             }}>
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-2xl font-bold mb-1" style={{ color: jonyColors.textPrimary }}>Schulden Übersicht</h3>
                   <p className="text-sm font-medium" style={{ color: jonyColors.textSecondary }}>Deine Kredite und Schulden im Überblick</p>

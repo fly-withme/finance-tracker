@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Tag, Euro, Calendar, FileText, X, Plus } from 'lucide-react';
+import { Tag, Euro, Calendar, FileText, X, Plus, Users } from 'lucide-react';
 import AutocompleteCategorySelector from '../AutocompleteCategorySelector';
 import { db } from '../../utils/db';
 import { jonyColors } from '../../theme';
@@ -55,6 +55,298 @@ const SplitStatus = ({ remaining, userShare, currency = '€' }) => {
   );
 };
 
+// Modal für Kosten aufteilen - minimalistisches Dashboard-Design
+const SplitExpenseModal = ({ 
+  isOpen, 
+  onClose, 
+  amount, 
+  splitConfig, 
+  setSplitConfig,
+  userShare,
+  participantShares,
+  remainingAmount,
+  transaction,
+  formAmount 
+}) => {
+  if (!isOpen) return null;
+
+  // Berechne die Anteile basierend auf dem amount Parameter (der sollte der richtige sein)
+  const numParticipants = splitConfig.participants.length + 1;
+  let modalUserShare = 0;
+  let modalParticipantShares = {};
+
+  if (splitConfig.splitType === 'EQUAL') {
+    const share = amount > 0 && numParticipants > 0 ? amount / numParticipants : 0;
+    modalUserShare = share;
+    splitConfig.participants.forEach(p => modalParticipantShares[p] = share);
+  } else { // AMOUNT
+    let assignedByOthers = 0;
+    splitConfig.participants.forEach(p => {
+      const customAmount = parseFloat(splitConfig.customAmounts[p]) || 0;
+      modalParticipantShares[p] = customAmount;
+      assignedByOthers += customAmount;
+    });
+    modalUserShare = amount - assignedByOthers;
+  }
+
+  const addParticipant = () => {
+    const newParticipant = `Person ${splitConfig.participants.length + 1}`;
+    setSplitConfig(prev => ({ 
+      ...prev, 
+      participants: [...prev.participants, newParticipant],
+      isSplitting: true 
+    }));
+  };
+  
+  const removeParticipant = (nameToRemove) => {
+    setSplitConfig(prev => {
+      const newParticipants = prev.participants.filter(p => p !== nameToRemove);
+      return {
+        ...prev,
+        participants: newParticipants,
+        customAmounts: Object.fromEntries(Object.entries(prev.customAmounts).filter(([name]) => name !== nameToRemove)),
+        isSplitting: newParticipants.length > 0
+      };
+    });
+  };
+
+  const handleSplitTypeChange = (type) => setSplitConfig(prev => ({ ...prev, splitType: type }));
+  
+  const handleCustomAmountChange = (name, amount) => {
+    setSplitConfig(prev => ({
+        ...prev,
+        customAmounts: { ...prev.customAmounts, [name]: amount }
+    }));
+  };
+  
+  const handleParticipantNameChange = (index, newName) => {
+    const oldName = splitConfig.participants[index];
+    const newParticipants = [...splitConfig.participants];
+    newParticipants[index] = newName;
+
+    const newCustomAmounts = { ...splitConfig.customAmounts };
+    if (oldName in newCustomAmounts) {
+      newCustomAmounts[newName] = newCustomAmounts[oldName];
+      delete newCustomAmounts[oldName];
+    }
+
+    setSplitConfig(prev => ({
+      ...prev,
+      participants: newParticipants,
+      customAmounts: newCustomAmounts
+    }));
+  };
+
+  const handleConfirm = () => {
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
+         style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+      <div className="rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl" 
+           style={{ 
+             backgroundColor: jonyColors.surface,
+             border: `1px solid ${jonyColors.border}`,
+             boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
+           }}>
+        
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b" 
+             style={{ borderColor: jonyColors.border }}>
+          <div className="flex items-center gap-3">
+            <Users className="w-5 h-5" style={{ color: jonyColors.textSecondary }} />
+            <h2 className="text-lg font-medium" style={{ color: jonyColors.textPrimary }}>
+              Kosten aufteilen
+            </h2>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-xl transition-all duration-200 hover:bg-opacity-80"
+            style={{ backgroundColor: jonyColors.cardBackground }}
+          >
+            <X className="w-4 h-4" style={{ color: jonyColors.textSecondary }} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          
+          {/* Betrag Anzeige */}
+          <div className="text-center p-4 rounded-2xl" 
+               style={{ backgroundColor: jonyColors.cardBackground }}>
+            <div className="text-sm" style={{ color: jonyColors.textSecondary }}>
+              Aufzuteilender Betrag
+            </div>
+            <div className="text-2xl font-bold" style={{ color: jonyColors.textPrimary }}>
+              {amount}€
+            </div>
+          </div>
+
+          {/* Split-Type Auswahl */}
+          <div className="flex gap-2 p-1 rounded-xl" 
+               style={{ backgroundColor: jonyColors.cardBackground }}>
+            <button 
+              onClick={() => handleSplitTypeChange('EQUAL')} 
+              className="flex-1 px-4 py-3 text-sm font-medium rounded-lg transition-all"
+              style={{
+                backgroundColor: splitConfig.splitType === 'EQUAL' ? jonyColors.textSecondary : 'transparent',
+                color: splitConfig.splitType === 'EQUAL' ? jonyColors.surface : jonyColors.textSecondary
+              }}
+            >
+              Gleichmäßig
+            </button>
+            <button 
+              onClick={() => handleSplitTypeChange('AMOUNT')} 
+              className="flex-1 px-4 py-3 text-sm font-medium rounded-lg transition-all"
+              style={{
+                backgroundColor: splitConfig.splitType === 'AMOUNT' ? jonyColors.textSecondary : 'transparent',
+                color: splitConfig.splitType === 'AMOUNT' ? jonyColors.surface : jonyColors.textSecondary
+              }}
+            >
+              Eigene Beträge
+            </button>
+          </div>
+
+          {/* Personen Liste */}
+          <div className="space-y-3">
+            
+            {/* Du */}
+            <div className="flex items-center gap-4 p-4 rounded-2xl" 
+                 style={{ backgroundColor: jonyColors.cardBackground }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium" 
+                   style={{ backgroundColor: jonyColors.border, color: jonyColors.textPrimary }}>
+                Du
+              </div>
+              <div className="flex-grow">
+                <div className="font-medium" style={{ color: jonyColors.textPrimary }}>Du</div>
+                <div className="text-xs" style={{ color: jonyColors.textSecondary }}>Bezahlt</div>
+              </div>
+              <div className="text-right">
+                <div className="font-medium" style={{ color: jonyColors.textPrimary }}>
+                  {modalUserShare.toFixed(2)}€
+                </div>
+                <div className="text-xs" style={{ color: jonyColors.textSecondary }}>Anteil</div>
+              </div>
+            </div>
+
+            {/* Andere Personen */}
+            {splitConfig.participants.map((p, i) => {
+              // Prüfe ob diese Person bereits bezahlt hat
+              const isSettled = transaction?.settledWithPersons?.includes(p);
+              
+              return (
+                <div key={i} className="flex items-center gap-4 p-4 rounded-2xl" 
+                     style={{ 
+                       backgroundColor: jonyColors.cardBackground,
+                       opacity: isSettled ? 0.6 : 1 
+                     }}>
+                  <Avatar name={p} />
+                  <div className="flex-grow">
+                    <input 
+                      type="text" 
+                      value={p} 
+                      onChange={(e) => handleParticipantNameChange(i, e.target.value)} 
+                      className="w-full font-medium bg-transparent focus:outline-none p-1 rounded-lg" 
+                      style={{ color: jonyColors.textPrimary }}
+                      placeholder="Name eingeben..."
+                      disabled={isSettled}
+                    />
+                    <div className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                      {isSettled ? 'Bereits bezahlt' : 'Schuldet'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {splitConfig.splitType === 'EQUAL' ? (
+                      <div className="text-right">
+                        <div className="font-medium" style={{ 
+                          color: isSettled ? jonyColors.accent1 : jonyColors.textPrimary 
+                        }}>
+                          {modalParticipantShares[p]?.toFixed(2) || '0.00'}€
+                        </div>
+                        <div className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                          {isSettled ? 'Bezahlt' : 'Anteil'}
+                        </div>
+                      </div>
+                    ) : (
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        value={splitConfig.customAmounts[p] || ''} 
+                        onChange={(e) => handleCustomAmountChange(p, e.target.value)} 
+                        className="w-20 text-right font-medium rounded-lg px-2 py-1 focus:outline-none" 
+                        style={{
+                          backgroundColor: jonyColors.surface, 
+                          color: isSettled ? jonyColors.accent1 : jonyColors.textPrimary, 
+                          border: `1px solid ${jonyColors.border}`
+                        }}
+                        placeholder="0.00"
+                        disabled={isSettled}
+                      />
+                    )}
+                    {!isSettled && (
+                      <button 
+                        onClick={() => removeParticipant(p)}
+                        className="p-1 rounded-lg transition-all duration-200 hover:bg-opacity-80"
+                        style={{ backgroundColor: jonyColors.surface }}
+                      >
+                        <X className="w-4 h-4" style={{ color: jonyColors.textSecondary }} />
+                      </button>
+                    )}
+                    {isSettled && (
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center" 
+                           style={{ backgroundColor: jonyColors.accent1Alpha }}>
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: jonyColors.accent1 }}></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            
+            {/* Person hinzufügen */}
+            <button 
+              onClick={addParticipant} 
+              className="w-full flex items-center gap-3 justify-center p-4 rounded-2xl border border-dashed transition-all hover:bg-opacity-50" 
+              style={{
+                borderColor: jonyColors.border, 
+                color: jonyColors.textSecondary,
+                backgroundColor: 'transparent'
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="font-medium">Person hinzufügen</span>
+            </button>
+          </div>
+
+          {/* Status */}
+          <div className="p-4 rounded-2xl border" 
+               style={{ 
+                 backgroundColor: jonyColors.cardBackground,
+                 borderColor: Math.abs(remainingAmount) < 0.01 ? jonyColors.border : jonyColors.orangeLight
+               }}>
+            <SplitStatus remaining={remainingAmount} userShare={modalUserShare} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end p-6 border-t" style={{ borderColor: jonyColors.border }}>
+          <button 
+            onClick={onClose}
+            className="px-6 py-3 rounded-xl font-medium transition-all duration-200"
+            style={{
+              backgroundColor: jonyColors.textSecondary,
+              color: jonyColors.surface
+            }}
+          >
+            Fertig
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Hauptkomponente ---
 
 const INCOME_CATEGORY_NAME = 'Income'; // Oder 'Einnahme', je nachdem was in Ihrer DB steht
@@ -104,6 +396,8 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
     account: transaction?.account || accounts[0]?.name || '',
   });
 
+  const [showSplitModal, setShowSplitModal] = useState(false);
+
   const [splitConfig, setSplitConfig] = useState(() => {
     // Handle existing shared expense data
     if (transaction?.sharedWith?.length > 0) {
@@ -142,8 +436,15 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
   const isIncome = detectIncome(formData.recipient, formData.description, formData.category);
 
   const { userShare, participantShares, remainingAmount } = useMemo(() => {
-    const totalAmount = parseFloat(formData.amount) || 0;
-    if (!splitConfig.isSplitting) return { userShare: totalAmount, participantShares: {}, remainingAmount: 0 };
+    // Für existierende Transaktionen mit originalAmount, verwende das für Split-Berechnung
+    // Für neue Transaktionen, verwende formData.amount
+    const inputAmount = parseFloat(formData.amount) || 0;
+    const originalAmount = transaction?.originalAmount;
+    
+    // Verwende originalAmount für Split-Berechnung wenn vorhanden, sonst inputAmount
+    const totalAmount = originalAmount || inputAmount;
+    
+    if (!splitConfig.isSplitting) return { userShare: inputAmount, participantShares: {}, remainingAmount: 0 };
     
     const numParticipants = splitConfig.participants.length + 1;
     let currentUserShare = 0;
@@ -166,7 +467,7 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
       totalAssigned = assignedByOthers + currentUserShare;
     }
     return { userShare: currentUserShare, participantShares: otherParticipantShares, remainingAmount: totalAmount - totalAssigned };
-  }, [formData.amount, splitConfig]);
+  }, [formData.amount, splitConfig, transaction?.originalAmount]);
 
   const handleChange = (e) => {
     const newData = { ...formData, [e.target.name]: e.target.value };
@@ -201,54 +502,11 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
   };
   
   const toggleSplit = () => {
-    setSplitConfig(prev => {
-        const newState = !prev.isSplitting;
-        return {
-            ...prev,
-            isSplitting: newState,
-            participants: newState && prev.participants.length === 0 ? ['Person 1'] : (newState ? prev.participants : []),
-            customAmounts: newState ? prev.customAmounts : {},
-        }
-    });
-  };
-  
-  const addParticipant = () => {
-    const newParticipant = `Person ${splitConfig.participants.length + 1}`;
-    setSplitConfig(prev => ({ ...prev, participants: [...prev.participants, newParticipant] }));
-  };
-  
-  const removeParticipant = (nameToRemove) => {
     setSplitConfig(prev => ({
       ...prev,
-      participants: prev.participants.filter(p => p !== nameToRemove),
-      customAmounts: Object.fromEntries(Object.entries(prev.customAmounts).filter(([name]) => name !== nameToRemove))
-    }));
-  };
-
-  const handleSplitTypeChange = (type) => setSplitConfig(prev => ({ ...prev, splitType: type }));
-  
-  const handleCustomAmountChange = (name, amount) => {
-    setSplitConfig(prev => ({
-        ...prev,
-        customAmounts: { ...prev.customAmounts, [name]: amount }
-    }));
-  };
-  
-  const handleParticipantNameChange = (index, newName) => {
-    const oldName = splitConfig.participants[index];
-    const newParticipants = [...splitConfig.participants];
-    newParticipants[index] = newName;
-
-    const newCustomAmounts = { ...splitConfig.customAmounts };
-    if (oldName in newCustomAmounts) {
-      newCustomAmounts[newName] = newCustomAmounts[oldName];
-      delete newCustomAmounts[oldName];
-    }
-
-    setSplitConfig(prev => ({
-      ...prev,
-      participants: newParticipants,
-      customAmounts: newCustomAmounts
+      isSplitting: false,
+      participants: [],
+      customAmounts: {},
     }));
   };
   
@@ -367,47 +625,69 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
         {!isIncome && (
           <div>
             {!splitConfig.isSplitting ? (
-              <button type="button" onClick={toggleSplit} className="w-full flex items-center gap-2 justify-center py-3 rounded-xl transition-all hover:opacity-80" style={{ backgroundColor: jonyColors.cardBackground, border: `1px solid ${jonyColors.cardBorder}`}}>
-                <Plus className="w-4 h-4" style={{ color: jonyColors.textSecondary }}/>
-                <span className="text-sm font-semibold" style={{ color: jonyColors.textSecondary }}>Ausgabe teilen</span>
+              <button 
+                type="button" 
+                onClick={() => {
+                  // Wenn noch keine Personen vorhanden sind, füge automatisch eine hinzu
+                  if (splitConfig.participants.length === 0) {
+                    setSplitConfig(prev => ({ 
+                      ...prev, 
+                      participants: ['Person 1'],
+                      isSplitting: true 
+                    }));
+                  }
+                  setShowSplitModal(true);
+                }} 
+                className="w-full flex items-center gap-3 justify-center py-4 rounded-2xl transition-all hover:bg-opacity-50 border border-dashed" 
+                style={{ 
+                  backgroundColor: 'transparent', 
+                  borderColor: jonyColors.border, 
+                  color: jonyColors.textSecondary 
+                }}
+              >
+                <Users className="w-5 h-5" style={{ color: jonyColors.textSecondary }}/>
+                <div className="text-left">
+                  <div className="font-medium text-sm">Mit anderen teilen</div>
+                  <div className="text-xs opacity-75">Kosten aufteilen und Rückzahlungen verwalten</div>
+                </div>
               </button>
             ) : (
-              <div className="w-full rounded-xl p-4 space-y-4" style={{ backgroundColor: jonyColors.surface, border: `1px solid ${jonyColors.cardBorder}` }}>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold flex items-center gap-2">Geteilt mit <button type="button" onClick={toggleSplit}><X className="w-4 h-4" style={{color: jonyColors.textSecondary}} /></button></h3>
-                  <div className="flex items-center gap-1 p-1 rounded-lg" style={{backgroundColor: jonyColors.cardBackground}}>
-                    <button type="button" onClick={() => handleSplitTypeChange('EQUAL')} className="px-2 py-1 text-xs rounded-md transition-colors" style={{backgroundColor: splitConfig.splitType === 'EQUAL' ? jonyColors.accent1 : 'transparent', color: splitConfig.splitType === 'EQUAL' ? 'black' : jonyColors.textSecondary}}>Gleichmäßig</button>
-                    <button type="button" onClick={() => handleSplitTypeChange('AMOUNT')} className="px-2 py-1 text-xs rounded-md transition-colors" style={{backgroundColor: splitConfig.splitType === 'AMOUNT' ? jonyColors.accent1 : 'transparent', color: splitConfig.splitType === 'AMOUNT' ? 'black' : jonyColors.textSecondary}}>Nach Betrag</button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar name="Du" />
-                    <div className="flex-grow"><p className="text-sm font-semibold">Du</p><p className="text-xs" style={{color: jonyColors.textSecondary}}>Bezahlt: {(parseFloat(formData.amount) || 0).toFixed(2)}€</p></div>
-                    <div className="text-sm font-semibold text-right">{userShare.toFixed(2)}€</div>
-                  </div>
-
-                  {splitConfig.participants.map((p, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <Avatar name={p} />
-                      <input type="text" value={p} onChange={(e) => handleParticipantNameChange(i, e.target.value)} className="flex-grow text-sm bg-transparent focus:outline-none p-1 rounded-md focus:ring-1" style={{'--tw-ring-color': jonyColors.accent1}}/>
-                      {splitConfig.splitType === 'EQUAL' ? (
-                         <div className="text-sm text-right w-24" style={{color: jonyColors.textSecondary}}>{participantShares[p]?.toFixed(2) || '0.00'}€</div>
-                      ) : (
-                        <input type="number" step="0.01" value={splitConfig.customAmounts[p] || ''} onChange={(e) => handleCustomAmountChange(p, e.target.value)} className="w-24 text-right bg-transparent rounded-lg px-2 py-1 focus:outline-none" style={{backgroundColor: jonyColors.cardBackground}}/>
-                      )}
-                      <button type="button" onClick={() => removeParticipant(p)}><X className="w-4 h-4" style={{color: jonyColors.textSecondary}} /></button>
+              <div className="flex items-center justify-between p-4 rounded-2xl" 
+                   style={{ 
+                     backgroundColor: jonyColors.cardBackground, 
+                     border: `1px solid ${jonyColors.border}` 
+                   }}>
+                <div className="flex items-center gap-3">
+                  <Users className="w-5 h-5" style={{ color: jonyColors.textSecondary }} />
+                  <div>
+                    <div className="font-medium" style={{ color: jonyColors.textPrimary }}>
+                      Mit {splitConfig.participants.length} Person{splitConfig.participants.length !== 1 ? 'en' : ''} geteilt
                     </div>
-                  ))}
-                  
-                  <button type="button" onClick={addParticipant} className="w-full flex items-center gap-2 text-sm p-2 rounded-lg hover:opacity-80 transition-opacity" style={{color: jonyColors.textSecondary}}>
-                    <Plus className="w-4 h-4"/> Person hinzufügen
-                  </button>
+                    <div className="text-xs" style={{ color: jonyColors.textSecondary }}>
+                      Dein Anteil: {userShare.toFixed(2)}€
+                    </div>
+                  </div>
                 </div>
-                
-                <div className="pt-2 border-t" style={{borderColor: jonyColors.cardBorder}}>
-                  <SplitStatus remaining={remainingAmount} userShare={userShare} />
+                <div className="flex items-center gap-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowSplitModal(true)}
+                    className="px-3 py-1 rounded-lg text-xs font-medium transition-all"
+                    style={{ 
+                      backgroundColor: jonyColors.surface, 
+                      color: jonyColors.textSecondary 
+                    }}
+                  >
+                    Bearbeiten
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={toggleSplit}
+                    className="p-1 rounded-lg transition-all hover:bg-opacity-80" 
+                    style={{ backgroundColor: jonyColors.surface }}
+                  >
+                    <X className="w-4 h-4" style={{ color: jonyColors.textSecondary }} />
+                  </button>
                 </div>
               </div>
             )}
@@ -423,6 +703,20 @@ const TransactionForm = ({ transaction, onSave, onCancel, categories, accounts }
           </button>
         </div>
       </form>
+
+      {/* Modal für Kosten aufteilen */}
+      <SplitExpenseModal
+        isOpen={showSplitModal}
+        onClose={() => setShowSplitModal(false)}
+        amount={transaction?.originalAmount || parseFloat(formData.amount) || 0}
+        splitConfig={splitConfig}
+        setSplitConfig={setSplitConfig}
+        userShare={userShare}
+        participantShares={participantShares}
+        remainingAmount={remainingAmount}
+        transaction={transaction}
+        formAmount={parseFloat(formData.amount) || 0}
+      />
     </div>
   );
 };
